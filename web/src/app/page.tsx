@@ -106,7 +106,7 @@ const UPSSHubLanding = () => {
               variants={fadeInUp}
               className="text-5xl md:text-7xl font-bold bg-gradient-to-r from-emerald-600 to-purple-600 bg-clip-text text-transparent mb-6"
             >
-              UPSS Hub
+              UPSS Plus
             </motion.h1>
             
             <motion.p 
@@ -464,15 +464,15 @@ const UPSSHubLanding = () => {
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center">
             <h3 className="text-2xl font-bold bg-gradient-to-r from-emerald-400 to-purple-400 bg-clip-text text-transparent mb-4">
-              UPSS Hub
+              UPSS Plus
             </h3>
-            <p className="text-lg text-gray-300 mb-6">Knowledge and Virtue</p>
+            <p className="text-lg text-gray-300 mb-6">Hard Work Pays</p>
             <div className="flex flex-col sm:flex-row justify-center items-center gap-6 text-gray-400">
               <span>Contact & Support</span>
               <span className="hidden sm:block">•</span>
               <span>Version 1.0.0</span>
               <span className="hidden sm:block">•</span>
-              <span>© 2024 UPSS Hub</span>
+              <span>© 2025 UPSS Plus</span>
             </div>
           </div>
         </div>
