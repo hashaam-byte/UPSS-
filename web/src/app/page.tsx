@@ -74,7 +74,7 @@ const UPSSHubLanding = () => {
       author: "Student"
     },
     {
-      text: "It's easier to track assignments and results.",
+      text: "It is easier to track assignments and results.",
       author: "Teacher"
     }
   ];
