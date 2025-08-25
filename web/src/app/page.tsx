@@ -1,5 +1,5 @@
 'use client'
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Megaphone, 
@@ -413,7 +413,7 @@ const UPSSHubLanding = () => {
                 variants={fadeInUp}
                 className="p-8 bg-white rounded-2xl shadow-lg text-center"
               >
-                <p className="text-lg text-gray-700 mb-4 italic">"{testimonial.text}"</p>
+                <p className="text-lg text-gray-700 mb-4 italic">&ldquo;{testimonial.text}&rdquo;</p>
                 <p className="text-gray-500 font-semibold">— {testimonial.author}</p>
               </motion.div>
             ))}
@@ -480,6 +480,5 @@ const UPSSHubLanding = () => {
     </div>
   );
 };
-
 
 export default UPSSHubLanding;
