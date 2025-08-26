@@ -87,10 +87,10 @@ const LoginPage = () => {
     
     // Redirect based on role (in real app, this would be handled by router)
     const dashboardRoutes = {
-      'student': '/student-dashboard',
-      'teacher': '/teacher-dashboard', 
-      'admin': '/admin-dashboard',
-      'head-admin': '/head-admin-dashboard'
+      'student': '/dashboard/students',
+      'teacher': '/dashboard/teachers',
+      'admin': '/dashboard/admin',
+      'head-admin': '/dashboard/headAdmin'
     };
     
     alert(`Login successful! Redirecting to ${dashboardRoutes[selectedRole]}`);
