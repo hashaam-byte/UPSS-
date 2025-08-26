@@ -22,13 +22,6 @@ import EnhancedAdminSidebar from '@/components/sidebar/Admin'; // Adjust the imp
 
 const AdminDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [currentTime, setCurrentTime] = useState(new Date());
-
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
   // Mock data
   const admin = {
     name: "Mr. John Okwu",
