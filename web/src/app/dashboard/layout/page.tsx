@@ -1,11 +1,11 @@
 'use client'
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Moon, Sun, Menu, X } from 'lucide-react';
 
 // Theme Context
-const ThemeContext = createContext();
-const SidebarContext = createContext();
+const ThemeContext = createContext<any>(null);
+const SidebarContext = createContext<any>(null);
 
 export const useTheme = () => {
   const context = useContext(ThemeContext);
@@ -24,21 +24,17 @@ export const useSidebar = () => {
 };
 
 // Theme Provider
-const ThemeProvider = ({ children }) => {
-  const [theme, setTheme] = useState('light');
+const ThemeProvider = ({ children }: { children: ReactNode }) => {
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {
-    // Check for saved theme in localStorage or system preference
     const savedTheme = localStorage.getItem('theme');
     const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    
-    setTheme(savedTheme || systemTheme);
+    setTheme((savedTheme as 'light' | 'dark') || systemTheme);
   }, []);
 
   useEffect(() => {
     localStorage.setItem('theme', theme);
-    
-    // Apply theme to document
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');
     } else {
@@ -47,7 +43,7 @@ const ThemeProvider = ({ children }) => {
   }, [theme]);
 
   const toggleTheme = () => {
-    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+    setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
   };
 
   return (
@@ -58,7 +54,7 @@ const ThemeProvider = ({ children }) => {
 };
 
 // Sidebar Provider
-const SidebarProvider = ({ children }) => {
+const SidebarProvider = ({ children }: { children: ReactNode }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -67,34 +63,27 @@ const SidebarProvider = ({ children }) => {
   const closeSidebar = () => setSidebarOpen(false);
 
   return (
-    <SidebarContext.Provider value={{
-      sidebarOpen,
-      sidebarCollapsed,
-      toggleSidebar,
-      toggleCollapse,
-      closeSidebar,
-      setSidebarOpen
-    }}>
+    <SidebarContext.Provider
+      value={{ sidebarOpen, sidebarCollapsed, toggleSidebar, toggleCollapse, closeSidebar, setSidebarOpen }}
+    >
       {children}
     </SidebarContext.Provider>
   );
 };
 
 // Enhanced Sidebar Component
-const EnhancedSidebar = ({ children, user, sidebarItems, bottomContent }) => {
-  const { sidebarOpen, sidebarCollapsed, toggleCollapse } = useSidebar();
-  const { theme } = useTheme();
-
+const EnhancedSidebar = ({ children }: { children: ReactNode }) => {
+  const { sidebarOpen, sidebarCollapsed } = useSidebar();
   return (
     <>
       {/* Desktop Sidebar */}
-      <motion.div 
+      <motion.div
         className={`fixed inset-y-0 left-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl shadow-2xl border-r border-gray-200 dark:border-gray-700 transition-all duration-300 hidden lg:block ${
           sidebarCollapsed ? 'w-20' : 'w-64'
         }`}
         initial={false}
         animate={{ width: sidebarCollapsed ? 80 : 256 }}
-        transition={{ duration: 0.3, ease: "easeInOut" }}
+        transition={{ duration: 0.3, ease: 'easeInOut' }}
       >
         {children}
       </motion.div>
@@ -102,12 +91,12 @@ const EnhancedSidebar = ({ children, user, sidebarItems, bottomContent }) => {
       {/* Mobile Sidebar */}
       <AnimatePresence>
         {sidebarOpen && (
-          <motion.div 
+          <motion.div
             className="fixed inset-y-0 left-0 z-50 w-64 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl shadow-2xl lg:hidden"
             initial={{ x: -256 }}
             animate={{ x: 0 }}
             exit={{ x: -256 }}
-            transition={{ duration: 0.3, ease: "easeInOut" }}
+            transition={{ duration: 0.3, ease: 'easeInOut' }}
           >
             {children}
           </motion.div>
@@ -194,10 +183,15 @@ const MobileMenuButton = () => {
 };
 
 // Main Layout Component
-const DashboardLayout = ({ children, userType = 'student' }) => {
+interface DashboardLayoutProps {
+  children: ReactNode;
+  headerContent?: ReactNode;
+  headerActions?: ReactNode;
+}
+
+const DashboardLayout = ({ children, headerContent, headerActions }: DashboardLayoutProps) => {
   const { sidebarOpen, closeSidebar, sidebarCollapsed } = useSidebar();
 
-  // Close sidebar when clicking outside on mobile
   const handleOverlayClick = () => {
     closeSidebar();
   };
@@ -207,7 +201,7 @@ const DashboardLayout = ({ children, userType = 'student' }) => {
       {/* Mobile Overlay */}
       <AnimatePresence>
         {sidebarOpen && (
-          <motion.div 
+          <motion.div
             className="fixed inset-0 bg-black/50 z-30 lg:hidden"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -224,49 +218,36 @@ const DashboardLayout = ({ children, userType = 'student' }) => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <MobileMenuButton />
-              {children.props?.headerContent || (
+              {headerContent || (
                 <div>
                   <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Dashboard</h2>
                   <p className="text-gray-600 dark:text-gray-400">Welcome back!</p>
                 </div>
               )}
             </div>
-            
             <div className="flex items-center gap-4">
               <ThemeToggle />
-              {children.props?.headerActions}
+              {headerActions}
             </div>
           </div>
         </header>
 
         {/* Main Content Area */}
-        <main className="p-4 sm:p-6">
-          {children}
-        </main>
+        <main className="p-4 sm:p-6">{children}</main>
       </div>
     </div>
   );
 };
 
 // Root Layout Export
-export default function Layout({ children }) {
+export default function Layout({ children }: { children: ReactNode }) {
   return (
     <ThemeProvider>
       <SidebarProvider>
-        <DashboardLayout>
-          {children}
-        </DashboardLayout>
+        <DashboardLayout>{children}</DashboardLayout>
       </SidebarProvider>
     </ThemeProvider>
   );
 }
 
-// Export components for use in pages
-export {
-  ThemeProvider,
-  SidebarProvider,
-  EnhancedSidebar,
-  ThemeToggle,
-  MobileMenuButton,
-  DashboardLayout
-};
+export { ThemeProvider, SidebarProvider, EnhancedSidebar, ThemeToggle, MobileMenuButton, DashboardLayout };
