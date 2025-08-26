@@ -3,9 +3,24 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { motion, AnimatePresence } from 'framer-motion';
 import { Moon, Sun, Menu, X } from 'lucide-react';
 
+// Add types for context values
+interface ThemeContextType {
+  theme: 'light' | 'dark';
+  toggleTheme: () => void;
+}
+
+interface SidebarContextType {
+  sidebarOpen: boolean;
+  sidebarCollapsed: boolean;
+  toggleSidebar: () => void;
+  toggleCollapse: () => void;
+  closeSidebar: () => void;
+  setSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>;
+}
+
 // Theme Context
-const ThemeContext = createContext<any>(null);
-const SidebarContext = createContext<any>(null);
+const ThemeContext = createContext<ThemeContextType | null>(null);
+const SidebarContext = createContext<SidebarContextType | null>(null);
 
 export const useTheme = () => {
   const context = useContext(ThemeContext);
