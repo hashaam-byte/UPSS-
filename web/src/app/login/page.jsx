@@ -1,6 +1,7 @@
 'use client'
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useRouter } from 'next/navigation';
 import { 
   GraduationCap, 
   UserCheck, 
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 
 const LoginPage = () => {
+  const router = useRouter();
   const [selectedRole, setSelectedRole] = useState('student');
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -25,6 +27,7 @@ const LoginPage = () => {
     rememberMe: false
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const roles = [
     {
@@ -34,7 +37,8 @@ const LoginPage = () => {
       icon: GraduationCap,
       gradient: 'from-blue-500 to-blue-600',
       bgGradient: 'from-blue-50 to-blue-100',
-      emoji: '🎓'
+      emoji: '🎓',
+      route: '/dashboard/students'
     },
     {
       id: 'teacher',
@@ -43,7 +47,8 @@ const LoginPage = () => {
       icon: UserCheck,
       gradient: 'from-emerald-500 to-emerald-600',
       bgGradient: 'from-emerald-50 to-emerald-100',
-      emoji: '👩‍🏫'
+      emoji: '👩‍🏫',
+      route: '/dashboard/teachers'
     },
     {
       id: 'admin',
@@ -52,7 +57,8 @@ const LoginPage = () => {
       icon: Shield,
       gradient: 'from-purple-500 to-purple-600', 
       bgGradient: 'from-purple-50 to-purple-100',
-      emoji: '🏫'
+      emoji: '🏫',
+      route: '/dashboard/admin'
     },
     {
       id: 'head-admin',
@@ -61,11 +67,20 @@ const LoginPage = () => {
       icon: Crown,
       gradient: 'from-yellow-500 to-orange-500',
       bgGradient: 'from-yellow-50 to-orange-100',
-      emoji: '👑'
+      emoji: '👑',
+      route: '/dashboard/headAdmin'
     }
   ];
 
   const currentRole = roles.find(role => role.id === selectedRole);
+
+  // Demo credentials for testing
+  const demoCredentials = {
+    student: { username: 'student123', password: 'demo123' },
+    teacher: { username: 'teacher@upss.edu', password: 'demo123' },
+    admin: { username: 'admin@upss.edu', password: 'demo123' },
+    'head-admin': { username: 'headAdmin@upss.edu', password: 'demo123' }
+  };
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -73,28 +88,86 @@ const LoginPage = () => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
+    // Clear error when user starts typing
+    if (error) setError('');
+  };
+
+  const validateCredentials = (identifier, password, role) => {
+    const demo = demoCredentials[role];
+    return (identifier === demo.username || identifier === demo.username.toLowerCase()) && 
+           password === demo.password;
   };
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    
-    // Simulate login process
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Here you would integrate with your auth system
-    console.log('Login attempt:', { ...formData, role: selectedRole });
-    
-    // Redirect based on role (in real app, this would be handled by router)
-    const dashboardRoutes = {
-      'student': '/dashboard/students',
-      'teacher': '/dashboard/teachers',
-      'admin': '/dashboard/admin',
-      'head-admin': '/dashboard/headAdmin'
-    };
-    
-    alert(`Login successful! Redirecting to ${dashboardRoutes[selectedRole]}`);
-    setIsLoading(false);
+    setError('');
+
+    try {
+      // Basic validation
+      if (!formData.identifier || !formData.password) {
+        setError('Please fill in all required fields');
+        setIsLoading(false);
+        return;
+      }
+
+      // Simulate login process
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // Check credentials (in production, this would be an API call)
+      if (validateCredentials(formData.identifier, formData.password, selectedRole)) {
+        // Store user info in localStorage for the demo (in production, use proper auth)
+        const userInfo = {
+          role: selectedRole,
+          identifier: formData.identifier,
+          loginTime: new Date().toISOString(),
+          rememberMe: formData.rememberMe
+        };
+        
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('upss_user', JSON.stringify(userInfo));
+          localStorage.setItem('upss_auth_token', `demo_token_${selectedRole}_${Date.now()}`);
+        }
+
+        // Navigate to the appropriate dashboard
+        router.push(currentRole.route);
+      } else {
+        setError('Invalid credentials. Please check your username and password.');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      setError('An error occurred during login. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleForgotPassword = () => {
+    // In production, this would navigate to a password reset page
+    alert(`Password reset for ${currentRole.title} will be sent to your registered email.`);
+  };
+
+  const handleContactSupport = () => {
+    // In production, this would open a support chat or navigate to support page
+    window.open('mailto:support@upss.edu?subject=Login Support Request', '_blank');
+  };
+
+  const handleBackToHome = () => {
+    // Navigate to home page or go back in history
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push('/'); // fallback to home page
+    }
+  };
+
+  const fillDemoCredentials = () => {
+    const demo = demoCredentials[selectedRole];
+    setFormData(prev => ({
+      ...prev,
+      identifier: demo.username,
+      password: demo.password
+    }));
   };
 
   const fadeInUp = {
@@ -154,7 +227,7 @@ const LoginPage = () => {
                     onClick={() => setSelectedRole(role.id)}
                     className={`w-full p-4 rounded-2xl text-left transition-all duration-300 border-2 ${
                       selectedRole === role.id
-                        ? `bg-gradient-to-r ${role.bgGradient} border-${role.gradient.split(' ')[1].replace('to-', '')} shadow-lg scale-105`
+                        ? `bg-gradient-to-r ${role.bgGradient} border-blue-300 shadow-lg scale-105`
                         : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-md'
                     }`}
                     whileHover={{ scale: selectedRole === role.id ? 1.05 : 1.02 }}
@@ -184,6 +257,21 @@ const LoginPage = () => {
                   </motion.button>
                 ))}
               </div>
+
+              {/* Demo Credentials Info */}
+              <div className="mt-8 p-4 bg-blue-50 rounded-xl border border-blue-200">
+                <h4 className="font-semibold text-blue-800 mb-2">Demo Credentials</h4>
+                <div className="text-xs text-blue-600 space-y-1">
+                  <p><strong>Username:</strong> {demoCredentials[selectedRole].username}</p>
+                  <p><strong>Password:</strong> {demoCredentials[selectedRole].password}</p>
+                </div>
+                <button
+                  onClick={fillDemoCredentials}
+                  className="mt-2 text-xs bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Fill Demo Credentials
+                </button>
+              </div>
             </motion.div>
           </div>
 
@@ -208,8 +296,19 @@ const LoginPage = () => {
                   Enter your credentials to access your {currentRole.title.toLowerCase()} dashboard
                 </p>
 
+                {/* Error Message */}
+                {error && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700"
+                  >
+                    {error}
+                  </motion.div>
+                )}
+
                 {/* Login Form */}
-                <div className="space-y-6">
+                <form onSubmit={handleLogin} className="space-y-6">
                   {/* Username/Email Input */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -277,6 +376,7 @@ const LoginPage = () => {
                     </label>
                     <button
                       type="button"
+                      onClick={handleForgotPassword}
                       className="text-sm text-emerald-600 hover:text-emerald-700 font-medium"
                     >
                       Forgot password?
@@ -285,7 +385,7 @@ const LoginPage = () => {
 
                   {/* Login Button */}
                   <motion.button
-                    onClick={handleLogin}
+                    type="submit"
                     disabled={isLoading}
                     className={`w-full py-4 rounded-xl font-semibold text-white transition-all duration-300 flex items-center justify-center gap-3 ${
                       isLoading 
@@ -307,18 +407,21 @@ const LoginPage = () => {
                       </>
                     )}
                   </motion.button>
-                </div>
+                </form>
 
                 {/* Additional Actions */}
                 <div className="mt-8 pt-6 border-t border-gray-200">
                   <div className="flex items-center justify-center gap-4 text-sm text-gray-600">
                     <span>Need help?</span>
-                    <button className="text-emerald-600 hover:text-emerald-700 font-medium">
+                    <button 
+                      onClick={handleContactSupport}
+                      className="text-emerald-600 hover:text-emerald-700 font-medium"
+                    >
                       Contact Support
                     </button>
                     <span>•</span>
                     <button 
-                      onClick={() => window.history.back()}
+                      onClick={handleBackToHome}
                       className="text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1"
                     >
                       <ArrowLeft className="w-4 h-4" />
