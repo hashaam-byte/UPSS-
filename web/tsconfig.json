@@ -22,6 +22,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "src/app/page.jsx", "src/app/login.jsx", "src/app/(protected)/login.jsx", "src/app/login/page.jsx", "src/app/dashboard/students/page.jsx", "src/app/dashboard/teachers/page.tsx", "src/components/sidebar/headAdmin.jsx", "src/components/sidebar/Admin.jsx", "src/components/sidebar/student.jsx", "src/app/dashboard/layout/layout.jsx", "src/app/dashboard/Admin/page.tsx", "src/app/dashboard/headAdmin/page.jsx"],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "src/app/page.jsx", "src/app/login.jsx", "src/app/(protected)/login.jsx", "src/app/login/page.jsx", "src/app/dashboard/students/page.jsx", "src/app/dashboard/teachers/page.tsx", "src/components/sidebar/headAdmin.jsx", "src/components/sidebar/Admin.jsx", "src/components/sidebar/student.jsx", "src/app/dashboard/layout/layout.jsx", "src/app/dashboard/Admin/page.tsx", "src/app/dashboard/headAdmin/page.jsx", "src/app/dashboard/headAdmin/layout.jsx"],
   "exclude": ["node_modules"]
 }
