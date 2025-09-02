@@ -221,7 +221,7 @@ const LoginPage = () => {
                   </div>
                   <div>
                     <h1 className="text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-                      UPSS Plus
+                      U PLUS
                     </h1>
                     <p className="text-sm text-gray-400">Your School. Connected.</p>
                   </div>
