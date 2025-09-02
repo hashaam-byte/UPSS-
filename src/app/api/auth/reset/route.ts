@@ -1,38 +1,29 @@
-
-// pages/api/auth/reset.ts
-import { NextApiRequest, NextApiResponse } from 'next';
+// src/app/api/auth/reset/route.ts
+import { NextResponse } from 'next/server';
 import { prisma, withTenant } from '@/lib/db';
 import { hashPassword } from '@/lib/auth';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
+export async function POST(req: Request) {
   try {
-    const { token, password, userType, schoolSlug } = req.body;
+    const body = await req.json();
+    const { token, password, userType, schoolSlug } = body;
 
     if (!token || !password) {
-      return res.status(400).json({ error: 'Token and password are required' });
+      return NextResponse.json({ error: 'Token and password are required' }, { status: 400 });
     }
 
     if (password.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+      return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
     }
 
     const hashedPassword = await hashPassword(password);
 
-    // In a real implementation, you would:
-    // 1. Verify the token exists and hasn't expired
-    // 2. Find the user associated with the token
-    // 3. Update their password
-    // 4. Invalidate the token
-
-    // For now, return success
-    return res.status(200).json({ message: 'Password reset successful' });
+    // TODO: Implement actual token verification, user lookup, password update, and token invalidation
+    // For now, just return success
+    return NextResponse.json({ message: 'Password reset successful' }, { status: 200 });
 
   } catch (error) {
     console.error('Password reset error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

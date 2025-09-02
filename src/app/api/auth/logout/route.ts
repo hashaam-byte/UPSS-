@@ -1,14 +1,19 @@
+// src/app/api/auth/logout/route.ts
+import { NextResponse } from 'next/server';
 
-// pages/api/auth/logout.ts
-import { NextApiRequest, NextApiResponse } from 'next';
-
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
+export async function POST(req: Request) {
   // Clear the auth cookie
-  res.setHeader('Set-Cookie', 'auth-token=; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Path=/');
+  const response = NextResponse.json({ message: 'Logout successful' });
 
-  return res.status(200).json({ message: 'Logout successful' });
+  response.cookies.set({
+    name: 'auth-token',
+    value: '',
+    maxAge: 0,
+    httpOnly: true,
+    secure: true,
+    sameSite: 'lax',
+    path: '/'
+  });
+
+  return response;
 }
