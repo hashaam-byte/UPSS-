@@ -1,0 +1,289 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// MASTER DATABASE TABLES (public schema)
+
+model School {
+  id            Int      @id @default(autoincrement())
+  name          String
+  slug          String   @unique
+  db_schema     String   @unique
+  status        SchoolStatus @default(TRIAL)
+  term_start    DateTime?
+  term_end      DateTime?
+  claimed_students Int?
+  claimed_teachers Int?
+  verified_students Int?
+  verified_teachers Int?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  // Relations
+  school_admins SchoolAdmin[]
+  invoices      Invoice[]
+  audit_logs    AuditLog[]
+
+  @@map("schools")
+}
+
+model HeadAdmin {
+  id         Int      @id @default(autoincrement())
+  name       String
+  email      String   @unique
+  password_hash String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("head_admins")
+}
+
+model SchoolAdmin {
+  id         Int      @id @default(autoincrement())
+  school_id  Int
+  name       String
+  email      String
+  password_hash String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  // Relations
+  school School @relation(fields: [school_id], references: [id], onDelete: Cascade)
+
+  @@unique([school_id, email])
+  @@map("school_admins")
+}
+
+model Invoice {
+  id         Int      @id @default(autoincrement())
+  school_id  Int
+  amount     Decimal  @db.Decimal(10,2)
+  status     InvoiceStatus @default(PENDING_VERIFICATION)
+  calculation_details Json?
+  payment_reference String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  paid_at    DateTime?
+
+  // Relations
+  school School @relation(fields: [school_id], references: [id], onDelete: Cascade)
+
+  @@map("invoices")
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  school_id  Int?
+  action     String
+  details    Json?
+  user_id    String?
+  user_type  String?
+  created_at DateTime @default(now())
+
+  // Relations
+  school School? @relation(fields: [school_id], references: [id], onDelete: Cascade)
+
+  @@map("audit_logs")
+}
+
+// TENANT DATABASE TABLES (per school schema)
+// Note: These models would be dynamically created per tenant
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password_hash String
+  first_name    String
+  last_name     String
+  phone         String?
+  role          UserRole
+  status        UserStatus @default(ACTIVE)
+  class         String?
+  parent_email  String?
+  subjects      String[] // For teachers
+  assigned_class String? // For class teachers
+  metadata      Json?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  // Relations
+  assignments_created Assignment[] @relation("TeacherAssignments")
+  submissions         Submission[]
+  results            Result[]
+  messages_sent      Message[] @relation("SenderMessages")
+  messages_received  Message[] @relation("ReceiverMessages")
+
+  @@map("users")
+}
+
+model Assignment {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  teacher_id  String
+  classes     String[] // Array of class names
+  subject     String
+  due_date    DateTime
+  file_urls   String[]
+  auto_grade  Boolean  @default(false)
+  max_score   Int?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  // Relations
+  teacher     User @relation("TeacherAssignments", fields: [teacher_id], references: [id], onDelete: Cascade)
+  submissions Submission[]
+
+  @@map("assignments")
+}
+
+model Submission {
+  id            String   @id @default(cuid())
+  assignment_id String
+  student_id    String
+  file_urls     String[]
+  text_content  String?
+  score         Int?
+  feedback      String?
+  graded_at     DateTime?
+  submitted_at  DateTime @default(now())
+
+  // Relations
+  assignment Assignment @relation(fields: [assignment_id], references: [id], onDelete: Cascade)
+  student    User @relation(fields: [student_id], references: [id], onDelete: Cascade)
+
+  @@unique([assignment_id, student_id])
+  @@map("submissions")
+}
+
+model Result {
+  id         String   @id @default(cuid())
+  student_id String
+  subject    String
+  exam_type  String // test, exam, assignment
+  score      Int
+  max_score  Int
+  pass_mark  Int?
+  created_at DateTime @default(now())
+
+  // Relations
+  student User @relation(fields: [student_id], references: [id], onDelete: Cascade)
+
+  @@map("results")
+}
+
+model Timetable {
+  id         String   @id @default(cuid())
+  class      String
+  day        String
+  period     Int
+  subject    String
+  teacher_id String?
+  status     TimetableStatus @default(DRAFT)
+  coordinator_id String
+  director_feedback String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@unique([class, day, period])
+  @@map("timetables")
+}
+
+model Message {
+  id          String   @id @default(cuid())
+  sender_id   String
+  receiver_id String
+  content     String
+  file_urls   String[]
+  read_at     DateTime?
+  created_at  DateTime @default(now())
+
+  // Relations
+  sender   User @relation("SenderMessages", fields: [sender_id], references: [id], onDelete: Cascade)
+  receiver User @relation("ReceiverMessages", fields: [receiver_id], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+model Resource {
+  id         String   @id @default(cuid())
+  title      String
+  file_url   String
+  file_type  String
+  subject    String?
+  classes    String[] // Array of class names
+  tags       String[]
+  uploaded_by String
+  created_at DateTime @default(now())
+
+  @@map("resources")
+}
+
+model GuildSession {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  host_id     String
+  room_id     String
+  start_time  DateTime
+  end_time    DateTime?
+  max_participants Int?
+  is_active   Boolean  @default(false)
+  created_at  DateTime @default(now())
+
+  @@map("guild_sessions")
+}
+
+model PerformanceSnapshot {
+  id         String   @id @default(cuid())
+  type       String // daily, weekly, monthly
+  data       Json
+  computed_at DateTime @default(now())
+  period     String // 2025-T1, 2025-W1, etc
+
+  @@map("performance_snapshots")
+}
+
+// ENUMS
+enum SchoolStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  GRACE
+}
+
+enum InvoiceStatus {
+  PENDING_VERIFICATION
+  AWAITING_PAYMENT
+  PAID
+  OVERDUE
+}
+
+enum UserRole {
+  SCHOOL_ADMIN
+  DIRECTOR
+  COORDINATOR
+  TEACHER_SUBJECT
+  TEACHER_CLASS
+  STUDENT
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  INVITED
+}
+
+enum TimetableStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
