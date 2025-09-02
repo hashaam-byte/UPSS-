@@ -23,6 +23,6 @@
     },
     "types": ["node", "next"]
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "src/app/head/settings/page.jsx", "src/app/auth/login/page.jsx", "src/app/head/schools/page.jsx", "src/app/head/messages/page.jsx", "src/app/head/dashboard/page.jsx", "src/app/head/billing/page.jsx", "src/app/head/analytics/page.jsx", "src/app/head/admins/page.jsx", "src/app/components/head/HeadAdminSidebar.jsx", "src/app/components/head/HeadAdminNavbar.jsx", "src/app/page.jsx", "src/lib/auth.ts", "src/lib/db.ts"],
   "exclude": ["node_modules"]
 }

@@ -152,7 +152,8 @@ export async function authenticateHeadAdmin(email: string, password: string): Pr
 
   return {
     sub: admin.id.toString(),
-    role: 'HEAD_ADMIN'
+    role: 'HEAD_ADMIN',
+    exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 hours
   };
 }
 
@@ -195,7 +196,8 @@ export async function authenticateSchoolUser(
       sub: user[0].id,
       role: user[0].role,
       schoolId: school.id,
-      schoolSchema: school.db_schema
+      schoolSchema: school.db_schema,
+      exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 hours
     };
   });
 }
