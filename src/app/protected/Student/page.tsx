@@ -1,3 +1,4 @@
+'use client'
 import React, { useState, useEffect } from 'react';
 import { 
   Home, BookOpen, Calendar, BarChart3, FolderOpen, 
@@ -6,19 +7,58 @@ import {
   Video, Play, Settings, Upload, Filter, Star
 } from 'lucide-react';
 
-const StudentHub = () => {
+const StudentPortal = () => {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [notifications, setNotifications] = useState(3);
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // Mock data for demonstration
-  const studentData = {
-    name: "Alex Johnson",
-    class: "SS2A",
-    avatar: "AJ",
-    isPremium: true
-  };
+  // Authentication check
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        // Check for auth token
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+          window.location.href = '/auth';
+          return;
+        }
 
+        // Fetch user data from database - replace with actual API call
+        const userData = {
+          id: '1',
+          firstName: 'Alex',
+          lastName: 'Johnson',
+          email: 'alex.johnson@student.com',
+          role: 'student',
+          avatar: 'AJ',
+          studentProfile: {
+            studentId: 'STU2024001',
+            className: 'SS2A',
+            section: 'Science',
+            admissionDate: '2023-09-15',
+            parentName: 'Mr. Johnson',
+            parentPhone: '+234-801-234-5678'
+          },
+          school: {
+            name: 'Excellence High School',
+            logo: null
+          },
+          isPremium: true // Based on school's subscription status
+        };
+
+        setUser(userData);
+        setLoading(false);
+      } catch (error) {
+        console.error('Auth check failed:', error);
+        window.location.href = '/auth';
+      }
+    };
+
+    checkAuth();
+  }, []);
+
+  // Mock data for demonstration - replace with API calls
   const todaySchedule = [
     { time: "8:00 AM", subject: "Mathematics", teacher: "Mr. Adebayo", status: "current" },
     { time: "9:00 AM", subject: "Physics", teacher: "Mrs. Okafor", status: "next" },
@@ -48,20 +88,40 @@ const StudentHub = () => {
     { id: 'profile', icon: User, label: 'Profile', path: '/student/profile' },
   ];
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) return null;
+
   const renderDashboard = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-            Welcome back, {studentData.name}! 👋
+            Welcome back, {user.firstName}! 👋
           </h1>
-          <p className="text-gray-600 mt-1">Ready to conquer your day?</p>
+          <p className="text-gray-600 mt-1">
+            {user.studentProfile.className} • {user.studentProfile.section} • {user.school.name}
+          </p>
         </div>
-        {studentData.isPremium && (
-          <div className="px-4 py-2 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full text-white text-sm font-medium">
-            ⭐ Premium Student
+        <div className="flex items-center gap-3">
+          {user.isPremium && (
+            <div className="px-4 py-2 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full text-white text-sm font-medium">
+              ⭐ Premium Student
+            </div>
+          )}
+          <div className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+            {user.studentProfile.studentId}
           </div>
-        )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -128,7 +188,12 @@ const StudentHub = () => {
         <div className="lg:col-span-2 bg-white/70 backdrop-blur-md rounded-2xl p-6 border border-white/20 shadow-xl">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-lg">Recent Assignments</h2>
-            <button className="text-blue-600 text-sm hover:underline">View all</button>
+            <button 
+              onClick={() => setCurrentPage('assignments')}
+              className="text-blue-600 text-sm hover:underline"
+            >
+              View all
+            </button>
           </div>
           <div className="space-y-3">
             {assignments.slice(0, 3).map((assignment) => (
@@ -153,7 +218,7 @@ const StudentHub = () => {
         </div>
 
         {/* Guild Quick Access */}
-        {studentData.isPremium && (
+        {user.isPremium && (
           <div className="bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl p-6 text-white shadow-xl">
             <div className="flex items-center gap-2 mb-4">
               <Mic className="w-5 h-5" />
@@ -259,11 +324,77 @@ const StudentHub = () => {
     </div>
   );
 
+  const renderProfile = () => (
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold">Student Profile</h1>
+      
+      <div className="bg-white/70 backdrop-blur-md rounded-2xl p-6 border border-white/20 shadow-xl">
+        <div className="flex items-center gap-6 mb-6">
+          <div className="w-24 h-24 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full flex items-center justify-center text-white font-bold text-2xl">
+            {user.avatar}
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold">{user.firstName} {user.lastName}</h2>
+            <p className="text-gray-600">{user.studentProfile.className} • {user.studentProfile.section}</p>
+            <p className="text-sm text-gray-500">{user.email}</p>
+            <p className="text-sm text-gray-500">Student ID: {user.studentProfile.studentId}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-4">
+            <h3 className="font-semibold text-lg">Academic Information</h3>
+            <div className="space-y-3">
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600">School</p>
+                <p className="font-semibold">{user.school.name}</p>
+              </div>
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600">Class & Section</p>
+                <p className="font-semibold">{user.studentProfile.className} - {user.studentProfile.section}</p>
+              </div>
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600">Admission Date</p>
+                <p className="font-semibold">{new Date(user.studentProfile.admissionDate).toLocaleDateString()}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="font-semibold text-lg">Parent Information</h3>
+            <div className="space-y-3">
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600">Parent Name</p>
+                <p className="font-semibold">{user.studentProfile.parentName}</p>
+              </div>
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600">Parent Phone</p>
+                <p className="font-semibold">{user.studentProfile.parentPhone}</p>
+              </div>
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600">Subscription Status</p>
+                <div className="flex items-center gap-2">
+                  <span className={`px-2 py-1 rounded-full text-sm ${
+                    user.isPremium ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    {user.isPremium ? 'Premium Active' : 'Basic'}
+                  </span>
+                  {user.isPremium && <Star className="w-4 h-4 text-yellow-500" />}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderPage = () => {
     switch (currentPage) {
       case 'dashboard': return renderDashboard();
       case 'assignments': return renderAssignments();
       case 'results': return renderResults();
+      case 'profile': return renderProfile();
       case 'timetable': return (
         <div className="text-center py-12">
           <Calendar className="w-16 h-16 mx-auto text-gray-400 mb-4" />
@@ -287,16 +418,22 @@ const StudentHub = () => {
       );
       case 'guild': return (
         <div className="text-center py-12">
-          <Mic className="w-16 h-16 mx-auto text-purple-400 mb-4" />
-          <h2 className="text-xl font-semibold text-gray-600">Guild of Scholars</h2>
-          <p className="text-gray-500">Premium collaborative sessions...</p>
-        </div>
-      );
-      case 'profile': return (
-        <div className="text-center py-12">
-          <User className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-          <h2 className="text-xl font-semibold text-gray-600">Profile</h2>
-          <p className="text-gray-500">Manage your account settings...</p>
+          {!user.isPremium ? (
+            <>
+              <Mic className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+              <h2 className="text-xl font-semibold text-gray-600">Guild of Scholars</h2>
+              <p className="text-gray-500 mb-4">Premium feature - Upgrade to access collaborative sessions</p>
+              <button className="px-6 py-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-lg">
+                ⭐ Upgrade to Premium
+              </button>
+            </>
+          ) : (
+            <>
+              <Mic className="w-16 h-16 mx-auto text-purple-400 mb-4" />
+              <h2 className="text-xl font-semibold text-gray-600">Guild of Scholars</h2>
+              <p className="text-gray-500">Premium collaborative sessions...</p>
+            </>
+          )}
         </div>
       );
       default: return renderDashboard();
@@ -317,9 +454,9 @@ const StudentHub = () => {
             </button>
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">
-                U
+                U+
               </div>
-              <span className="font-bold text-xl">UPSS Hub</span>
+              <span className="font-bold text-xl">U Plus Hub</span>
             </div>
           </div>
 
@@ -337,19 +474,17 @@ const StudentHub = () => {
           <div className="flex items-center gap-3">
             <button className="relative p-2 hover:bg-gray-100 rounded-lg">
               <Bell className="w-5 h-5" />
-              {notifications > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                  {notifications}
-                </span>
-              )}
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                3
+              </span>
             </button>
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                {studentData.avatar}
+                {user.avatar}
               </div>
               <div className="hidden md:block">
-                <p className="text-sm font-medium">{studentData.name}</p>
-                <p className="text-xs text-gray-600">{studentData.class}</p>
+                <p className="text-sm font-medium">{user.firstName} {user.lastName}</p>
+                <p className="text-xs text-gray-600">{user.studentProfile.className}</p>
               </div>
             </div>
           </div>
@@ -365,7 +500,7 @@ const StudentHub = () => {
             {sidebarItems.map((item) => {
               const Icon = item.icon;
               const isActive = currentPage === item.id;
-              const isPremiumItem = item.premium && !studentData.isPremium;
+              const isPremiumItem = item.premium && !user.isPremium;
               
               return (
                 <button
@@ -386,7 +521,7 @@ const StudentHub = () => {
                       {item.label}
                     </span>
                   )}
-                  {!sidebarCollapsed && item.premium && !studentData.isPremium && (
+                  {!sidebarCollapsed && item.premium && !user.isPremium && (
                     <Star className="w-4 h-4 text-yellow-500" />
                   )}
                 </button>
@@ -404,4 +539,4 @@ const StudentHub = () => {
   );
 };
 
-export default StudentHub;
+export default StudentPortal;

@@ -1,3 +1,4 @@
+'use client'
 import React, { useState, useEffect } from 'react';
 import { 
   Home, BookOpen, FileText, BarChart3, MessageCircle, 
