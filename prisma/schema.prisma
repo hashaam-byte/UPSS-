@@ -1,0 +1,213 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model School {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name        String   @db.VarChar(255)
+  slug        String   @unique @db.VarChar(100)
+  address     String
+  phone       String   @db.VarChar(20)
+  email       String   @db.VarChar(255)
+  logo        String?  @db.VarChar(500)
+  website     String?  @db.VarChar(255)
+  isActive    Boolean  @default(true) @map("is_active")
+  
+  // Subscription
+  subscriptionPlan        String   @default("basic") @map("subscription_plan")
+  subscriptionExpiresAt   DateTime @default(dbgenerated("(NOW() + INTERVAL '1 year')")) @map("subscription_expires_at") @db.Timestamptz
+  subscriptionIsActive    Boolean  @default(true) @map("subscription_is_active")
+  
+  // Settings
+  allowStudentRegistration  Boolean @default(false) @map("allow_student_registration")
+  requireEmailVerification  Boolean @default(true) @map("require_email_verification")
+  maxStudents              Int     @default(1000) @map("max_students")
+  maxTeachers              Int     @default(100) @map("max_teachers")
+  
+  createdBy   String?   @map("created_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  
+  // Relations
+  users       User[]
+  
+  @@map("schools")
+}
+
+model User {
+  id                      String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  firstName               String    @map("first_name") @db.VarChar(100)
+  lastName                String    @map("last_name") @db.VarChar(100)
+  email                   String    @db.VarChar(255)
+  username                String?   @db.VarChar(100)
+  passwordHash            String    @map("password_hash") @db.VarChar(255)
+  role                    UserRole
+  schoolId                String?   @map("school_id") @db.Uuid
+  
+  // Profile
+  avatar                  String?   @db.VarChar(500)
+  dateOfBirth             DateTime? @map("date_of_birth") @db.Date
+  phone                   String?   @db.VarChar(20)
+  address                 String?
+  gender                  Gender?
+  
+  // Account status
+  isActive                Boolean   @default(true) @map("is_active")
+  isEmailVerified         Boolean   @default(false) @map("is_email_verified")
+  emailVerificationToken  String?   @map("email_verification_token") @db.VarChar(255)
+  passwordResetToken      String?   @map("password_reset_token") @db.VarChar(255)
+  passwordResetExpires    DateTime? @map("password_reset_expires") @db.Timestamptz
+  
+  // Security
+  lastLogin               DateTime? @map("last_login") @db.Timestamptz
+  loginAttempts           Int       @default(0) @map("login_attempts")
+  lockUntil               DateTime? @map("lock_until") @db.Timestamptz
+  
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt               DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  
+  // Relations
+  school                  School?   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  studentProfile          StudentProfile?
+  teacherProfile          TeacherProfile?
+  adminProfile            AdminProfile?
+  sessions                UserSession[]
+  passwordResetTokens     PasswordResetToken[]
+  
+  @@unique([email, schoolId])
+  @@unique([username, schoolId])
+  @@index([email])
+  @@index([username, schoolId])
+  @@index([role, schoolId, isActive])
+  @@map("users")
+}
+
+model StudentProfile {
+  id            String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId        String    @unique @map("user_id") @db.Uuid
+  studentId     String?   @unique @map("student_id") @db.VarChar(50)
+  className     String?   @map("class_name") @db.VarChar(50)
+  section       String?   @db.VarChar(10)
+  admissionDate DateTime? @map("admission_date") @db.Date
+  
+  // Parent contact
+  parentName    String?   @map("parent_name") @db.VarChar(200)
+  parentPhone   String?   @map("parent_phone") @db.VarChar(20)
+  parentEmail   String?   @map("parent_email") @db.VarChar(255)
+  
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  
+  // Relations
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("student_profiles")
+}
+
+model TeacherProfile {
+  id              String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId          String    @unique @map("user_id") @db.Uuid
+  employeeId      String?   @unique @map("employee_id") @db.VarChar(50)
+  department      String?   @db.VarChar(100)
+  subjects        String[]
+  qualification   String?   @db.VarChar(255)
+  experienceYears Int       @default(0) @map("experience_years")
+  joiningDate     DateTime? @map("joining_date") @db.Date
+  
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  
+  // Relations
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("teacher_profiles")
+}
+
+model AdminProfile {
+  id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId      String    @unique @map("user_id") @db.Uuid
+  employeeId  String?   @unique @map("employee_id") @db.VarChar(50)
+  department  String?   @db.VarChar(100)
+  
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  
+  // Relations
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissions AdminPermission[]
+  
+  @@map("admin_profiles")
+}
+
+model AdminPermission {
+  id             String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  adminProfileId String       @map("admin_profile_id") @db.Uuid
+  module         String       @db.VarChar(50)
+  actions        String[]
+  
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  
+  // Relations
+  adminProfile   AdminProfile @relation(fields: [adminProfileId], references: [id], onDelete: Cascade)
+  
+  @@unique([adminProfileId, module])
+  @@map("admin_permissions")
+}
+
+model UserSession {
+  id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  tokenHash   String    @unique @map("token_hash") @db.VarChar(255)
+  userAgent   String?   @map("user_agent")
+  ipAddress   String?   @map("ip_address") @db.Inet
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz
+  isActive    Boolean   @default(true) @map("is_active")
+  
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  
+  // Relations
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([tokenHash])
+  @@index([expiresAt])
+  @@map("user_sessions")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  token     String    @unique @db.VarChar(255)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz
+  usedAt    DateTime? @map("used_at") @db.Timestamptz
+  ipAddress String?   @map("ip_address") @db.Inet
+  
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  
+  // Relations
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([token])
+  @@map("password_reset_tokens")
+}
+
+enum UserRole {
+  headadmin
+  admin
+  teacher
+  student
+}
+
+enum Gender {
+  male
+  female
+  other
+}
