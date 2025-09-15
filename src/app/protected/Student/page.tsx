@@ -129,7 +129,7 @@ const StudentPortal = () => {
         <div className="lg:col-span-2 bg-white/70 backdrop-blur-md rounded-2xl p-6 border border-white/20 shadow-xl">
           <div className="flex items-center gap-2 mb-4">
             <Clock className="w-5 h-5 text-blue-600" />
-            <h2 className="font-semibold text-lg">Today's Schedule</h2>
+            <h2 className="font-semibold text-lg">Today&apos;s Schedule</h2>
           </div>
           <div className="space-y-3">
             {todaySchedule.map((item, index) => (

@@ -589,7 +589,7 @@ const UnifiedLandingPage = () => {
               </div>
               <p className="text-gray-400 mb-4">
                 Transforming education through innovative technology. 
-                Connect, learn, and grow with Nigeria's leading school management platform.
+                Connect, learn, and grow with Nigeria&apos;s leading school management platform.
               </p>
               <p className="text-emerald-400 font-semibold text-lg">Hard Work Pays</p>
             </div>
