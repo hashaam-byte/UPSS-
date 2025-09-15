@@ -481,10 +481,10 @@ const UnifiedLandingPage = () => {
           
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { role: 'Head Admin', path: '/auth/login?role=head', icon: Crown },
-              { role: 'School Admin', path: '/auth/login?role=school', icon: Shield },
-              { role: 'Teacher', path: '/auth/login?role=teacher', icon: UserCheck },
-              { role: 'Student', path: '/auth/login?role=student', icon: GraduationCap }
+              { role: 'Head Admin', path: '/protected/Headadmin/page.tsx?role=head', icon: Crown },
+              { role: 'School Admin', path: '/protected/Admin/page.tsx?role=school', icon: Shield },
+              { role: 'Teacher', path: '/protected/Teachers/page.tsx?role=teacher', icon: UserCheck },
+              { role: 'Student', path: '/protected/students/page.tsx?role=student', icon: GraduationCap }
             ].map((item, index) => (
               <button
                 key={index}
@@ -558,7 +558,7 @@ const UnifiedLandingPage = () => {
                 <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
               </button>
               <button 
-                onClick={() => window.location.href = '/auth/register'}
+                // onClick={() => window.location.href = '/auth/register'}
                 className="group px-8 py-4 bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 rounded-2xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 flex items-center gap-3"
               >
                 Start Free Trial
