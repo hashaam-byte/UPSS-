@@ -1,5 +1,4 @@
-
-// /lib/auth.js - Server-side auth utilities
+// /lib/auth.js - Updated with Head Admin support
 import jwt from 'jsonwebtoken';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
@@ -32,6 +31,31 @@ export async function getCurrentUser() {
       return null;
     }
 
+    // For head admin, we don't need school relations
+    if (decoded.role === 'headadmin') {
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.userId },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          username: true,
+          role: true,
+          avatar: true,
+          isEmailVerified: true,
+          isActive: true
+        }
+      });
+
+      if (!user || !user.isActive) {
+        return null;
+      }
+
+      return user;
+    }
+
+    // For regular users (admin, teacher, student)
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
       include: {

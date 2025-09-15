@@ -1,9 +1,9 @@
-// middleware.ts (for Next.js 13+)
+// middleware.ts - Updated for Head Admin support
 import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server'; // ✅ Import the type
+import type { NextRequest } from 'next/server';
 import jwt from 'jsonwebtoken';
 
-export async function middleware(request: NextRequest) { // ✅ Add type
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Protect the entire /protected directory and API routes
@@ -30,6 +30,7 @@ export async function middleware(request: NextRequest) { // ✅ Add type
         schoolId?: string;
         email?: string;
         exp: number;
+        isHeadAdmin?: boolean;
       };
 
       if (!decoded || !decoded.userId || !decoded.role) {
@@ -47,7 +48,7 @@ export async function middleware(request: NextRequest) { // ✅ Add type
 
       const rolePermissions: Record<string, string[]> = {
         headadmin: [
-          '/protected/headadmin',
+          '/protected/Headadmin',
           '/protected/admin',
           '/protected/teachers',
           '/protected/students',
@@ -92,6 +93,7 @@ export async function middleware(request: NextRequest) { // ✅ Add type
       response.headers.set('X-User-ID', decoded.userId);
       response.headers.set('X-School-ID', decoded.schoolId || '');
       response.headers.set('X-User-Email', decoded.email || '');
+      response.headers.set('X-Is-Head-Admin', decoded.isHeadAdmin ? 'true' : 'false');
 
       if (timeUntilExpiry < 900) {
         response.headers.set('X-Token-Refresh-Needed', 'true');

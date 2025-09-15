@@ -1,3 +1,4 @@
+// /app/api/auth/verify/route.js - Updated to handle head admin
 import jwt from 'jsonwebtoken';
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
@@ -6,7 +7,6 @@ import crypto from 'crypto';
 
 export async function GET() {
   try {
-    // Get cookies (await not needed in Next.js 13+ App Router)
     const cookieStore = cookies();
     const token = cookieStore.get('auth_token')?.value;
     
@@ -43,7 +43,7 @@ export async function GET() {
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
       include: {
-        school: true,
+        school: decoded.role !== 'headadmin' ? true : false,
         studentProfile: decoded.role === 'student',
         teacherProfile: decoded.role === 'teacher',
         adminProfile: decoded.role === 'admin' ? {
@@ -65,7 +65,25 @@ export async function GET() {
       );
     }
 
-    // Check if school is still active (important security check)
+    // For head admin, skip school checks
+    if (decoded.role === 'headadmin') {
+      return NextResponse.json({
+        authenticated: true,
+        user: {
+          id: user.id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          username: user.username,
+          role: user.role,
+          avatar: user.avatar,
+          isEmailVerified: user.isEmailVerified
+        },
+        redirectTo: '/protected/headadmin'
+      });
+    }
+
+    // Check if school is still active (for non-head admins)
     if (!user.school?.isActive) {
       await prisma.userSession.update({
         where: { id: session.id },

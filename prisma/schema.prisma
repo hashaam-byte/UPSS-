@@ -18,6 +18,9 @@ model School {
   logo        String?  @db.VarChar(500)
   website     String?  @db.VarChar(255)
   isActive    Boolean  @default(true) @map("is_active")
+  invoices      Invoice[]
+  messages      Message[]
+  notifications Notification[]
   
   // Subscription
   subscriptionPlan        String   @default("basic") @map("subscription_plan")
@@ -49,6 +52,11 @@ model User {
   passwordHash            String    @map("password_hash") @db.VarChar(255)
   role                    UserRole
   schoolId                String?   @map("school_id") @db.Uuid
+  sentMessages     Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
+  notifications    Notification[]
+  auditLogs        AuditLog[]
+  
   
   // Profile
   avatar                  String?   @db.VarChar(500)
@@ -197,6 +205,199 @@ model PasswordResetToken {
   @@index([userId])
   @@index([token])
   @@map("password_reset_tokens")
+}
+
+// Invoice/Billing Management
+model Invoice {
+  id              String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  schoolId        String    @map("school_id") @db.Uuid
+  invoiceNumber   String    @unique @map("invoice_number") @db.VarChar(50)
+  
+  // Billing details
+  amount          Decimal   @db.Decimal(10,2)
+  currency        String    @default("NGN") @db.VarChar(3)
+  description     String?
+  billingPeriod   String    @map("billing_period") @db.VarChar(50) // e.g., "2024-01"
+  
+  // User counts for billing calculation
+  studentCount    Int       @default(0) @map("student_count")
+  teacherCount    Int       @default(0) @map("teacher_count")
+  adminCount      Int       @default(0) @map("admin_count")
+  
+  // Status and payment
+  status          InvoiceStatus @default(pending)
+  paidAt          DateTime? @map("paid_at") @db.Timestamptz
+  dueDate         DateTime  @map("due_date") @db.Timestamptz
+  
+  // Payment gateway details
+  paymentReference String?  @map("payment_reference") @db.VarChar(255)
+  paymentMethod   String?   @map("payment_method") @db.VarChar(50)
+  paymentGateway  String?   @map("payment_gateway") @db.VarChar(50)
+  
+  // Metadata
+  notes           String?
+  createdBy       String?   @map("created_by") @db.Uuid
+  verifiedBy      String?   @map("verified_by") @db.Uuid
+  verifiedAt      DateTime? @map("verified_at") @db.Timestamptz
+  
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  
+  // Relations
+  school          School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  
+  @@index([schoolId])
+  @@index([status])
+  @@index([billingPeriod])
+  @@index([createdAt])
+  @@map("invoices")
+}
+
+// Message system for Head Admin to communicate with School Admins
+model Message {
+  id           String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  fromUserId   String?     @map("from_user_id") @db.Uuid
+  toUserId     String?     @map("to_user_id") @db.Uuid
+  schoolId     String?     @map("school_id") @db.Uuid
+  
+  subject      String?     @db.VarChar(255)
+  content      String
+  messageType  MessageType @default(direct) @map("message_type")
+  priority     MessagePriority @default(normal)
+  
+  // Status
+  isRead       Boolean     @default(false) @map("is_read")
+  readAt       DateTime?   @map("read_at") @db.Timestamptz
+  isArchived   Boolean     @default(false) @map("is_archived")
+  
+  // For broadcast messages
+  isBroadcast  Boolean     @default(false) @map("is_broadcast")
+  
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+  
+  // Relations
+  fromUser     User?       @relation("SentMessages", fields: [fromUserId], references: [id], onDelete: SetNull)
+  toUser       User?       @relation("ReceivedMessages", fields: [toUserId], references: [id], onDelete: SetNull)
+  school       School?     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([schoolId])
+  @@index([messageType])
+  @@index([createdAt])
+  @@map("messages")
+}
+
+// System notifications
+model Notification {
+  id          String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId      String?          @map("user_id") @db.Uuid
+  schoolId    String?          @map("school_id") @db.Uuid
+  
+  title       String           @db.VarChar(255)
+  content     String
+  type        NotificationType @default(info)
+  priority    MessagePriority  @default(normal)
+  
+  // Status
+  isRead      Boolean          @default(false) @map("is_read")
+  readAt      DateTime?        @map("read_at") @db.Timestamptz
+  
+  // For system-wide notifications
+  isGlobal    Boolean          @default(false) @map("is_global")
+  
+  // Action button (optional)
+  actionUrl   String?          @map("action_url") @db.VarChar(500)
+  actionText  String?          @map("action_text") @db.VarChar(100)
+  
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz
+  
+  // Relations
+  user        User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  school      School?          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([schoolId])
+  @@index([type])
+  @@index([isGlobal])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// Audit log for tracking head admin actions
+model AuditLog {
+  id          String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId      String       @map("user_id") @db.Uuid
+  action      String       @db.VarChar(100)
+  resource    String       @db.VarChar(100) // e.g., "school", "user", "invoice"
+  resourceId  String?      @map("resource_id") @db.Uuid
+  
+  // Details
+  description String?
+  metadata    Json?        // Store additional context data
+  ipAddress   String?      @map("ip_address") @db.Inet
+  userAgent   String?      @map("user_agent")
+  
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  
+  // Relations
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([action])
+  @@index([resource])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// System settings for Head Admin
+model SystemSetting {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  key         String   @unique @db.VarChar(100)
+  value       String
+  dataType    String   @default("string") @map("data_type") @db.VarChar(20) // string, number, boolean, json
+  category    String   @default("general") @db.VarChar(50)
+  description String?
+  
+  updatedBy   String?  @map("updated_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  
+  @@index([category])
+  @@map("system_settings")
+}
+
+// Add new enums
+enum InvoiceStatus {
+  pending
+  paid
+  overdue
+  cancelled
+  refunded
+}
+
+enum MessageType {
+  direct
+  broadcast
+  system
+  announcement
+}
+
+enum MessagePriority {
+  low
+  normal
+  high
+  urgent
+}
+
+enum NotificationType {
+  info
+  success
+  warning
+  error
+  system
 }
 
 enum UserRole {
