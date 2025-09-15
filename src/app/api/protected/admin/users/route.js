@@ -1,33 +1,33 @@
-
 // /app/api/protected/admin/users/route.js
 import { requireAuth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import bcrypt from 'bcryptjs'; // ✅ use import instead of require
 
 export async function GET(request) {
   try {
     const user = await requireAuth(['admin', 'headadmin']);
-    
+
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page')) || 1;
     const limit = parseInt(searchParams.get('limit')) || 10;
     const role = searchParams.get('role');
     const search = searchParams.get('search');
-    
+
     const skip = (page - 1) * limit;
-    
+
     // Build where clause
     const where = {};
-    
+
     // For admin users, only show users from their school
     if (user.role === 'admin') {
       where.schoolId = user.school.id;
     }
-    
+
     if (role && role !== 'all') {
       where.role = role;
     }
-    
+
     if (search) {
       where.OR = [
         { firstName: { contains: search, mode: 'insensitive' } },
@@ -36,7 +36,7 @@ export async function GET(request) {
         { username: { contains: search, mode: 'insensitive' } }
       ];
     }
-    
+
     const [users, total] = await Promise.all([
       prisma.user.findMany({
         where,
@@ -58,7 +58,7 @@ export async function GET(request) {
       }),
       prisma.user.count({ where })
     ]);
-    
+
     return NextResponse.json({
       success: true,
       users: users.map(user => ({
@@ -90,7 +90,7 @@ export async function GET(request) {
         { status: 401 }
       );
     }
-    
+
     if (error.message === 'Access denied') {
       return NextResponse.json(
         { error: 'Access denied' },
@@ -110,7 +110,7 @@ export async function POST(request) {
   try {
     const currentUser = await requireAuth(['admin', 'headadmin']);
     const body = await request.json();
-    
+
     const { firstName, lastName, email, username, password, role, schoolId } = body;
 
     // Validate required fields
@@ -161,8 +161,7 @@ export async function POST(request) {
       );
     }
 
-    // Hash password
-    const bcrypt = require('bcryptjs');
+    // Hash password ✅
     const passwordHash = await bcrypt.hash(password, 12);
 
     // Create user
@@ -204,7 +203,7 @@ export async function POST(request) {
       await prisma.adminProfile.create({
         data: {
           userId: newUser.id,
-          employeeId: `ADM${Date.now()}`, // Generate unique employee ID
+          employeeId: `ADM${Date.now()}` // Generate unique employee ID
         }
       });
     }
@@ -231,7 +230,7 @@ export async function POST(request) {
         { status: 401 }
       );
     }
-    
+
     if (error.message === 'Access denied') {
       return NextResponse.json(
         { error: 'Access denied' },
