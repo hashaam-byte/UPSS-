@@ -166,7 +166,7 @@ const HeadAdminDashboard = () => {
           <div className="flex flex-col lg:flex-row justify-between items-start gap-6">
             <div className="space-y-2">
               <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-800 via-blue-800 to-purple-800 bg-clip-text text-transparent">
-                Admin Dashboard
+                 Dashboard
               </h1>
               <p className="text-gray-600 text-lg">
                 Welcome back! Here's what's happening with your platform.
