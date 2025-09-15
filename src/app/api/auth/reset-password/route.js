@@ -1,4 +1,3 @@
-
 // /app/api/auth/reset-password/route.js
 import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
@@ -6,9 +5,9 @@ import { NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
 
 // Configure email transporter
-const transporter = nodemailer.createTransporter({
+const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT),
+  port: parseInt(process.env.SMTP_PORT, 10),
   secure: process.env.SMTP_SECURE === 'true',
   auth: {
     user: process.env.SMTP_USER,
@@ -38,7 +37,7 @@ export async function POST(request) {
     }
 
     let user;
-    
+
     if (type === 'headadmin') {
       user = await prisma.user.findFirst({
         where: {
@@ -48,7 +47,6 @@ export async function POST(request) {
         }
       });
     } else {
-      // For school users, we need the school slug
       if (!schoolSlug) {
         return NextResponse.json(
           { error: 'School information is required' },
@@ -59,7 +57,7 @@ export async function POST(request) {
       const school = await prisma.school.findFirst({
         where: { slug: schoolSlug, isActive: true }
       });
-      
+
       if (!school) {
         return NextResponse.json(
           { error: 'School not found' },
@@ -78,7 +76,7 @@ export async function POST(request) {
     }
 
     if (!user) {
-      // For security, don't reveal if user exists or not
+      // Security: do not reveal existence
       return NextResponse.json({
         success: true,
         message: 'If an account with this email exists, a password reset link has been sent.'
@@ -89,7 +87,7 @@ export async function POST(request) {
     const resetToken = crypto.randomBytes(32).toString('hex');
     const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
-    // Save reset token to database
+    // Save reset token
     await prisma.passwordResetToken.create({
       data: {
         userId: user.id,
@@ -99,7 +97,7 @@ export async function POST(request) {
       }
     });
 
-    // Create reset URL
+    // Reset URL
     const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL}/auth/reset-password/confirm?token=${resetToken}&type=${type}`;
 
     // Send reset email
