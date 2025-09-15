@@ -1,3 +1,4 @@
+'use client'
 import React, { useState, useEffect } from 'react';
 import { 
   Home, School, Receipt, MessageSquare, Settings, Search, Bell, Menu,
