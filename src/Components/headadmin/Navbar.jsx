@@ -67,7 +67,7 @@ const Navbar = ({ onMenuClick, user, notifications = [], onLogout }) => {
               <Shield className="h-4 w-4 text-white" />
             </div>
             <span className="text-sm font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              Super Administrator Panel
+              HeadAdmin Panel
             </span>
           </div>
         </div>

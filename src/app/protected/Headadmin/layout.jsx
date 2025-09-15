@@ -130,6 +130,7 @@ const HeadAdminLayout = ({ children }) => {
           user={user}
           onLogout={handleLogout}
           currentPath={typeof window !== 'undefined' ? window.location.pathname : '/protected/headadmin'}
+          className="fixed top-0 left-0 h-full z-40"
         />
 
         {/* Main Content Area - Takes remaining space */}
