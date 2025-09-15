@@ -99,7 +99,29 @@ export async function POST(request) {
       );
     }
 
-    // Start a transaction to create school and admin
+    // Pre-hash password outside transaction to save time
+    const passwordHash = await bcrypt.hash(adminPassword, 12);
+
+    // Prepare data outside transaction
+    const currentDate = new Date();
+    const nextMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+    const invoiceNumber = `INV-${slug.toUpperCase()}-${Date.now()}`;
+
+    // Define permissions data outside transaction
+    const defaultPermissions = [
+      { module: 'users', actions: ['create', 'read', 'update', 'delete'] },
+      { module: 'students', actions: ['create', 'read', 'update', 'delete'] },
+      { module: 'teachers', actions: ['create', 'read', 'update', 'delete'] },
+      { module: 'classes', actions: ['create', 'read', 'update', 'delete'] },
+      { module: 'subjects', actions: ['create', 'read', 'update', 'delete'] },
+      { module: 'timetables', actions: ['create', 'read', 'update', 'delete'] },
+      { module: 'assignments', actions: ['create', 'read', 'update', 'delete'] },
+      { module: 'results', actions: ['create', 'read', 'update', 'delete'] },
+      { module: 'reports', actions: ['read'] },
+      { module: 'settings', actions: ['read', 'update'] }
+    ];
+
+    // Start a transaction with increased timeout
     const result = await prisma.$transaction(async (tx) => {
       // Create the school
       const newSchool = await tx.school.create({
@@ -118,9 +140,6 @@ export async function POST(request) {
         }
       });
 
-      // Hash admin password
-      const passwordHash = await bcrypt.hash(adminPassword, 12);
-
       // Create admin user
       const newAdmin = await tx.user.create({
         data: {
@@ -131,101 +150,47 @@ export async function POST(request) {
           passwordHash,
           role: 'admin',
           schoolId: newSchool.id,
-          isEmailVerified: true, // Auto-verify admin emails
+          isEmailVerified: true,
           isActive: true
         }
       });
 
       // Create admin profile
-      await tx.adminProfile.create({
+      const adminProfile = await tx.adminProfile.create({
         data: {
           userId: newAdmin.id,
           department: 'Administration'
         }
       });
 
-      // Create default admin permissions
-      const defaultPermissions = [
-        {
-          module: 'users',
-          actions: ['create', 'read', 'update', 'delete']
-        },
-        {
-          module: 'students',
-          actions: ['create', 'read', 'update', 'delete']
-        },
-        {
-          module: 'teachers',
-          actions: ['create', 'read', 'update', 'delete']
-        },
-        {
-          module: 'classes',
-          actions: ['create', 'read', 'update', 'delete']
-        },
-        {
-          module: 'subjects',
-          actions: ['create', 'read', 'update', 'delete']
-        },
-        {
-          module: 'timetables',
-          actions: ['create', 'read', 'update', 'delete']
-        },
-        {
-          module: 'assignments',
-          actions: ['create', 'read', 'update', 'delete']
-        },
-        {
-          module: 'results',
-          actions: ['create', 'read', 'update', 'delete']
-        },
-        {
-          module: 'reports',
-          actions: ['read']
-        },
-        {
-          module: 'settings',
-          actions: ['read', 'update']
-        }
-      ];
-
-      const adminProfile = await tx.adminProfile.findUnique({
-        where: { userId: newAdmin.id }
+      // Use createMany for better performance instead of Promise.all
+      await tx.adminPermission.createMany({
+        data: defaultPermissions.map(permission => ({
+          adminProfileId: adminProfile.id,
+          module: permission.module,
+          actions: permission.actions
+        }))
       });
 
-      await Promise.all(
-        defaultPermissions.map(permission =>
-          tx.adminPermission.create({
-            data: {
-              adminProfileId: adminProfile.id,
-              module: permission.module,
-              actions: permission.actions
-            }
-          })
-        )
-      );
-
-      // Create initial invoice for the school (trial period)
-      const currentDate = new Date();
-      const nextMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
-      
+      // Create initial invoice
       await tx.invoice.create({
         data: {
           schoolId: newSchool.id,
-          invoiceNumber: `INV-${newSchool.slug.toUpperCase()}-${Date.now()}`,
-          amount: 0, // Trial period
+          invoiceNumber,
+          amount: 0,
           description: 'Trial Period - First Month Free',
           billingPeriod: `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`,
           studentCount: 0,
-          teacherCount: 1, // Admin counts as a user
+          teacherCount: 1,
           adminCount: 1,
-          status: 'paid', // Mark trial as paid
+          status: 'paid',
           dueDate: nextMonth,
           paidAt: currentDate,
           createdBy: user.id
         }
       });
 
-      // Create welcome notification for admin
+      // Create welcome notification
       await tx.notification.create({
         data: {
           userId: newAdmin.id,
@@ -237,9 +202,12 @@ export async function POST(request) {
       });
 
       return { school: newSchool, admin: newAdmin };
+    }, {
+      timeout: 15000, // Increase timeout to 15 seconds
+      maxWait: 20000  // Maximum time to wait for a transaction slot
     });
 
-    // Log the creation action
+    // Log the creation action (outside transaction to avoid further delays)
     await prisma.auditLog.create({
       data: {
         userId: user.id,
@@ -278,6 +246,13 @@ export async function POST(request) {
       return NextResponse.json(
         { error: 'School slug or admin email already exists' },
         { status: 409 }
+      );
+    }
+
+    if (error.code === 'P2028') {
+      return NextResponse.json(
+        { error: 'Transaction timeout. Please try again.' },
+        { status: 500 }
       );
     }
     
