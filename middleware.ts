@@ -20,7 +20,7 @@ export async function middleware(request: NextRequest) { // ✅ Add type
             { status: 401 }
           );
         }
-        return NextResponse.redirect(new URL('/auth/login', request.url));
+        return NextResponse.redirect(new URL('/protected', request.url));
       }
 
       // Verify JWT token
@@ -36,7 +36,7 @@ export async function middleware(request: NextRequest) { // ✅ Add type
         console.log('Invalid token, redirecting to login');
         const response = pathname.startsWith('/api/')
           ? NextResponse.json({ error: 'Invalid token' }, { status: 401 })
-          : NextResponse.redirect(new URL('/auth/login', request.url));
+          : NextResponse.redirect(new URL('/protected', request.url));
         response.cookies.delete('auth_token');
         return response;
       }
@@ -103,7 +103,7 @@ export async function middleware(request: NextRequest) { // ✅ Add type
 
       const response = pathname.startsWith('/api/')
         ? NextResponse.json({ error: 'Authentication failed' }, { status: 401 })
-        : NextResponse.redirect(new URL('/auth/login', request.url));
+        : NextResponse.redirect(new URL('/protected', request.url));
       response.cookies.delete('auth_token');
       return response;
     }
