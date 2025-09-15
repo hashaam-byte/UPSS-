@@ -1,16 +1,17 @@
-// middleware.js (for Next.js 13+)
+// middleware.ts (for Next.js 13+)
 import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server'; // ✅ Import the type
 import jwt from 'jsonwebtoken';
 
-export async function middleware(request) {
+export async function middleware(request: NextRequest) { // ✅ Add type
   const { pathname } = request.nextUrl;
-  
+
   // Protect the entire /protected directory and API routes
   if (pathname.startsWith('/protected') || pathname.startsWith('/api/protected')) {
     try {
       // Get token from cookies
       const token = request.cookies.get('auth_token')?.value;
-      
+
       if (!token) {
         console.log('No token found, redirecting to login');
         if (pathname.startsWith('/api/')) {
@@ -23,11 +24,17 @@ export async function middleware(request) {
       }
 
       // Verify JWT token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      
+      const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as {
+        userId: string;
+        role: string;
+        schoolId?: string;
+        email?: string;
+        exp: number;
+      };
+
       if (!decoded || !decoded.userId || !decoded.role) {
         console.log('Invalid token, redirecting to login');
-        const response = pathname.startsWith('/api/') 
+        const response = pathname.startsWith('/api/')
           ? NextResponse.json({ error: 'Invalid token' }, { status: 401 })
           : NextResponse.redirect(new URL('/auth/login', request.url));
         response.cookies.delete('auth_token');
@@ -38,77 +45,63 @@ export async function middleware(request) {
       const userRole = decoded.role;
       const requestedPath = pathname.toLowerCase();
 
-      // Define role permissions - hierarchical access
-      const rolePermissions = {
-        'headadmin': [
-          '/protected/headadmin', 
-          '/protected/admin', 
-          '/protected/teachers', 
+      const rolePermissions: Record<string, string[]> = {
+        headadmin: [
+          '/protected/headadmin',
+          '/protected/admin',
+          '/protected/teachers',
           '/protected/students',
           '/api/protected/headadmin',
           '/api/protected/admin',
           '/api/protected/teachers',
-          '/api/protected/students'
+          '/api/protected/students',
         ],
-        'admin': [
-          '/protected/admin', 
-          '/protected/teachers', 
+        admin: [
+          '/protected/admin',
+          '/protected/teachers',
           '/protected/students',
           '/api/protected/admin',
           '/api/protected/teachers',
-          '/api/protected/students'
+          '/api/protected/students',
         ],
-        'teacher': [
-          '/protected/teachers',
-          '/api/protected/teachers'
-        ],
-        'student': [
-          '/protected/students',
-          '/api/protected/students'
-        ]
+        teacher: ['/protected/teachers', '/api/protected/teachers'],
+        student: ['/protected/students', '/api/protected/students'],
       };
 
-      // Check if user has permission to access this path
       const allowedPaths = rolePermissions[userRole] || [];
-      const hasPermission = allowedPaths.some(allowedPath => 
+      const hasPermission = allowedPaths.some((allowedPath) =>
         requestedPath.startsWith(allowedPath.toLowerCase())
       );
 
       if (!hasPermission) {
         console.log(`Role ${userRole} denied access to ${pathname}`);
         if (pathname.startsWith('/api/')) {
-          return NextResponse.json(
-            { error: 'Access denied' },
-            { status: 403 }
-          );
+          return NextResponse.json({ error: 'Access denied' }, { status: 403 });
         }
         return NextResponse.redirect(new URL('/auth/unauthorized', request.url));
       }
 
-      // Check if token is close to expiry (less than 15 minutes)
+      // Token expiry check
       const tokenExp = decoded.exp;
       const currentTime = Math.floor(Date.now() / 1000);
       const timeUntilExpiry = tokenExp - currentTime;
 
-      // Add user info to headers for the protected pages/APIs
+      // Add user info to headers
       const response = NextResponse.next();
       response.headers.set('X-User-Role', userRole);
       response.headers.set('X-User-ID', decoded.userId);
       response.headers.set('X-School-ID', decoded.schoolId || '');
       response.headers.set('X-User-Email', decoded.email || '');
-      
-      // If token expires soon, add header to trigger refresh
-      if (timeUntilExpiry < 900) { // 15 minutes
+
+      if (timeUntilExpiry < 900) {
         response.headers.set('X-Token-Refresh-Needed', 'true');
       }
-      
-      return response;
 
+      return response;
     } catch (error) {
       console.error('Auth middleware error:', error);
-      
-      // Clear invalid token
-      const response = pathname.startsWith('/api/') 
+
+      const response = pathname.startsWith('/api/')
         ? NextResponse.json({ error: 'Authentication failed' }, { status: 401 })
         : NextResponse.redirect(new URL('/auth/login', request.url));
       response.cookies.delete('auth_token');
@@ -116,15 +109,9 @@ export async function middleware(request) {
     }
   }
 
-  // For non-protected routes, continue normally
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: [
-    // Match all paths under /protected
-    '/protected/:path*',
-    // Match protected API routes
-    '/api/protected/:path*'
-  ]
+  matcher: ['/protected/:path*', '/api/protected/:path*'],
 };

@@ -191,7 +191,7 @@ const UnifiedLandingPage = () => {
         <div className="max-w-7xl mx-auto text-center">
           <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 rounded-full border border-emerald-500/30 mb-8 backdrop-blur-sm">
             <Star className="h-4 w-4 text-emerald-400 mr-2" />
-            <span className="text-emerald-300 text-sm font-medium">Nigeria's #1 School Management Platform</span>
+            <span className="text-emerald-300 text-sm font-medium">Nigeria&apos;s #1 School Management Platform</span>
           </div>
           
           {/* 3D Logo placeholder */}
@@ -519,7 +519,7 @@ const UnifiedLandingPage = () => {
                   <Star key={i} className="h-5 w-5 text-yellow-400 fill-current" />
                 ))}
               </div>
-              <p className="text-lg text-gray-300 mb-4 italic">"Now I never miss announcements."</p>
+              <p className="text-lg text-gray-300 mb-4 italic">&apos;Now I never miss announcements.&apos;</p>
               <p className="text-emerald-400 font-semibold">— Student</p>
             </div>
             
@@ -529,7 +529,7 @@ const UnifiedLandingPage = () => {
                   <Star key={i} className="h-5 w-5 text-yellow-400 fill-current" />
                 ))}
               </div>
-              <p className="text-lg text-gray-300 mb-4 italic">"It is easier to track assignments and results."</p>
+              <p className="text-lg text-gray-300 mb-4 italic">&apos;It is easier to track assignments and results.&apos;</p>
               <p className="text-cyan-400 font-semibold">— Teacher</p>
             </div>
           </div>

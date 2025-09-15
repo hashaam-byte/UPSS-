@@ -1,8 +1,9 @@
 // /app/api/protected/user/profile/route.js
 import { requireAuth } from '@/lib/auth';
 import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 
-export async function GET(request) {
+export async function GET() {
   try {
     const user = await requireAuth();
     

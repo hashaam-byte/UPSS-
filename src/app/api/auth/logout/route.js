@@ -1,4 +1,3 @@
-
 // /app/api/auth/logout/route.js
 import jwt from 'jsonwebtoken';
 import { cookies } from 'next/headers';
@@ -6,7 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 
-export async function POST(request) {
+export async function POST() {
   try {
     const cookieStore = cookies();
     const token = cookieStore.get('auth_token')?.value;

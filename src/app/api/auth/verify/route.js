@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 
-export async function GET(request) {
+export async function GET() {
   try {
     // Get cookies (await not needed in Next.js 13+ App Router)
     const cookieStore = cookies();
