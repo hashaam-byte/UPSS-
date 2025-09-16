@@ -1,6 +1,6 @@
 // pages/api/protected/headadmin/invoices/index.js
 import { PrismaClient } from '@prisma/client';
-import { verifyHeadAdminAuth } from '../../../../lib/authHelpers';
+import { getCurrentUser } from '@/lib/auth';
 
 const prisma = new PrismaClient();
 
@@ -11,9 +11,9 @@ export default async function handler(req, res) {
 
   try {
     // Verify authentication
-    const authResult = await verifyHeadAdminAuth(req);
-    if (!authResult.success) {
-      return res.status(401).json({ error: authResult.error });
+    const user = await getCurrentUser(req);
+    if (!user || user.role !== 'head-admin') {
+      return res.status(401).json({ error: 'Unauthorized' });
     }
 
     // Fetch all invoices with school details
