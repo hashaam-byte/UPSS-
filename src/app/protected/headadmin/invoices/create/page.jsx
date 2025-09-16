@@ -122,9 +122,7 @@ const CreateInvoicePage = () => {
     }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
+  const handleSubmit = async () => {
     if (!selectedSchool) {
       setError('Please select a school');
       return;
@@ -132,6 +130,11 @@ const CreateInvoicePage = () => {
 
     if (!invoiceData.billingPeriod || !invoiceData.dueDate) {
       setError('Please fill in all required fields');
+      return;
+    }
+
+    if (invoiceData.useCustomAmount && (!invoiceData.customAmount || parseFloat(invoiceData.customAmount) <= 0)) {
+      setError('Please enter a valid custom amount');
       return;
     }
 
@@ -243,7 +246,7 @@ const CreateInvoicePage = () => {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-8">
+        <div className="space-y-8">
           {/* School Selection */}
           <div className="bg-gradient-to-br from-white/70 to-blue-50/70 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50 overflow-hidden">
             <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6">
@@ -277,14 +280,26 @@ const CreateInvoicePage = () => {
                     <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-500 rounded-xl flex items-center justify-center shadow-lg">
                       <Building2 className="w-6 h-6 text-white" />
                     </div>
-                    <div>
-                      <h3 className="font-bold text-gray-900 text-lg">{selectedSchool.name}</h3>
-                      <p className="text-sm text-gray-600">{selectedSchool.email}</p>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold text-gray-900 text-lg truncate">{selectedSchool.name}</h3>
+                      <p className="text-sm text-gray-600 truncate">{selectedSchool.email}</p>
                     </div>
                     <button
                       type="button"
-                      onClick={() => {setSelectedSchool(null); setInvoiceData(prev => ({...prev, schoolId: ''}))}}
-                      className="ml-auto text-red-500 hover:text-red-700 px-3 py-1 text-sm font-medium"
+                      onClick={() => {
+                        setSelectedSchool(null); 
+                        setInvoiceData(prev => ({...prev, schoolId: ''}));
+                        setCalculatedData(prev => ({
+                          ...prev,
+                          studentCount: 0,
+                          teacherCount: 0,
+                          adminCount: 0,
+                          totalUsers: 0,
+                          calculatedAmount: 0,
+                          usesFlatRate: false
+                        }));
+                      }}
+                      className="ml-auto text-red-500 hover:text-red-700 px-3 py-1 text-sm font-medium flex-shrink-0"
                     >
                       Change
                     </button>
@@ -311,14 +326,14 @@ const CreateInvoicePage = () => {
                         className="w-full p-4 text-left hover:bg-blue-50/50 rounded-xl transition-colors duration-200 border border-gray-200/50 hover:border-blue-300/50"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-lg flex items-center justify-center shadow-lg">
+                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-lg flex items-center justify-center shadow-lg flex-shrink-0">
                             <Building2 className="w-5 h-5 text-white" />
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="font-semibold text-gray-900 truncate">{school.name}</p>
                             <p className="text-sm text-gray-600 truncate">{school.email}</p>
                           </div>
-                          <div className="text-xs text-gray-500">
+                          <div className="text-xs text-gray-500 flex-shrink-0">
                             <span className={`px-2 py-1 rounded-full text-xs font-bold ${
                               school.isActive 
                                 ? 'bg-green-100 text-green-700' 
@@ -431,7 +446,11 @@ const CreateInvoicePage = () => {
                     <input
                       type="month"
                       value={invoiceData.billingPeriod}
-                      onChange={(e) => setInvoiceData(prev => ({ ...prev, billingPeriod: e.target.value }))}
+                      onChange={(e) => setInvoiceData(prev => ({ 
+                        ...prev, 
+                        billingPeriod: e.target.value,
+                        description: `Monthly subscription for ${selectedSchool?.name || 'Selected School'} - ${e.target.value}`
+                      }))}
                       className="w-full px-4 py-3 border border-gray-300/50 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white/50 backdrop-blur-sm"
                       required
                     />
@@ -489,7 +508,6 @@ const CreateInvoicePage = () => {
                         placeholder="Enter custom amount"
                         min="0"
                         step="0.01"
-                        required={invoiceData.useCustomAmount}
                       />
                     </div>
                   )}
@@ -523,7 +541,8 @@ const CreateInvoicePage = () => {
                   </button>
                   
                   <button
-                    type="submit"
+                    type="button"
+                    onClick={handleSubmit}
                     disabled={creating || !selectedSchool}
                     className="group relative overflow-hidden bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-3 rounded-xl font-semibold transition-all duration-300 hover:scale-105 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center gap-2"
                   >
@@ -544,4 +563,10 @@ const CreateInvoicePage = () => {
               </div>
             </div>
           )}
-        </form>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default CreateInvoicePage;
