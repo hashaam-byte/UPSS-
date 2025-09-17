@@ -453,3 +453,48 @@ model Payment {
 
   @@map("payments")
 }
+
+model ResourceFolder {
+  id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name        String    @db.VarChar(255)
+  description String?   @db.VarChar(500)
+  schoolId    String    @db.Uuid
+  parentId    String?   @db.Uuid
+  createdById String    @db.Uuid
+  createdAt   DateTime  @default(now()) @db.Timestamptz
+
+  // Relations
+  school      School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  parent      ResourceFolder? @relation("FolderParent", fields: [parentId], references: [id])
+  children    ResourceFolder[] @relation("FolderParent")
+  resources   Resource[]
+  createdBy   User      @relation(fields: [createdById], references: [id])
+
+  @@index([schoolId])
+  @@index([parentId])
+  @@map("resource_folders")
+}
+
+model Resource {
+  id            String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name          String    @db.VarChar(255)
+  originalName  String?   @db.VarChar(255)
+  filename      String?   @db.VarChar(255)
+  url           String    @db.VarChar(500)
+  mimeType      String    @db.VarChar(100)
+  size          Int
+  schoolId      String    @db.Uuid
+  uploadedById  String    @db.Uuid
+  folderId      String?   @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  school        School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  uploadedBy    User      @relation(fields: [uploadedById], references: [id])
+  folder        ResourceFolder? @relation(fields: [folderId], references: [id])
+
+  @@index([schoolId])
+  @@index([folderId])
+  @@map("resources")
+}
