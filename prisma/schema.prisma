@@ -40,6 +40,8 @@ model School {
   // Relations
   users       User[]
   payments     Payment[]
+  resourceFolders ResourceFolder[]
+  resources       Resource[]
   
   @@map("schools")
 }
@@ -93,6 +95,8 @@ model User {
   verifiedInvoices    Invoice[] @relation("InvoiceVerifier")
   cancelledInvoices   Invoice[] @relation("InvoiceCanceller")
   processedPayments   Payment[] @relation("PaymentProcessor")
+  createdResourceFolders ResourceFolder[] @relation("UserCreatedFolders")
+  uploadedResources      Resource[]      @relation("UserUploadedResources")
 
   @@unique([email, schoolId])
   @@unique([username, schoolId])
@@ -468,7 +472,7 @@ model ResourceFolder {
   parent      ResourceFolder? @relation("FolderParent", fields: [parentId], references: [id])
   children    ResourceFolder[] @relation("FolderParent")
   resources   Resource[]
-  createdBy   User      @relation(fields: [createdById], references: [id])
+  createdBy   User      @relation("UserCreatedFolders", fields: [createdById], references: [id])
 
   @@index([schoolId])
   @@index([parentId])
@@ -491,7 +495,7 @@ model Resource {
 
   // Relations
   school        School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  uploadedBy    User      @relation(fields: [uploadedById], references: [id])
+  uploadedBy    User      @relation("UserUploadedResources", fields: [uploadedById], references: [id])
   folder        ResourceFolder? @relation(fields: [folderId], references: [id])
 
   @@index([schoolId])

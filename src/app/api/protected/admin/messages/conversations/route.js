@@ -8,12 +8,12 @@ export async function GET(request) {
     const user = await requireAuth(['admin', 'headadmin']);
     const userId = user.id;
 
-    // Use correct column names as per Prisma schema (snake_case)
-    const conversations = await prisma.$queryRawUnsafe`
+    // Use $queryRaw with positional parameters for all userId occurrences
+    const sql = `
       SELECT DISTINCT
         m.id as conversation_id,
         CASE
-          WHEN m."from_user_id" = ${userId} THEN m."to_user_id"
+          WHEN m."from_user_id" = $1 THEN m."to_user_id"
           ELSE m."from_user_id"
         END as participant_id,
         u."first_name" as participant_firstName,
@@ -26,23 +26,23 @@ export async function GET(request) {
       FROM messages m
       INNER JOIN users u ON (
         CASE
-          WHEN m."from_user_id" = ${userId} THEN m."to_user_id"
+          WHEN m."from_user_id" = $1 THEN m."to_user_id"
           ELSE m."from_user_id"
         END = u.id
       )
       INNER JOIN (
         SELECT
           CASE
-            WHEN "from_user_id" = ${userId} THEN "to_user_id"
+            WHEN "from_user_id" = $1 THEN "to_user_id"
             ELSE "from_user_id"
           END as other_user,
           MAX("created_at") as max_time
         FROM messages
-        WHERE "from_user_id" = ${userId} OR "to_user_id" = ${userId}
+        WHERE "from_user_id" = $1 OR "to_user_id" = $1
         GROUP BY other_user
       ) latest_time ON (
         CASE
-          WHEN m."from_user_id" = ${userId} THEN m."to_user_id"
+          WHEN m."from_user_id" = $1 THEN m."to_user_id"
           ELSE m."from_user_id"
         END = latest_time.other_user
         AND m."created_at" = latest_time.max_time
@@ -50,8 +50,8 @@ export async function GET(request) {
       INNER JOIN messages latest ON (
         latest."created_at" = latest_time.max_time
         AND (
-          (latest."from_user_id" = ${userId} AND latest."to_user_id" = latest_time.other_user) OR
-          (latest."to_user_id" = ${userId} AND latest."from_user_id" = latest_time.other_user)
+          (latest."from_user_id" = $1 AND latest."to_user_id" = latest_time.other_user) OR
+          (latest."to_user_id" = $1 AND latest."from_user_id" = latest_time.other_user)
         )
       )
       LEFT JOIN (
@@ -59,17 +59,19 @@ export async function GET(request) {
           "from_user_id",
           COUNT(*) as count
         FROM messages
-        WHERE "to_user_id" = ${userId} AND "is_read" = false
+        WHERE "to_user_id" = $1 AND "is_read" = false
         GROUP BY "from_user_id"
       ) unread ON unread."from_user_id" = (
         CASE
-          WHEN m."from_user_id" = ${userId} THEN m."to_user_id"
+          WHEN m."from_user_id" = $1 THEN m."to_user_id"
           ELSE m."from_user_id"
         END
       )
-      WHERE m."from_user_id" = ${userId} OR m."to_user_id" = ${userId}
+      WHERE m."from_user_id" = $1 OR m."to_user_id" = $1
       ORDER BY latest."created_at" DESC
     `;
+
+    const conversations = await prisma.$queryRawUnsafe(sql, userId);
 
     // Transform the raw query result
     const formattedConversations = conversations.map(conv => ({
