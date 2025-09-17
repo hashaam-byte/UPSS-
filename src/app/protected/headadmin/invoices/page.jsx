@@ -443,7 +443,7 @@ const InvoicesBillingPage = () => {
                           <div className="flex items-center">
                             <Building2 className="w-4 h-4 text-gray-400 mr-2" />
                             <span className="text-sm font-medium text-gray-900">
-                              {invoice.school?.name || 'Unknown School'}
+                              {invoice.school?.name || ''}
                             </span>
                           </div>
                         </td>

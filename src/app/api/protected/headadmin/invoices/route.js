@@ -30,9 +30,32 @@ export async function GET() {
       }
     });
 
+    // Ensure each invoice has a school object (null if not found)
+    const invoicesWithSchool = await Promise.all(
+      invoices.map(async (invoice) => {
+        if (invoice.school) {
+          return invoice;
+        }
+        // If school relation is missing, fetch it directly
+        if (invoice.schoolId) {
+          const school = await prisma.school.findUnique({
+            where: { id: invoice.schoolId },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              slug: true
+            }
+          });
+          return { ...invoice, school: school || null };
+        }
+        return { ...invoice, school: null };
+      })
+    );
+
     return NextResponse.json({
       success: true,
-      invoices
+      invoices: invoicesWithSchool
     });
 
   } catch (error) {
