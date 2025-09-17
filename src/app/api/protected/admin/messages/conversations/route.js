@@ -5,69 +5,70 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request) {
   try {
-    const user = await requireAuth(['admin']);
+    const user = await requireAuth(['admin', 'headadmin']);
+    const userId = user.id;
 
-    // Get conversations for the admin user
-    const conversations = await prisma.$queryRaw`
+    // Use correct column names as per Prisma schema (snake_case)
+    const conversations = await prisma.$queryRawUnsafe`
       SELECT DISTINCT
         m.id as conversation_id,
-        CASE 
-          WHEN m.fromUserId = ${user.id} THEN m.toUserId
-          ELSE m.fromUserId
+        CASE
+          WHEN m."from_user_id" = ${userId} THEN m."to_user_id"
+          ELSE m."from_user_id"
         END as participant_id,
-        u.firstName as participant_firstName,
-        u.lastName as participant_lastName,
+        u."first_name" as participant_firstName,
+        u."last_name" as participant_lastName,
         u.email as participant_email,
         u.role as participant_role,
         latest.content as last_message_content,
-        latest.createdAt as last_message_time,
+        latest."created_at" as last_message_time,
         COALESCE(unread.count, 0) as unread_count
       FROM messages m
       INNER JOIN users u ON (
-        CASE 
-          WHEN m.fromUserId = ${user.id} THEN m.toUserId
-          ELSE m.fromUserId
+        CASE
+          WHEN m."from_user_id" = ${userId} THEN m."to_user_id"
+          ELSE m."from_user_id"
         END = u.id
       )
       INNER JOIN (
-        SELECT 
-          CASE 
-            WHEN fromUserId = ${user.id} THEN toUserId
-            ELSE fromUserId
+        SELECT
+          CASE
+            WHEN "from_user_id" = ${userId} THEN "to_user_id"
+            ELSE "from_user_id"
           END as other_user,
-          MAX(createdAt) as max_time
+          MAX("created_at") as max_time
         FROM messages
-        WHERE fromUserId = ${user.id} OR toUserId = ${user.id}
+        WHERE "from_user_id" = ${userId} OR "to_user_id" = ${userId}
         GROUP BY other_user
       ) latest_time ON (
-        CASE 
-          WHEN m.fromUserId = ${user.id} THEN m.toUserId
-          ELSE m.fromUserId
+        CASE
+          WHEN m."from_user_id" = ${userId} THEN m."to_user_id"
+          ELSE m."from_user_id"
         END = latest_time.other_user
-        AND m.createdAt = latest_time.max_time
+        AND m."created_at" = latest_time.max_time
       )
       INNER JOIN messages latest ON (
-        latest.createdAt = latest_time.max_time
+        latest."created_at" = latest_time.max_time
         AND (
-          (latest.fromUserId = ${user.id} AND latest.toUserId = latest_time.other_user) OR
-          (latest.toUserId = ${user.id} AND latest.fromUserId = latest_time.other_user)
+          (latest."from_user_id" = ${userId} AND latest."to_user_id" = latest_time.other_user) OR
+          (latest."to_user_id" = ${userId} AND latest."from_user_id" = latest_time.other_user)
         )
       )
       LEFT JOIN (
-        SELECT 
-          fromUserId,
+        SELECT
+          "from_user_id",
           COUNT(*) as count
         FROM messages
-        WHERE toUserId = ${user.id} AND isRead = false
-        GROUP BY fromUserId
-      ) unread ON unread.fromUserId = (
-        CASE 
-          WHEN m.fromUserId = ${user.id} THEN m.toUserId
-          ELSE m.fromUserId
+        WHERE "to_user_id" = ${userId} AND "is_read" = false
+        GROUP BY "from_user_id"
+      ) unread ON unread."from_user_id" = (
+        CASE
+          WHEN m."from_user_id" = ${userId} THEN m."to_user_id"
+          ELSE m."from_user_id"
         END
       )
-      WHERE m.fromUserId = ${user.id} OR m.toUserId = ${user.id}
-      ORDER BY latest.createdAt DESC
+      WHERE m."from_user_id" = ${userId} OR m."to_user_id" = ${userId}
+      ORDER BY latest."created_at" DESC
     `;
 
     // Transform the raw query result
