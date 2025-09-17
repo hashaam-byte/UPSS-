@@ -39,6 +39,7 @@ model School {
   
   // Relations
   users       User[]
+  payments     Payment[]
   
   @@map("schools")
 }
@@ -88,6 +89,11 @@ model User {
   sessions                UserSession[]
   passwordResetTokens     PasswordResetToken[]
   
+  // Invoice relations
+  verifiedInvoices    Invoice[] @relation("InvoiceVerifier")
+  cancelledInvoices   Invoice[] @relation("InvoiceCanceller")
+  processedPayments   Payment[] @relation("PaymentProcessor")
+
   @@unique([email, schoolId])
   @@unique([username, schoolId])
   @@index([email])
@@ -210,14 +216,14 @@ model PasswordResetToken {
 // Invoice/Billing Management
 model Invoice {
   id              String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  schoolId        String    @map("school_id") @db.Uuid
-  invoiceNumber   String    @unique @map("invoice_number") @db.VarChar(50)
+  schoolId        String?   @map("school_id") @db.Uuid
+  invoiceNumber   String?   @unique @map("invoice_number") @db.VarChar(50)
   
   // Billing details
   amount          Decimal   @db.Decimal(10,2)
   currency        String    @default("NGN") @db.VarChar(3)
   description     String?
-  billingPeriod   String    @map("billing_period") @db.VarChar(50) // e.g., "2024-01"
+  billingPeriod   String?   @map("billing_period") @db.VarChar(50) // e.g., "2024-01"
   
   // User counts for billing calculation
   studentCount    Int       @default(0) @map("student_count")
@@ -227,7 +233,7 @@ model Invoice {
   // Status and payment
   status          InvoiceStatus @default(pending)
   paidAt          DateTime? @map("paid_at") @db.Timestamptz
-  dueDate         DateTime  @map("due_date") @db.Timestamptz
+  dueDate         DateTime? @map("due_date") @db.Timestamptz
   
   // Payment gateway details
   paymentReference String?  @map("payment_reference") @db.VarChar(255)
@@ -239,12 +245,19 @@ model Invoice {
   createdBy       String?   @map("created_by") @db.Uuid
   verifiedBy      String?   @map("verified_by") @db.Uuid
   verifiedAt      DateTime? @map("verified_at") @db.Timestamptz
+  pricePerUser    Decimal?   @db.Decimal(10, 2)
+  cancelledAt     DateTime?  @map("cancelled_at") @db.Timestamptz
+  cancelledBy     String?    @map("cancelled_by") @db.Uuid
+  cancellationReason String? @map("cancellation_reason")
   
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  updatedAt       DateTime?  @updatedAt @map("updated_at") @db.Timestamptz
   
   // Relations
-  school          School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  school          School?   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  verifier        User?      @relation("InvoiceVerifier", fields: [verifiedBy], references: [id])
+  canceller       User?      @relation("InvoiceCanceller", fields: [cancelledBy], references: [id])
+  payments        Payment[]
   
   @@index([schoolId])
   @@index([status])
@@ -378,6 +391,13 @@ enum InvoiceStatus {
   refunded
 }
 
+enum PaymentStatus {
+  pending
+  completed
+  failed
+  refunded
+}
+
 enum MessageType {
   direct
   broadcast
@@ -411,4 +431,25 @@ enum Gender {
   male
   female
   other
+}
+
+model Payment {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  invoiceId       String   @map("invoice_id") @db.Uuid
+  schoolId        String   @map("school_id") @db.Uuid
+  amount          Decimal  @db.Decimal(10, 2)
+  method          String   @db.VarChar(50)
+  status          PaymentStatus @default(pending)
+  transactionId   String?  @map("transaction_id") @db.VarChar(255)
+  gatewayResponse Json?    @map("gateway_response")
+  processedBy     String?  @map("processed_by") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  invoice         Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  school          School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  processor       User?    @relation("PaymentProcessor", fields: [processedBy], references: [id])
+
+  @@map("payments")
 }

@@ -1,4 +1,4 @@
-// pages/api/protected/headadmin/invoices/[id]/index.js
+// app/api/protected/headadmin/invoices/[id]/route.js
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
@@ -43,10 +43,11 @@ export async function GET(request, { params }) {
   } catch (error) {
     console.error('Failed to fetch invoice:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        error: 'Internal server error',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      },
       { status: 500 }
     );
   }
 }
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-  
