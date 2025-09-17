@@ -1,20 +1,16 @@
-
 // pages/api/protected/headadmin/invoices/stats.js
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
+import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 
-const prisma = new PrismaClient();
-
-export default async function handler(req, res) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
+export async function GET() {
   try {
-    // Verify authentication
-    const authResult = await getCurrentUser(req);
-    if (!authResult.success) {
-      return res.status(401).json({ error: authResult.error });
+    const user = await getCurrentUser();
+    if (!user || user.role !== 'headadmin') {
+      return NextResponse.json(
+        { error: 'Access denied' },
+        { status: 403 }
+      );
     }
 
     // Get invoice statistics
@@ -52,18 +48,16 @@ export default async function handler(req, res) {
       overdueInvoices: overdueCount
     };
 
-    return res.status(200).json({
+    return NextResponse.json({
       success: true,
       stats
     });
 
   } catch (error) {
     console.error('Failed to fetch invoice stats:', error);
-    return res.status(500).json({ 
-      error: 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  } finally {
-    await prisma.$disconnect();
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

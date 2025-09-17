@@ -1,41 +1,36 @@
-
 // pages/api/protected/headadmin/settings/payment.js
-import { PrismaClient } from '@prisma/client';
-import { verifyHeadAdminAuth } from '../../../../lib/authHelpers';
+import { prisma } from '@/lib/prisma';
+import { NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/auth';
 
-const prisma = new PrismaClient();
-
-export default async function handler(req, res) {
+export async function GET(request) {
   try {
-    // Verify authentication
-    const authResult = await verifyHeadAdminAuth(req);
-    if (!authResult.success) {
-      return res.status(401).json({ error: authResult.error });
+    const user = await getCurrentUser();
+    if (!user || user.role !== 'headadmin') {
+      return NextResponse.json(
+        { error: 'Access denied' },
+        { status: 403 }
+      );
     }
 
-    if (req.method === 'GET') {
-      return res.status(200).json({
-        success: true,
-        settings: {
-          paystackPublicKey: '',
-          paystackSecretKey: '',
-          flutterwavePublicKey: '',
-          flutterwaveSecretKey: '',
-          defaultCurrency: 'NGN',
-          enablePaystack: true,
-          enableFlutterwave: false
-        }
-      });
-    } else {
-      return res.status(405).json({ error: 'Method not allowed' });
-    }
-
+    return NextResponse.json({
+      success: true,
+      settings: {
+        paystackPublicKey: '',
+        paystackSecretKey: '',
+        flutterwavePublicKey: '',
+        flutterwaveSecretKey: '',
+        defaultCurrency: 'NGN',
+        enablePaystack: true,
+        enableFlutterwave: false
+      }
+    });
   } catch (error) {
     console.error('Payment settings error:', error);
-    return res.status(500).json({ 
-      error: 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   } finally {
     await prisma.$disconnect();
   }

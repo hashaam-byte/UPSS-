@@ -1,26 +1,23 @@
-
 // pages/api/protected/headadmin/messages/broadcast.js
-import { PrismaClient } from '@prisma/client';
-import { verifyHeadAdminAuth } from '../../../../lib/authHelpers';
+import { prisma } from '@/lib/prisma';
+import { NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/auth';
 
-const prisma = new PrismaClient();
-
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
+export async function POST(request) {
   try {
-    // Verify authentication
-    const authResult = await verifyHeadAdminAuth(req);
-    if (!authResult.success) {
-      return res.status(401).json({ error: authResult.error });
+    const user = await getCurrentUser();
+    if (!user || user.role !== 'headadmin') {
+      return NextResponse.json(
+        { error: 'Access denied' },
+        { status: 403 }
+      );
     }
 
-    const { subject, content, priority = 'normal' } = req.body;
+    const body = await request.json();
+    const { subject, content, priority = 'normal' } = body;
 
     if (!subject || !subject.trim() || !content || !content.trim()) {
-      return res.status(400).json({ error: 'Subject and content are required' });
+      return NextResponse.json({ error: 'Subject and content are required' }, { status: 400 });
     }
 
     // Get all active school admins
@@ -44,13 +41,13 @@ export default async function handler(req, res) {
     const activeAdmins = schoolAdmins.filter(admin => admin.school?.isActive);
 
     if (activeAdmins.length === 0) {
-      return res.status(400).json({ error: 'No active school administrators found' });
+      return NextResponse.json({ error: 'No active school administrators found' }, { status: 400 });
     }
 
     // Create broadcast messages
     const messages = await prisma.message.createMany({
       data: activeAdmins.map(admin => ({
-        fromUserId: authResult.user.id,
+        fromUserId: user.id,
         toUserId: admin.id,
         schoolId: admin.schoolId,
         subject: subject.trim(),
@@ -64,7 +61,7 @@ export default async function handler(req, res) {
     // Log audit trail
     await prisma.auditLog.create({
       data: {
-        userId: authResult.user.id,
+        userId: user.id,
         action: 'broadcast_sent',
         resource: 'message',
         description: `Sent broadcast message to ${activeAdmins.length} school administrators`,
@@ -76,18 +73,16 @@ export default async function handler(req, res) {
       }
     });
 
-    return res.status(201).json({
+    return NextResponse.json({
       success: true,
       messagesSent: activeAdmins.length
     });
 
   } catch (error) {
     console.error('Failed to send broadcast:', error);
-    return res.status(500).json({ 
-      error: 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  } finally {
-    await prisma.$disconnect();
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

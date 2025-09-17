@@ -1,19 +1,18 @@
 // pages/api/protected/headadmin/messages/conversations.js
 import { PrismaClient } from '@prisma/client';
-import { verifyHeadAdminAuth } from '../../../../lib/authHelpers';
+import { NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/auth';
 
 const prisma = new PrismaClient();
 
-export default async function handler(req, res) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
+export async function GET() {
   try {
-    // Verify authentication
-    const authResult = await verifyHeadAdminAuth(req);
-    if (!authResult.success) {
-      return res.status(401).json({ error: authResult.error });
+    const user = await getCurrentUser();
+    if (!user || user.role !== 'headadmin') {
+      return NextResponse.json(
+        { error: 'Access denied' },
+        { status: 403 }
+      );
     }
 
     // Get all schools with their admin users and last message
@@ -49,8 +48,8 @@ export default async function handler(req, res) {
           const lastMessage = await prisma.message.findFirst({
             where: {
               OR: [
-                { fromUserId: authResult.user.id, toUserId: adminUser.id },
-                { fromUserId: adminUser.id, toUserId: authResult.user.id }
+                { fromUserId: user.id, toUserId: adminUser.id },
+                { fromUserId: adminUser.id, toUserId: user.id }
               ]
             },
             orderBy: { createdAt: 'desc' }
@@ -60,7 +59,7 @@ export default async function handler(req, res) {
           const unreadCount = await prisma.message.count({
             where: {
               fromUserId: adminUser.id,
-              toUserId: authResult.user.id,
+              toUserId: user.id,
               isRead: false
             }
           });
@@ -88,18 +87,17 @@ export default async function handler(req, res) {
       return dateB - dateA;
     });
 
-    return res.status(200).json({
+    return NextResponse.json({
       success: true,
       conversations
     });
 
   } catch (error) {
     console.error('Failed to fetch conversations:', error);
-    return res.status(500).json({ 
-      error: 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  } finally {
-    await prisma.$disconnect();
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
+ 

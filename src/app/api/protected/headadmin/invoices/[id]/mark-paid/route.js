@@ -1,23 +1,19 @@
-
 // pages/api/protected/headadmin/invoices/[id]/mark-paid.js
-import { PrismaClient } from '@prisma/client';
-import { verifyHeadAdminAuth } from '../../../../../lib/authHelpers';
+import { prisma } from '@/lib/prisma';
+import { NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/auth';
 
-const prisma = new PrismaClient();
-
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
+export async function POST(request, { params }) {
   try {
-    // Verify authentication
-    const authResult = await verifyHeadAdminAuth(req);
-    if (!authResult.success) {
-      return res.status(401).json({ error: authResult.error });
+    const user = await getCurrentUser();
+    if (!user || user.role !== 'headadmin') {
+      return NextResponse.json(
+        { error: 'Access denied' },
+        { status: 403 }
+      );
     }
 
-    const { id } = req.query;
+    const { id } = params;
 
     // Find invoice
     const invoice = await prisma.invoice.findUnique({
@@ -28,11 +24,11 @@ export default async function handler(req, res) {
     });
 
     if (!invoice) {
-      return res.status(404).json({ error: 'Invoice not found' });
+      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
     }
 
     if (invoice.status === 'paid') {
-      return res.status(400).json({ error: 'Invoice is already paid' });
+      return NextResponse.json({ error: 'Invoice is already paid' }, { status: 400 });
     }
 
     // Update invoice status
@@ -41,7 +37,7 @@ export default async function handler(req, res) {
       data: {
         status: 'paid',
         paidAt: new Date(),
-        verifiedBy: authResult.user.id,
+        verifiedBy: user.id,
         verifiedAt: new Date()
       }
     });
@@ -49,7 +45,7 @@ export default async function handler(req, res) {
     // Log audit trail
     await prisma.auditLog.create({
       data: {
-        userId: authResult.user.id,
+        userId: user.id,
         action: 'invoice_paid',
         resource: 'invoice',
         resourceId: invoice.id,
@@ -62,18 +58,16 @@ export default async function handler(req, res) {
       }
     });
 
-    return res.status(200).json({
+    return NextResponse.json({
       success: true,
       invoice: updatedInvoice
     });
 
   } catch (error) {
     console.error('Failed to mark invoice as paid:', error);
-    return res.status(500).json({ 
-      error: 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  } finally {
-    await prisma.$disconnect();
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

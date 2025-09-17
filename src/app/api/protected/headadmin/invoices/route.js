@@ -1,19 +1,16 @@
 // pages/api/protected/headadmin/invoices/index.js
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
+import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 
-const prisma = new PrismaClient();
-
-export default async function handler(req, res) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
+export async function GET() {
   try {
-    // Verify authentication
-    const user = await getCurrentUser(req);
-    if (!user || user.role !== 'head-admin') {
-      return res.status(401).json({ error: 'Unauthorized' });
+    const user = await getCurrentUser();
+    if (!user || user.role !== 'headadmin') {
+      return NextResponse.json(
+        { error: 'Access denied' },
+        { status: 403 }
+      );
     }
 
     // Fetch all invoices with school details
@@ -33,17 +30,17 @@ export default async function handler(req, res) {
       }
     });
 
-    return res.status(200).json({
+    return NextResponse.json({
       success: true,
       invoices
     });
 
   } catch (error) {
     console.error('Failed to fetch invoices:', error);
-    return res.status(500).json({ 
-      error: 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   } finally {
     await prisma.$disconnect();
   }

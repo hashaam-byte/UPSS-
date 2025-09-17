@@ -1,30 +1,26 @@
-
 // pages/api/protected/headadmin/messages/conversations/[id]/read.js
-import { PrismaClient } from '@prisma/client';
-import { verifyHeadAdminAuth } from '../../../../../../lib/authHelpers';
+import { prisma } from '@/lib/prisma';
+import { NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/auth';
 
-const prisma = new PrismaClient();
-
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
+export async function POST(request, { params }) {
   try {
-    // Verify authentication
-    const authResult = await verifyHeadAdminAuth(req);
-    if (!authResult.success) {
-      return res.status(401).json({ error: authResult.error });
+    const user = await getCurrentUser();
+    if (!user || user.role !== 'headadmin') {
+      return NextResponse.json(
+        { error: 'Access denied' },
+        { status: 403 }
+      );
     }
 
-    const { id } = req.query;
+    const { id } = params;
     const [schoolId, userId] = id.split('-');
 
     // Mark all messages from this user as read
     await prisma.message.updateMany({
       where: {
         fromUserId: userId,
-        toUserId: authResult.user.id,
+        toUserId: user.id,
         isRead: false
       },
       data: {
@@ -33,17 +29,17 @@ export default async function handler(req, res) {
       }
     });
 
-    return res.status(200).json({
+    return NextResponse.json({
       success: true
     });
 
   } catch (error) {
     console.error('Failed to mark messages as read:', error);
-    return res.status(500).json({ 
-      error: 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  } finally {
-    await prisma.$disconnect();
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    

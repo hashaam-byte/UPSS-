@@ -1,20 +1,16 @@
-
 // pages/api/protected/headadmin/invoices/create.js
-import { PrismaClient } from '@prisma/client';
-import { verifyHeadAdminAuth } from '../../../../lib/authHelpers';
+import { prisma } from '@/lib/prisma';
+import { NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/auth';
 
-const prisma = new PrismaClient();
-
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
+export async function POST(request) {
   try {
-    // Verify authentication
-    const authResult = await verifyHeadAdminAuth(req);
-    if (!authResult.success) {
-      return res.status(401).json({ error: authResult.error });
+    const user = await getCurrentUser();
+    if (!user || user.role !== 'headadmin') {
+      return NextResponse.json(
+        { error: 'Access denied' },
+        { status: 403 }
+      );
     }
 
     const {
@@ -26,13 +22,13 @@ export default async function handler(req, res) {
       studentCount = 0,
       teacherCount = 0,
       adminCount = 0
-    } = req.body;
+    } = await request.json();
 
     // Validate required fields
     if (!schoolId || !billingPeriod || !dueDate || !amount) {
-      return res.status(400).json({ 
+      return NextResponse.json({ 
         error: 'Missing required fields: schoolId, billingPeriod, dueDate, amount' 
-      });
+      }, { status: 400 });
     }
 
     // Verify school exists
@@ -41,7 +37,7 @@ export default async function handler(req, res) {
     });
 
     if (!school) {
-      return res.status(404).json({ error: 'School not found' });
+      return NextResponse.json({ error: 'School not found' }, { status: 404 });
     }
 
     // Check if invoice already exists for this billing period
@@ -53,9 +49,9 @@ export default async function handler(req, res) {
     });
 
     if (existingInvoice) {
-      return res.status(409).json({ 
+      return NextResponse.json({ 
         error: 'Invoice already exists for this billing period' 
-      });
+      }, { status: 409 });
     }
 
     // Generate invoice number
@@ -76,7 +72,7 @@ export default async function handler(req, res) {
         adminCount: parseInt(adminCount),
         status: 'pending',
         dueDate: new Date(dueDate),
-        createdBy: authResult.user.id
+        createdBy: user.id
       },
       include: {
         school: {
@@ -92,7 +88,7 @@ export default async function handler(req, res) {
     // Log audit trail
     await prisma.auditLog.create({
       data: {
-        userId: authResult.user.id,
+        userId: user.id,
         action: 'invoice_created',
         resource: 'invoice',
         resourceId: invoice.id,
@@ -106,18 +102,17 @@ export default async function handler(req, res) {
       }
     });
 
-    return res.status(201).json({
+    return NextResponse.json({
       success: true,
       invoice
-    });
+    }, { status: 201 });
 
   } catch (error) {
     console.error('Failed to create invoice:', error);
-    return res.status(500).json({ 
-      error: 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  } finally {
-    await prisma.$disconnect();
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
+ 
