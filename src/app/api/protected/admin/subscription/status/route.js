@@ -28,6 +28,12 @@ export async function GET(request) {
       );
     }
 
+    // Calculate terms remaining (assuming 3 months per term)
+    const now = new Date();
+    const expiresAt = new Date(school.subscriptionExpiresAt);
+    const msPerTerm = 3 * 30 * 24 * 60 * 60 * 1000; // 3 months
+    const termsRemaining = Math.max(0, Math.ceil((expiresAt - now) / msPerTerm));
+
     // Get current user counts
     const [studentCount, teacherCount] = await Promise.all([
       prisma.user.count({
@@ -65,6 +71,7 @@ export async function GET(request) {
       success: true,
       subscription: {
         ...school,
+        termsRemaining,
         currentUsers: {
           students: studentCount,
           teachers: teacherCount,

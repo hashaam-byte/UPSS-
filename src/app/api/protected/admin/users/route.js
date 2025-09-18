@@ -111,7 +111,7 @@ export async function POST(request) {
     const currentUser = await requireAuth(['admin', 'headadmin']);
     const body = await request.json();
 
-    const { firstName, lastName, email, username, password, role, schoolId } = body;
+    const { firstName, lastName, email, username, password, role, schoolId, teacherType } = body;
 
     // Validate required fields
     if (!firstName || !lastName || !email || !password || !role) {
@@ -196,7 +196,9 @@ export async function POST(request) {
         data: {
           userId: newUser.id,
           employeeId: `TCH${Date.now()}`, // Generate unique employee ID
-          joiningDate: new Date()
+          joiningDate: new Date(),
+          // Add teacherType field
+          department: teacherType || null
         }
       });
     } else if (role === 'admin') {

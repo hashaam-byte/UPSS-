@@ -8,91 +8,96 @@ export async function GET(request) {
     const user = await requireAuth(['admin', 'headadmin']);
     const userId = user.id;
 
-    // Use $queryRaw with positional parameters for all userId occurrences
-    const sql = `
-      SELECT DISTINCT
-        m.id as conversation_id,
-        CASE
-          WHEN m."from_user_id" = $1 THEN m."to_user_id"
-          ELSE m."from_user_id"
-        END as participant_id,
-        u."first_name" as participant_firstName,
-        u."last_name" as participant_lastName,
-        u.email as participant_email,
-        u.role as participant_role,
-        latest.content as last_message_content,
-        latest."created_at" as last_message_time,
-        COALESCE(unread.count, 0) as unread_count
-      FROM messages m
-      INNER JOIN users u ON (
-        CASE
-          WHEN m."from_user_id" = $1 THEN m."to_user_id"
-          ELSE m."from_user_id"
-        END = u.id
-      )
-      INNER JOIN (
-        SELECT
-          CASE
-            WHEN "from_user_id" = $1 THEN "to_user_id"
-            ELSE "from_user_id"
-          END as other_user,
-          MAX("created_at") as max_time
-        FROM messages
-        WHERE "from_user_id" = $1 OR "to_user_id" = $1
-        GROUP BY other_user
-      ) latest_time ON (
-        CASE
-          WHEN m."from_user_id" = $1 THEN m."to_user_id"
-          ELSE m."from_user_id"
-        END = latest_time.other_user
-        AND m."created_at" = latest_time.max_time
-      )
-      INNER JOIN messages latest ON (
-        latest."created_at" = latest_time.max_time
-        AND (
-          (latest."from_user_id" = $1 AND latest."to_user_id" = latest_time.other_user) OR
-          (latest."to_user_id" = $1 AND latest."from_user_id" = latest_time.other_user)
-        )
-      )
-      LEFT JOIN (
-        SELECT
-          "from_user_id",
-          COUNT(*) as count
-        FROM messages
-        WHERE "to_user_id" = $1 AND "is_read" = false
-        GROUP BY "from_user_id"
-      ) unread ON unread."from_user_id" = (
-        CASE
-          WHEN m."from_user_id" = $1 THEN m."to_user_id"
-          ELSE m."from_user_id"
-        END
-      )
-      WHERE m."from_user_id" = $1 OR m."to_user_id" = $1
-      ORDER BY latest."created_at" DESC
-    `;
+    // Find headadmin user
+    const headAdmin = await prisma.user.findFirst({
+      where: { role: 'headadmin' }
+    });
 
-    const conversations = await prisma.$queryRawUnsafe(sql, userId);
+    // For admin: show conversation with headadmin
+    // For headadmin: show all admin conversations
+    let conversations = [];
 
-    // Transform the raw query result
-    const formattedConversations = conversations.map(conv => ({
-      id: conv.conversation_id,
-      participant: {
-        id: conv.participant_id,
-        firstName: conv.participant_firstName,
-        lastName: conv.participant_lastName,
-        email: conv.participant_email,
-        role: conv.participant_role
-      },
-      lastMessage: {
-        content: conv.last_message_content,
-        createdAt: conv.last_message_time
-      },
-      unreadCount: Number(conv.unread_count)
-    }));
+    if (user.role === 'admin' && headAdmin) {
+      // Only one conversation: admin <-> headadmin
+      const lastMessage = await prisma.message.findFirst({
+        where: {
+          OR: [
+            { fromUserId: userId, toUserId: headAdmin.id },
+            { fromUserId: headAdmin.id, toUserId: userId }
+          ]
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      const unreadCount = await prisma.message.count({
+        where: {
+          fromUserId: headAdmin.id,
+          toUserId: userId,
+          isRead: false
+        }
+      });
+
+      conversations = [{
+        id: headAdmin.id,
+        participant: {
+          id: headAdmin.id,
+          firstName: headAdmin.firstName,
+          lastName: headAdmin.lastName,
+          email: headAdmin.email,
+          role: headAdmin.role
+        },
+        lastMessage: lastMessage
+          ? { content: lastMessage.content, createdAt: lastMessage.createdAt }
+          : null,
+        unreadCount
+      }];
+    } else if (user.role === 'headadmin') {
+      // Show all admins
+      const admins = await prisma.user.findMany({
+        where: { role: 'admin' }
+      });
+
+      conversations = await Promise.all(
+        admins.map(async (admin) => {
+          const lastMessage = await prisma.message.findFirst({
+            where: {
+              OR: [
+                { fromUserId: userId, toUserId: admin.id },
+                { fromUserId: admin.id, toUserId: userId }
+              ]
+            },
+            orderBy: { createdAt: 'desc' }
+          });
+
+          const unreadCount = await prisma.message.count({
+            where: {
+              fromUserId: admin.id,
+              toUserId: userId,
+              isRead: false
+            }
+          });
+
+          return {
+            id: admin.id,
+            participant: {
+              id: admin.id,
+              firstName: admin.firstName,
+              lastName: admin.lastName,
+              email: admin.email,
+              role: admin.role
+            },
+            lastMessage: lastMessage
+              ? { content: lastMessage.content, createdAt: lastMessage.createdAt }
+              : null,
+            unreadCount
+          };
+        })
+      );
+    }
 
     return NextResponse.json({
       success: true,
-      conversations: formattedConversations
+      conversations
     });
 
   } catch (error) {
@@ -114,6 +119,6 @@ export async function GET(request) {
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
-    );
+     );
   }
 }

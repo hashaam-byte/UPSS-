@@ -1,4 +1,3 @@
-
 // /app/api/protected/admin/messages/[conversationId]/route.js
 import { requireAuth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
@@ -6,21 +5,16 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request, { params }) {
   try {
-    const user = await requireAuth(['admin']);
-    const { conversationId } = params;
+    const user = await requireAuth(['admin', 'headadmin']);
+    const { conversationsId } = params;
+    const otherUserId = conversationsId;
 
-    // Get messages for the conversation
+    // Get messages for the conversation (admin <-> headadmin)
     const messages = await prisma.message.findMany({
       where: {
         OR: [
-          {
-            fromUserId: user.id,
-            toUserId: conversationId
-          },
-          {
-            fromUserId: conversationId,
-            toUserId: user.id
-          }
+          { fromUserId: user.id, toUserId: otherUserId },
+          { fromUserId: otherUserId, toUserId: user.id }
         ]
       },
       include: {
@@ -33,15 +27,13 @@ export async function GET(request, { params }) {
           }
         }
       },
-      orderBy: {
-        createdAt: 'asc'
-      }
+      orderBy: { createdAt: 'asc' }
     });
 
     // Mark messages as read
     await prisma.message.updateMany({
       where: {
-        fromUserId: conversationId,
+        fromUserId: otherUserId,
         toUserId: user.id,
         isRead: false
       },

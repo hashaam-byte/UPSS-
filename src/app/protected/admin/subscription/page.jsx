@@ -14,15 +14,17 @@ import {
   TrendingUp,
   Shield,
   Star,
-  Zap
+  Zap,
+  Activity,
+  Crown,
+  Sparkles,
+  ArrowUp
 } from 'lucide-react';
 
 const AdminSubscriptionPage = () => {
   const [subscription, setSubscription] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [selectedPaymentOption, setSelectedPaymentOption] = useState('individual');
 
   useEffect(() => {
     fetchSubscriptionData();
@@ -65,7 +67,6 @@ const AdminSubscriptionPage = () => {
       const data = await response.json();
 
       if (response.ok) {
-        // Redirect to payment gateway or show success message
         alert('Payment request submitted successfully. You will be redirected to the payment gateway.');
       } else {
         setError(data.error || 'Failed to process payment request');
@@ -76,6 +77,15 @@ const AdminSubscriptionPage = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-NG', {
+      style: 'currency',
+      currency: 'NGN',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount);
   };
 
   const getSubscriptionStatus = () => {
@@ -108,10 +118,14 @@ const AdminSubscriptionPage = () => {
 
   if (isLoading && !subscription) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="flex flex-col items-center gap-4">
-          <RefreshCw className="w-8 h-8 animate-spin text-emerald-400" />
-          <p className="text-white">Loading subscription details...</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="relative">
+            <div className="w-20 h-20 bg-gradient-to-r from-emerald-600 to-cyan-600 rounded-3xl animate-pulse shadow-2xl">
+              <div className="absolute inset-0 bg-gradient-to-r from-emerald-400 to-cyan-400 rounded-3xl animate-ping opacity-75"></div>
+            </div>
+          </div>
+          <p className="text-gray-700 mt-6 font-bold text-lg">Loading Subscription Portal...</p>
         </div>
       </div>
     );
@@ -121,236 +135,371 @@ const AdminSubscriptionPage = () => {
   const StatusIcon = status.icon;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Subscription & Billing</h1>
-          <p className="text-gray-400">Manage your school's subscription and payments</p>
-        </div>
-        <button
-          onClick={fetchSubscriptionData}
-          className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white border border-white/20 rounded-lg transition-all"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh
-        </button>
-      </div>
-
-      {/* Error Message */}
-      {error && (
-        <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400">
-          <AlertTriangle className="w-5 h-5" />
-          <span>{error}</span>
-        </div>
-      )}
-
-      {/* Current Status Card */}
-      <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl border border-white/20 p-6">
-        <div className="flex items-center gap-4 mb-6">
-          <div className={`w-12 h-12 bg-gradient-to-r from-${status.color}-500 to-${status.color}-600 rounded-xl flex items-center justify-center`}>
-            <StatusIcon className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-white">Current Status</h2>
-            <p className={`text-${status.color}-400 font-medium`}>{status.text}</p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      <div className="space-y-8">
+        {/* Futuristic Header */}
+        <div className="relative overflow-hidden bg-gradient-to-r from-white/80 to-emerald-50/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-8">
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-600/5 via-cyan-600/5 to-blue-600/5"></div>
+          <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-emerald-400/20 to-transparent rounded-full blur-3xl"></div>
+          
+          <div className="relative z-10 flex items-center justify-between">
+            <div className="space-y-3">
+              <div className="flex items-center space-x-3">
+                <Activity className="w-6 h-6 text-emerald-500 animate-pulse" />
+                <span className="text-emerald-600 font-bold text-sm uppercase tracking-wider">Financial Management</span>
+              </div>
+              <h1 className="text-5xl font-black bg-gradient-to-r from-gray-800 via-emerald-800 to-cyan-800 bg-clip-text text-transparent">
+                Subscription Hub
+              </h1>
+              <p className="text-gray-600 text-xl font-medium">
+                Advanced billing and subscription management portal
+              </p>
+            </div>
+            <div className="flex gap-4">
+              <button
+                onClick={fetchSubscriptionData}
+                disabled={isLoading}
+                className="group relative overflow-hidden bg-white/20 hover:bg-white/30 text-emerald-600 px-6 py-3 rounded-xl font-bold transition-all duration-300 hover:scale-105 shadow-lg border border-emerald-300/50 flex items-center gap-2"
+              >
+                <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+                <span>Sync Data</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        {subscription && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white/5 p-4 rounded-xl">
-              <div className="flex items-center gap-3 mb-2">
-                <Shield className="w-5 h-5 text-blue-400" />
-                <h3 className="font-medium text-white">Plan</h3>
+        {/* Error Message */}
+        {error && (
+          <div className="relative overflow-hidden bg-gradient-to-r from-red-50/90 to-pink-50/90 backdrop-blur-sm border border-red-300 rounded-2xl p-6 shadow-xl">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg">
+                <AlertTriangle className="w-6 h-6 text-white" />
               </div>
-              <p className="text-2xl font-bold text-white capitalize">
-                {subscription.subscriptionPlan}
-              </p>
-            </div>
-
-            <div className="bg-white/5 p-4 rounded-xl">
-              <div className="flex items-center gap-3 mb-2">
-                <Users className="w-5 h-5 text-emerald-400" />
-                <h3 className="font-medium text-white">Total Users</h3>
+              <div className="flex-1">
+                <p className="text-red-700 font-bold text-lg">{error}</p>
               </div>
-              <p className="text-2xl font-bold text-white">
-                {subscription.currentUsers.total}
-              </p>
-              <p className="text-sm text-gray-400">
-                {subscription.currentUsers.students} students, {subscription.currentUsers.teachers} teachers
-              </p>
-            </div>
-
-            <div className="bg-white/5 p-4 rounded-xl">
-              <div className="flex items-center gap-3 mb-2">
-                <Calendar className="w-5 h-5 text-purple-400" />
-                <h3 className="font-medium text-white">Expires</h3>
-              </div>
-              <p className="text-2xl font-bold text-white">
-                {new Date(subscription.subscriptionExpiresAt).toLocaleDateString()}
-              </p>
             </div>
           </div>
         )}
-      </div>
 
-      {/* Pricing Information */}
-      <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl border border-white/20 p-6">
-        <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-          <DollarSign className="w-5 h-5 text-emerald-400" />
-          Pricing Information
-        </h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Individual Payment */}
-          <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/10 p-6 rounded-xl border border-blue-500/20">
-            <div className="flex items-center gap-3 mb-4">
-              <Users className="w-6 h-6 text-blue-400" />
-              <h3 className="text-lg font-semibold text-white">Individual Payment</h3>
-            </div>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400">Price per user:</span>
-                <span className="text-white font-medium">₦250/month</span>
+        {/* Current Status Card */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-white/80 to-emerald-50/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50">
+          <div className="bg-gradient-to-r from-emerald-600 to-cyan-600 p-8">
+            <div className="flex items-center space-x-6">
+              <div className="w-16 h-16 bg-white/20 rounded-3xl flex items-center justify-center backdrop-blur-sm shadow-xl">
+                <StatusIcon className="w-8 h-8 text-white" />
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400">Current users:</span>
-                <span className="text-white font-medium">{subscription?.currentUsers.total || 0}</span>
-              </div>
-              <div className="flex justify-between items-center pt-2 border-t border-white/10">
-                <span className="text-white font-medium">Monthly cost:</span>
-                <span className="text-xl font-bold text-blue-400">
-                  ₦{subscription ? (subscription.currentUsers.total * 250).toLocaleString() : 0}
-                </span>
+              <div>
+                <h2 className="text-3xl font-black text-white mb-2">System Status</h2>
+                <p className={`text-2xl font-bold ${
+                  status.color === 'emerald' ? 'text-green-200' :
+                  status.color === 'yellow' ? 'text-yellow-200' : 'text-red-200'
+                }`}>
+                  {status.text}
+                </p>
               </div>
             </div>
-            <p className="text-sm text-gray-400 mt-3">
-              Each teacher and student pays individually for their account access.
-            </p>
           </div>
 
-          {/* Bulk Payment */}
-          <div className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/10 p-6 rounded-xl border border-emerald-500/20">
-            <div className="flex items-center gap-3 mb-4">
-              <Shield className="w-6 h-6 text-emerald-400" />
-              <h3 className="text-lg font-semibold text-white">Bulk Payment</h3>
-              <span className="px-2 py-1 bg-emerald-500/20 text-emerald-400 text-xs rounded-full">
-                Recommended
-              </span>
-            </div>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400">Price per user:</span>
-                <span className="text-white font-medium">₦200/month</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400">Current users:</span>
-                <span className="text-white font-medium">{subscription?.currentUsers.total || 0}</span>
-              </div>
-              <div className="flex justify-between items-center pt-2 border-t border-white/10">
-                <span className="text-white font-medium">Monthly cost:</span>
-                <span className="text-xl font-bold text-emerald-400">
-                  ₦{subscription ? (subscription.currentUsers.total > 600 ? 200000 : subscription.currentUsers.total * 200).toLocaleString() : 0}
-                </span>
-              </div>
-              {subscription?.currentUsers.total > 600 && (
-                <div className="bg-emerald-500/20 p-3 rounded-lg">
-                  <p className="text-emerald-400 text-sm font-medium">
-                    🎉 Flat rate of ₦200,000/month for schools with 600+ users!
+          {subscription && (
+            <div className="p-8">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="relative overflow-hidden bg-gradient-to-br from-blue-50/80 to-cyan-50/80 p-6 rounded-2xl border border-blue-200/50 shadow-lg">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-lg">
+                      <Crown className="w-6 h-6 text-white" />
+                    </div>
+                    <h3 className="font-black text-gray-800 text-lg">Active Plan</h3>
+                  </div>
+                  <p className="text-4xl font-black text-gray-900 capitalize mb-2">
+                    {subscription.subscriptionPlan}
+                  </p>
+                  <div className="flex items-center text-blue-600 font-bold">
+                    <Sparkles className="w-4 h-4 mr-1" />
+                    <span className="text-sm">Premium Features</span>
+                  </div>
+                </div>
+
+                <div className="relative overflow-hidden bg-gradient-to-br from-emerald-50/80 to-green-50/80 p-6 rounded-2xl border border-emerald-200/50 shadow-lg">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-green-500 rounded-2xl flex items-center justify-center shadow-lg">
+                      <Users className="w-6 h-6 text-white" />
+                    </div>
+                    <h3 className="font-black text-gray-800 text-lg">Active Users</h3>
+                  </div>
+                  <p className="text-4xl font-black text-gray-900 mb-2">
+                    {subscription.currentUsers?.total || 0}
+                  </p>
+                  <p className="text-sm text-gray-600 font-medium">
+                    {subscription.currentUsers?.students || 0} students • {subscription.currentUsers?.teachers || 0} teachers
                   </p>
                 </div>
-              )}
+
+                <div className="relative overflow-hidden bg-gradient-to-br from-purple-50/80 to-pink-50/80 p-6 rounded-2xl border border-purple-200/50 shadow-lg">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg">
+                      <Calendar className="w-6 h-6 text-white" />
+                    </div>
+                    <h3 className="font-black text-gray-800 text-lg">Next Billing</h3>
+                  </div>
+                  <p className="text-2xl font-black text-gray-900 mb-2">
+                    {subscription.subscriptionExpiresAt ? 
+                      new Date(subscription.subscriptionExpiresAt).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric'
+                      }) : 'N/A'
+                    }
+                  </p>
+                  <p className="text-sm text-gray-600 font-medium">
+                    {subscription.subscriptionExpiresAt ? 
+                      new Date(subscription.subscriptionExpiresAt).getFullYear() : ''
+                    }
+                  </p>
+                </div>
+
+                <div className="relative overflow-hidden bg-gradient-to-br from-emerald-50/80 to-green-50/80 p-6 rounded-2xl border border-emerald-200/50 shadow-lg">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-green-500 rounded-2xl flex items-center justify-center shadow-lg">
+                      <Calendar className="w-6 h-6 text-white" />
+                    </div>
+                    <h3 className="font-black text-gray-800 text-lg">Terms Remaining</h3>
+                  </div>
+                  <p className="text-4xl font-black text-gray-900 mb-2">
+                    {subscription.termsRemaining}
+                  </p>
+                  <p className="text-sm text-gray-600 font-medium">
+                    until next subscription renewal
+                  </p>
+                </div>
+              </div>
             </div>
-            <p className="text-sm text-gray-400 mt-3">
-              School admin pays for all users. Save ₦50 per user per month!
-            </p>
+          )}
+        </div>
+
+        {/* Pricing Plans */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-white/80 to-blue-50/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50">
+          <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-8">
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
+                <DollarSign className="w-7 h-7 text-white" />
+              </div>
+              <h2 className="text-3xl font-black text-white">Pricing Plans</h2>
+            </div>
           </div>
-        </div>
 
-        {/* Payment Actions */}
-        <div className="mt-6 flex flex-col sm:flex-row gap-4">
-          <button
-            onClick={() => handlePaymentRequest('individual')}
-            disabled={isLoading}
-            className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 rounded-lg transition-all disabled:opacity-50"
-          >
-            <Users className="w-4 h-4" />
-            Request Individual Payment
-          </button>
-          <button
-            onClick={() => handlePaymentRequest('bulk')}
-            disabled={isLoading}
-            className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white rounded-lg transition-all disabled:opacity-50"
-          >
-            <Shield className="w-4 h-4" />
-            Pay for All Users (Save 20%)
-          </button>
-        </div>
-      </div>
-
-      {/* Recent Invoices */}
-      {subscription?.pendingInvoices && subscription.pendingInvoices.length > 0 && (
-        <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl border border-white/20 p-6">
-          <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-            <Receipt className="w-5 h-5 text-emerald-400" />
-            Pending Invoices
-          </h2>
-          
-          <div className="space-y-3">
-            {subscription.pendingInvoices.map((invoice) => (
-              <div key={invoice.id} className="flex items-center justify-between p-4 bg-white/5 rounded-lg border border-yellow-500/20">
-                <div>
-                  <p className="font-medium text-white">{invoice.description || 'Monthly Subscription'}</p>
-                  <p className="text-sm text-gray-400">
-                    Created: {new Date(invoice.createdAt).toLocaleDateString()}
-                    {invoice.dueDate && ` • Due: ${new Date(invoice.dueDate).toLocaleDateString()}`}
+          <div className="p-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Individual Payment Plan */}
+              <div className="relative overflow-hidden bg-gradient-to-br from-blue-50/80 to-cyan-50/80 rounded-2xl border border-blue-200/50 shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-[1.02]">
+                <div className="p-8">
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-xl">
+                      <Users className="w-7 h-7 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-black text-gray-900">Individual Plan</h3>
+                      <p className="text-sm text-gray-600 font-medium">Pay per user account</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4 mb-8">
+                    <div className="flex justify-between items-center py-3 border-b border-gray-200/50">
+                      <span className="text-gray-600 font-medium">Price per user:</span>
+                      <span className="text-2xl font-black text-gray-900">{formatCurrency(250)}/month</span>
+                    </div>
+                    <div className="flex justify-between items-center py-3 border-b border-gray-200/50">
+                      <span className="text-gray-600 font-medium">Current users:</span>
+                      <span className="text-xl font-bold text-gray-900">{subscription?.currentUsers?.total || 0}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-4 bg-blue-50 rounded-xl px-4 border border-blue-200">
+                      <span className="text-gray-800 font-bold">Monthly total:</span>
+                      <span className="text-3xl font-black text-blue-600">
+                        {formatCurrency(subscription ? (subscription.currentUsers?.total || 0) * 250 : 0)}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <p className="text-sm text-gray-600 mb-6 font-medium">
+                    Each teacher and student pays individually for their account access.
                   </p>
-                </div>
-                <div className="flex items-center gap-4">
-                  <span className="text-xl font-bold text-yellow-400">
-                    ₦{parseFloat(invoice.amount).toLocaleString()}
-                  </span>
-                  <button className="flex items-center gap-2 px-4 py-2 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 rounded-lg transition-colors">
-                    <CreditCard className="w-4 h-4" />
-                    Pay Now
+
+                  <button
+                    onClick={() => handlePaymentRequest('individual')}
+                    disabled={isLoading}
+                    className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white rounded-xl transition-all duration-300 font-bold shadow-xl hover:shadow-2xl disabled:opacity-50"
+                  >
+                    <Users className="w-5 h-5" />
+                    Request Individual Payment
                   </button>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
 
-      {/* Features Included */}
-      <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl border border-white/20 p-6">
-        <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-          <Star className="w-5 h-5 text-emerald-400" />
-          What's Included
-        </h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[
-            { icon: Users, title: "User Management", description: "Create and manage student, teacher, and admin accounts" },
-            { icon: Calendar, title: "Scheduling", description: "Timetable and calendar management" },
-            { icon: TrendingUp, title: "Analytics", description: "Performance tracking and reporting" },
-            { icon: Shield, title: "Security", description: "Advanced security features and permissions" },
-            { icon: Receipt, title: "Billing", description: "Invoice and payment management" },
-            { icon: Zap, title: "Priority Support", description: "24/7 customer support and assistance" }
-          ].map((feature, index) => {
-            const Icon = feature.icon;
-            return (
-              <div key={index} className="flex items-start gap-3 p-4 bg-white/5 rounded-lg">
-                <div className="w-8 h-8 bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <Icon className="w-4 h-4 text-white" />
+              {/* Bulk Payment Plan */}
+              <div className="relative overflow-hidden bg-gradient-to-br from-emerald-50/80 to-green-50/80 rounded-2xl border-2 border-emerald-300/50 shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-[1.02]">
+                {/* Recommended Badge */}
+                <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                  <div className="bg-gradient-to-r from-emerald-500 to-green-500 text-white px-6 py-2 rounded-full shadow-xl">
+                    <div className="flex items-center gap-2">
+                      <Star className="w-4 h-4" />
+                      <span className="font-black text-sm">RECOMMENDED</span>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-medium text-white mb-1">{feature.title}</h3>
-                  <p className="text-sm text-gray-400">{feature.description}</p>
+                
+                <div className="p-8 pt-10">
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-green-500 rounded-2xl flex items-center justify-center shadow-xl">
+                      <Shield className="w-7 h-7 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-black text-gray-900">Bulk Plan</h3>
+                      <p className="text-sm text-gray-600 font-medium">School-wide subscription</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4 mb-8">
+                    <div className="flex justify-between items-center py-3 border-b border-gray-200/50">
+                      <span className="text-gray-600 font-medium">Price per user:</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg text-gray-400 line-through">{formatCurrency(250)}</span>
+                        <span className="text-2xl font-black text-emerald-600">{formatCurrency(200)}/month</span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center py-3 border-b border-gray-200/50">
+                      <span className="text-gray-600 font-medium">Current users:</span>
+                      <span className="text-xl font-bold text-gray-900">{subscription?.currentUsers?.total || 0}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-4 bg-emerald-50 rounded-xl px-4 border border-emerald-200">
+                      <span className="text-gray-800 font-bold">Monthly total:</span>
+                      <span className="text-3xl font-black text-emerald-600">
+                        {formatCurrency(subscription ? 
+                          (subscription.currentUsers?.total > 600 ? 200000 : (subscription.currentUsers?.total || 0) * 200) 
+                          : 0)}
+                      </span>
+                    </div>
+                    
+                    {/* Savings Highlight */}
+                    <div className="bg-gradient-to-r from-emerald-100 to-green-100 p-4 rounded-xl border border-emerald-200">
+                      <div className="flex items-center gap-2">
+                        <ArrowUp className="w-5 h-5 text-emerald-600 transform rotate-45" />
+                        <span className="font-black text-emerald-700">
+                          Save {formatCurrency(subscription ? (subscription.currentUsers?.total || 0) * 50 : 0)} monthly!
+                        </span>
+                      </div>
+                    </div>
+
+                    {subscription?.currentUsers?.total > 600 && (
+                      <div className="bg-gradient-to-r from-yellow-50 to-amber-50 p-4 rounded-xl border border-yellow-300">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="w-5 h-5 text-yellow-600" />
+                          <p className="text-yellow-700 font-black">
+                            Flat rate of {formatCurrency(200000)}/month for 600+ users!
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <p className="text-sm text-gray-600 mb-6 font-medium">
+                    School admin pays for all users. Save 20% compared to individual billing!
+                  </p>
+
+                  <button
+                    onClick={() => handlePaymentRequest('bulk')}
+                    disabled={isLoading}
+                    className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white rounded-xl transition-all duration-300 font-bold shadow-xl hover:shadow-2xl disabled:opacity-50"
+                  >
+                    <Shield className="w-5 h-5" />
+                    Pay for All Users (Save 20%)
+                  </button>
                 </div>
               </div>
-            );
-          })}
+            </div>
+          </div>
+        </div>
+
+        {/* Pending Invoices */}
+        {subscription?.pendingInvoices && subscription.pendingInvoices.length > 0 && (
+          <div className="relative overflow-hidden bg-gradient-to-br from-white/80 to-yellow-50/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50">
+            <div className="bg-gradient-to-r from-yellow-500 to-orange-500 p-8">
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
+                  <Receipt className="w-7 h-7 text-white" />
+                </div>
+                <h2 className="text-3xl font-black text-white">Pending Invoices</h2>
+              </div>
+            </div>
+            
+            <div className="p-8">
+              <div className="space-y-4">
+                {subscription.pendingInvoices.map((invoice) => (
+                  <div key={invoice.id} className="flex items-center justify-between p-6 bg-gradient-to-r from-yellow-50/80 to-orange-50/80 rounded-2xl border border-yellow-200/50 shadow-lg hover:shadow-xl transition-all duration-300">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-2xl flex items-center justify-center shadow-lg">
+                        <Receipt className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <p className="font-black text-gray-900 text-lg">{invoice.description || 'Monthly Subscription'}</p>
+                        <p className="text-sm text-gray-600 font-medium">
+                          Created: {new Date(invoice.createdAt).toLocaleDateString()}
+                          {invoice.dueDate && ` • Due: ${new Date(invoice.dueDate).toLocaleDateString()}`}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-6">
+                      <span className="text-3xl font-black text-yellow-600">
+                        {formatCurrency(parseFloat(invoice.amount))}
+                      </span>
+                      <button className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white rounded-xl transition-all font-bold shadow-xl">
+                        <CreditCard className="w-5 h-5" />
+                        Pay Now
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Features Included */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-white/80 to-purple-50/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50">
+          <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-8">
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
+                <Star className="w-7 h-7 text-white" />
+              </div>
+              <h2 className="text-3xl font-black text-white">Premium Features</h2>
+            </div>
+          </div>
+          
+          <div className="p-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[
+                { icon: Users, title: "User Management", description: "Unlimited student, teacher, and admin accounts" },
+                { icon: Calendar, title: "Smart Scheduling", description: "AI-powered timetable and calendar management" },
+                { icon: TrendingUp, title: "Advanced Analytics", description: "Real-time performance tracking and insights" },
+                { icon: Shield, title: "Enterprise Security", description: "Bank-level security with data encryption" },
+                { icon: Receipt, title: "Automated Billing", description: "Seamless invoice and payment processing" },
+                { icon: Zap, title: "Priority Support", description: "24/7 dedicated customer success team" }
+              ].map((feature, index) => {
+                const Icon = feature.icon;
+                return (
+                  <div key={index} className="group relative overflow-hidden bg-gradient-to-br from-gray-50/80 to-white/50 p-6 rounded-2xl border border-gray-200/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                        <Icon className="w-6 h-6 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-black text-gray-900 text-lg mb-2">{feature.title}</h3>
+                        <p className="text-sm text-gray-600 font-medium">{feature.description}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
     </div>
