@@ -32,6 +32,7 @@ model School {
   requireEmailVerification  Boolean @default(true) @map("require_email_verification")
   maxStudents              Int     @default(1000) @map("max_students")
   maxTeachers              Int     @default(100) @map("max_teachers")
+  customNextPaymentDays     Int?    @map("custom_next_payment_days")
   
   createdBy   String?   @map("created_by") @db.Uuid
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz

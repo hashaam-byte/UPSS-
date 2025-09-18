@@ -48,6 +48,9 @@ const SchoolDetailsPage = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
+  const [editPaymentDays, setEditPaymentDays] = useState(false);
+  const [customPaymentDays, setCustomPaymentDays] = useState('');
+  const [paymentDaysLoading, setPaymentDaysLoading] = useState(false);
 
   useEffect(() => {
     if (schoolId) {
@@ -118,6 +121,35 @@ const SchoolDetailsPage = () => {
       setError('Network error occurred');
     }
   };
+
+  const handleSetPaymentDays = async () => {
+    setPaymentDaysLoading(true);
+    setError('');
+    try {
+      const response = await fetch(`/api/protected/headadmin/schools/${schoolId}/payment-settings`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ daysTillNextPayment: Number(customPaymentDays) })
+      });
+      if (response.ok) {
+        setEditPaymentDays(false);
+        await fetchSchoolDetails();
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Failed to update payment days');
+      }
+    } catch (e) {
+      setError('Network error');
+    } finally {
+      setPaymentDaysLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (school && school.customNextPaymentDays != null) {
+      setCustomPaymentDays(school.customNextPaymentDays.toString());
+    }
+  }, [school]);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-NG', {
@@ -522,6 +554,40 @@ const SchoolDetailsPage = () => {
                       <span className="font-semibold text-gray-900">{formatDate(school.trialEndDate)}</span>
                     </div>
                   )}
+                  <div className="flex items-center justify-between p-3 bg-gradient-to-r from-green-50/50 to-emerald-50/50 rounded-xl">
+                    <span className="text-gray-600">Days Till Next Payment</span>
+                    {editPaymentDays ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          value={customPaymentDays}
+                          onChange={e => setCustomPaymentDays(e.target.value)}
+                          className="w-20 px-2 py-1 border rounded"
+                          disabled={paymentDaysLoading}
+                        />
+                        <button
+                          onClick={handleSetPaymentDays}
+                          disabled={paymentDaysLoading}
+                          className="px-3 py-1 bg-emerald-500 text-white rounded"
+                        >
+                          {paymentDaysLoading ? 'Saving...' : 'Save'}
+                        </button>
+                        <button
+                          onClick={() => setEditPaymentDays(false)}
+                          className="px-2 py-1 text-gray-500"
+                        >Cancel</button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-gray-900">{school.customNextPaymentDays ?? 'N/A'}</span>
+                        <button
+                          onClick={() => setEditPaymentDays(true)}
+                          className="px-2 py-1 text-blue-600 underline"
+                        >Edit</button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 

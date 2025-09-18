@@ -262,10 +262,10 @@ const AdminSubscriptionPage = () => {
                     <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-green-500 rounded-2xl flex items-center justify-center shadow-lg">
                       <Calendar className="w-6 h-6 text-white" />
                     </div>
-                    <h3 className="font-black text-gray-800 text-lg">Terms Remaining</h3>
+                    <h3 className="font-black text-gray-800 text-lg">Days Till Next Payment</h3>
                   </div>
                   <p className="text-4xl font-black text-gray-900 mb-2">
-                    {subscription.termsRemaining}
+                    {subscription.daysTillNextPayment ?? 'N/A'}
                   </p>
                   <p className="text-sm text-gray-600 font-medium">
                     until next subscription renewal

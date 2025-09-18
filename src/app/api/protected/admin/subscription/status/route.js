@@ -17,7 +17,8 @@ export async function GET(request) {
         subscriptionExpiresAt: true,
         subscriptionIsActive: true,
         maxStudents: true,
-        maxTeachers: true
+        maxTeachers: true,
+        customNextPaymentDays: true // Include customNextPaymentDays
       }
     });
 
@@ -67,11 +68,20 @@ export async function GET(request) {
       take: 5
     });
 
+    // Use customNextPaymentDays if set, otherwise calculate from subscriptionExpiresAt
+    let daysTillNextPayment = null;
+    if (school.customNextPaymentDays != null) {
+      daysTillNextPayment = school.customNextPaymentDays;
+    } else if (school.subscriptionExpiresAt) {
+      daysTillNextPayment = Math.max(0, Math.ceil((expiresAt - now) / (1000 * 60 * 60 * 24)));
+    }
+
     return NextResponse.json({
       success: true,
       subscription: {
         ...school,
         termsRemaining,
+        daysTillNextPayment, // Add daysTillNextPayment to response
         currentUsers: {
           students: studentCount,
           teachers: teacherCount,
