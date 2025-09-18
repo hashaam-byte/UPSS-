@@ -42,7 +42,7 @@ export async function GET() {
       status: payment.status,
       createdAt: payment.createdAt,
       paidAt: payment.paidAt,
-      schoolName: payment.school.name
+      schoolName: payment.school?.name || 'Unknown School'
     }));
 
     return NextResponse.json({

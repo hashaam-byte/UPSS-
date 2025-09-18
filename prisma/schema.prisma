@@ -438,6 +438,14 @@ enum Gender {
   other
 }
 
+enum SubjectCategory {
+  CORE
+  SCIENCE
+  ARTS
+  COMMERCIAL
+  VOCATIONAL
+}
+
 model Payment {
   id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   invoiceId       String   @map("invoice_id") @db.Uuid
@@ -502,4 +510,63 @@ model Resource {
   @@index([schoolId])
   @@index([folderId])
   @@map("resources")
+}
+
+model Timetable {
+  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  schoolId      String   @db.Uuid
+  className     String   @db.VarChar(50)
+  dayOfWeek     String   @db.VarChar(20) // e.g., "Monday"
+  period        Int      // e.g., 1, 2, 3, ... (period number in the day)
+  subject       String   @db.VarChar(100)
+  teacherId     String   @db.Uuid
+  startTime     String   @db.VarChar(10) // e.g., "08:00"
+  endTime       String   @db.VarChar(10) // e.g., "08:45"
+  createdById   String   @db.Uuid
+  createdAt     DateTime @default(now()) @db.Timestamptz
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  school        School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  teacher       User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  createdBy     User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([schoolId])
+  @@index([className])
+  @@index([teacherId])
+  @@index([dayOfWeek, period, className])
+  @@map("timetables")
+}
+
+model Subject {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name        String   @db.VarChar(100)
+  code        String   @unique @db.VarChar(20)
+  category    SubjectCategory
+  classes     String[] // e.g., ["SS1", "SS2", "SS3"]
+  schoolId    String   @db.Uuid
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now()) @db.Timestamptz
+  updatedAt   DateTime @updatedAt @db.Timestamptz
+
+  // Relations
+  school      School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  teachers    TeacherSubject[]
+
+  @@index([schoolId])
+  @@map("subjects")
+}
+
+model TeacherSubject {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  teacherId   String   @db.Uuid
+  subjectId   String   @db.Uuid
+  classes     String[] // e.g., ["SS1A", "SS2B"]
+  
+  // Relations
+  teacher     TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  subject     Subject    @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, subjectId])
+  @@map("teacher_subjects")
 }

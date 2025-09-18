@@ -163,6 +163,51 @@ export async function POST(request) {
       admin: '/protected/admin'
     };
 
+    if (user.role === 'teacher') {
+      const teacherProfile = await prisma.teacherProfile.findUnique({
+        where: { userId: user.id }
+      });
+      let redirectTo = '/protected/teacher';
+      switch (teacherProfile?.department) {
+        case 'director':
+          redirectTo = '/protected/teacher/director/dashboard';
+          break;
+        case 'coordinator':
+          redirectTo = '/protected/teacher/coordinator/dashboard';
+          break;
+        case 'class_teacher':
+          redirectTo = '/protected/teacher/class/dashboard';
+          break;
+        case 'subject_teacher':
+          redirectTo = '/protected/teacher/subject/dashboard';
+          break;
+        default:
+          redirectTo = '/protected/teacher';
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'Login successful',
+        user: {
+          id: user.id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          username: user.username,
+          role: user.role, // Return actual role
+          avatar: user.avatar,
+          isEmailVerified: user.isEmailVerified
+        },
+        school: {
+          id: school.id,
+          name: school.name,
+          slug: school.slug,
+          logo: school.logo
+        },
+        redirectTo: redirectTo
+      });
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Login successful',
