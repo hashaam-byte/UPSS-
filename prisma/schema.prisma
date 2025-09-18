@@ -43,6 +43,8 @@ model School {
   payments     Payment[]
   resourceFolders ResourceFolder[]
   resources       Resource[]
+  timetables     Timetable[]
+  subjects       Subject[]
   
   @@map("schools")
 }
@@ -98,6 +100,8 @@ model User {
   processedPayments   Payment[] @relation("PaymentProcessor")
   createdResourceFolders ResourceFolder[] @relation("UserCreatedFolders")
   uploadedResources      Resource[]      @relation("UserUploadedResources")
+  taughtLessons    Timetable[] @relation("TimetableTeacher")
+  createdTimetables Timetable[] @relation("TimetableCreator")
 
   @@unique([email, schoolId])
   @@unique([username, schoolId])
@@ -134,7 +138,6 @@ model TeacherProfile {
   userId          String    @unique @map("user_id") @db.Uuid
   employeeId      String?   @unique @map("employee_id") @db.VarChar(50)
   department      String?   @db.VarChar(100)
-  subjects        String[]
   qualification   String?   @db.VarChar(255)
   experienceYears Int       @default(0) @map("experience_years")
   joiningDate     DateTime? @map("joining_date") @db.Date
@@ -144,7 +147,8 @@ model TeacherProfile {
   
   // Relations
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  teacherSubjects TeacherSubject[] // Renamed to avoid confusion
+
   @@map("teacher_profiles")
 }
 
@@ -528,8 +532,8 @@ model Timetable {
 
   // Relations
   school        School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  teacher       User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  createdBy     User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  teacher       User     @relation("TimetableTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  createdBy     User     @relation("TimetableCreator", fields: [createdById], references: [id], onDelete: Cascade)
 
   @@index([schoolId])
   @@index([className])
@@ -570,3 +574,4 @@ model TeacherSubject {
   @@unique([teacherId, subjectId])
   @@map("teacher_subjects")
 }
+

@@ -1,100 +1,156 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import jwt from 'jsonwebtoken';
-import { cookies } from 'next/headers';
+import { requireAuth } from '@/lib/auth';
+
+const PERIODS = {
+  "1": { start: "08:00", end: "09:05" },
+  "2": { start: "09:05", end: "10:10" },
+  "3": { start: "10:10", end: "11:15" }, 
+  "BREAK": { start: "11:35", end: "12:00" }, // 25 minute break
+  "4": { start: "12:00", end: "13:05" },
+  "5": { start: "13:05", end: "14:15" }, // Last period
+};
 
 export async function GET(request) {
   try {
-    const cookieStore = cookies();
-    const token = cookieStore.get('auth_token')?.value;
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    // Only director can view
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      include: { teacherProfile: true }
+    const user = await requireAuth(['teacher']);
+    
+    // Ensure user is a director
+    const teacherProfile = await prisma.teacherProfile.findUnique({
+      where: { userId: user.id }
     });
-    if (!user || user.role !== 'teacher' || user.teacherProfile?.department !== 'director') {
+
+    if (!teacherProfile || teacherProfile.department !== 'director') {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    // Get all timetables for director's stage
-    const timetables = await prisma.timetable.findMany({
+    const { searchParams } = new URL(request.url);
+    const className = searchParams.get('class');
+    const dayOfWeek = searchParams.get('day');
+
+    // Get timetable entries
+    const timetable = await prisma.timetable.findMany({
       where: {
         schoolId: user.schoolId,
-        className: { in: user.teacherProfile.subjects }
+        ...(className && { className }),
+        ...(dayOfWeek && { dayOfWeek })
       },
       include: {
-        teacher: { select: { id: true, firstName: true, lastName: true } }
+        teacher: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            teacherProfile: {
+              select: {
+                department: true,
+                subjects: true
+              }
+            }
+          }
+        }
       },
-      orderBy: [{ dayOfWeek: 'asc' }, { period: 'asc' }]
+      orderBy: [
+        { dayOfWeek: 'asc' },
+        { period: 'asc' }
+      ]
     });
 
     return NextResponse.json({
       success: true,
-      data: timetables
+      data: {
+        timetable,
+        periods: PERIODS
+      }
     });
+
   } catch (error) {
-    console.error('Director timetable GET error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Timetable GET error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
 
-// POST: Add or update a timetable entry, ensuring no teacher clashes and breathing space
 export async function POST(request) {
   try {
-    const cookieStore = cookies();
-    const token = cookieStore.get('auth_token')?.value;
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const { className, dayOfWeek, period, subject, teacherId, startTime, endTime } = await request.json();
-
-    // Only director can create/update
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      include: { teacherProfile: true }
+    const user = await requireAuth(['teacher']);
+    
+    // Ensure user is a director
+    const teacherProfile = await prisma.teacherProfile.findUnique({
+      where: { userId: user.id }
     });
-    if (!user || user.role !== 'teacher' || user.teacherProfile?.department !== 'director') {
+
+    if (!teacherProfile || teacherProfile.department !== 'director') {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    // Check for teacher clash (teacher cannot have two classes at the same period on the same day)
-    const clash = await prisma.timetable.findFirst({
+    const { className, dayOfWeek, period, subject, teacherId } = await request.json();
+
+    // Validate input
+    if (!className || !dayOfWeek || !period || !subject || !teacherId) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    // Check for existing class timetable entry
+    const existingClass = await prisma.timetable.findFirst({
       where: {
+        schoolId: user.schoolId,
+        className,
+        dayOfWeek,
+        period
+      }
+    });
+
+    if (existingClass) {
+      return NextResponse.json(
+        { error: 'Time slot already occupied for this class' },
+        { status: 409 }
+      );
+    }
+
+    // Check for teacher availability (no class clash)
+    const teacherClash = await prisma.timetable.findFirst({
+      where: {
+        schoolId: user.schoolId,
         teacherId,
         dayOfWeek,
         period
       }
     });
-    if (clash) {
-      return NextResponse.json({ error: 'Teacher already assigned to another class at this period.' }, { status: 409 });
+
+    if (teacherClash) {
+      return NextResponse.json(
+        { error: 'Teacher already has a class at this time' },
+        { status: 409 }
+      );
     }
 
-    // Check for breathing space (no back-to-back periods for same teacher)
-    const prevPeriod = await prisma.timetable.findFirst({
+    // Check for breathing space (no back-to-back periods)
+    const adjacentPeriods = await prisma.timetable.findFirst({
       where: {
+        schoolId: user.schoolId,
         teacherId,
         dayOfWeek,
-        period: period - 1
+        period: {
+          in: [period - 1, period + 1]
+        }
       }
     });
-    const nextPeriod = await prisma.timetable.findFirst({
-      where: {
-        teacherId,
-        dayOfWeek,
-        period: period + 1
-      }
-    });
-    if (prevPeriod || nextPeriod) {
-      return NextResponse.json({ error: 'Teacher must have a free period before and after this period.' }, { status: 409 });
+
+    if (adjacentPeriods) {
+      return NextResponse.json(
+        { error: 'Teachers must have a free period between classes' },
+        { status: 409 }
+      );
     }
 
     // Create timetable entry
+    const periodTimes = PERIODS[period];
     const timetable = await prisma.timetable.create({
       data: {
         schoolId: user.schoolId,
@@ -103,8 +159,8 @@ export async function POST(request) {
         period,
         subject,
         teacherId,
-        startTime,
-        endTime,
+        startTime: periodTimes.start,
+        endTime: periodTimes.end,
         createdById: user.id
       }
     });
@@ -113,8 +169,12 @@ export async function POST(request) {
       success: true,
       data: timetable
     });
+
   } catch (error) {
-    console.error('Director timetable POST error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Timetable POST error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
