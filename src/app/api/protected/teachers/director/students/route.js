@@ -55,34 +55,55 @@ export async function GET(request) {
       }
     }
 
-    // Build where clause for students - Only include students with assigned classes
+    // Build where clause for students - Use top-level AND for complex conditions
     let whereClause = {
-      schoolId: director.schoolId, // CRITICAL: Only students from director's school
+      schoolId: director.schoolId,
       role: 'student',
       isActive: true,
-      studentProfile: {
-        className: {
-          not: null,
-          notIn: ['', 'Not assigned', null] // Exclude unassigned students
+      AND: [
+        // Student must have a profile
+        {
+          studentProfile: {
+            isNot: null
+          }
+        },
+        // Class name must not be null
+        {
+          studentProfile: {
+            className: {
+              not: null
+            }
+          }
+        },
+        // Class name must not be empty or "Not assigned"
+        {
+          studentProfile: {
+            className: {
+              notIn: ['', 'Not assigned']
+            }
+          }
         }
-      }
+      ]
     };
 
-    // Add class filter if specified
+    // Add class/stage filtering
     if (classFilter) {
-      whereClause.studentProfile.className = classFilter;
+      whereClause.AND.push({
+        studentProfile: {
+          className: classFilter
+        }
+      });
     } else {
       // Filter by director's allowed stages
-      const stagePatterns = targetStages.map(stage => ({
-        className: {
-          startsWith: stage
+      whereClause.AND.push({
+        studentProfile: {
+          OR: targetStages.map(stage => ({
+            className: {
+              startsWith: stage
+            }
+          }))
         }
-      }));
-      
-      whereClause.studentProfile = {
-        ...whereClause.studentProfile,
-        OR: stagePatterns
-      };
+      });
     }
 
     // Get students with pagination
@@ -106,23 +127,31 @@ export async function GET(request) {
 
     const totalStudents = await prisma.user.count({ where: whereClause });
 
-    // Get available classes for filtering (only for director's allowed stages and school)
+    // Get available classes for filtering - Fixed query structure
     const availableClassesQuery = await prisma.studentProfile.findMany({
       where: {
-        user: {
-          schoolId: director.schoolId, // CRITICAL: Only from director's school
-          role: 'student',
-          isActive: true
-        },
-        className: {
-          not: null,
-          notIn: ['', 'Not assigned', null]
-        },
-        OR: targetStages.map(stage => ({
-          className: {
-            startsWith: stage
+        AND: [
+          {
+            user: {
+              schoolId: director.schoolId,
+              role: 'student',
+              isActive: true
+            }
+          },
+          {
+            className: {
+              not: null,
+              notIn: ['', 'Not assigned']
+            }
+          },
+          {
+            OR: targetStages.map(stage => ({
+              className: {
+                startsWith: stage
+              }
+            }))
           }
-        }))
+        ]
       },
       select: {
         className: true
@@ -202,6 +231,9 @@ export async function GET(request) {
         isActive: true,
         OR: [
           {
+            studentProfile: null
+          },
+          {
             studentProfile: {
               className: null
             }
@@ -212,9 +244,6 @@ export async function GET(request) {
                 in: ['', 'Not assigned']
               }
             }
-          },
-          {
-            studentProfile: null
           }
         ]
       }
