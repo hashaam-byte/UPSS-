@@ -7,7 +7,7 @@ import crypto from 'crypto';
 
 export async function GET() {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const token = cookieStore.get('auth_token')?.value;
     
     if (!token) {
@@ -39,18 +39,21 @@ export async function GET() {
       );
     }
 
+    // Determine what to include based on decoded role
+    const includeOptions = {
+      school: decoded.role !== 'headadmin',
+      studentProfile: decoded.role === 'student',
+      teacherProfile: decoded.role === 'teacher' || 
+                    ['director', 'coordinator', 'class_teacher', 'subject_teacher'].includes(decoded.role),
+      adminProfile: decoded.role === 'admin' ? {
+        include: { permissions: true }
+      } : false
+    };
+
     // Check if user still exists and is active
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
-      include: {
-        school: decoded.role !== 'headadmin' ? true : false,
-        studentProfile: decoded.role === 'student' || user?.role === 'student',
-        teacherProfile: decoded.role === 'teacher' || user?.role === 'teacher' || 
-                      ['director', 'coordinator', 'class_teacher', 'subject_teacher'].includes(decoded.role),
-        adminProfile: decoded.role === 'admin' || user?.role === 'admin' ? {
-          include: { permissions: true }
-        } : false
-      }
+      include: includeOptions
     });
     
     if (!user || !user.isActive) {

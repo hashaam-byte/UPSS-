@@ -10,6 +10,10 @@ export async function GET(request) {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const { searchParams } = new URL(request.url);
+    const departmentFilter = searchParams.get('department');
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '20');
 
     // Verify user is a director
     const director = await prisma.user.findUnique({
@@ -21,45 +25,106 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    const directorStage = director.teacherProfile.subjects[0];
+    // Build where clause for teachers in the same school
+    const whereClause = {
+      schoolId: director.schoolId,
+      role: 'teacher',
+      isActive: true,
+      NOT: {
+        id: director.id // Exclude the director themselves
+      },
+      teacherProfile: departmentFilter ? {
+        department: departmentFilter
+      } : {}
+    };
 
-    // Get teachers in director's stage
+    // Get teachers with their profiles and subjects
     const teachers = await prisma.user.findMany({
+      where: whereClause,
+      include: {
+        teacherProfile: {
+          include: {
+            teachers: {
+              include: {
+                subject: true
+              }
+            }
+          }
+        }
+      },
+      skip: (page - 1) * limit,
+      take: limit,
+      orderBy: [
+        { firstName: 'asc' },
+        { lastName: 'asc' }
+      ]
+    });
+
+    const totalTeachers = await prisma.user.count({ where: whereClause });
+
+    // Get available departments for filtering
+    const availableDepartments = await prisma.user.findMany({
       where: {
         schoolId: director.schoolId,
         role: 'teacher',
         isActive: true,
         teacherProfile: {
-          subjects: {
-            hasSome: [directorStage]
+          department: {
+            not: null
           }
         }
       },
-      include: {
-        teacherProfile: true
+      select: {
+        teacherProfile: {
+          select: {
+            department: true
+          }
+        }
       },
-      orderBy: {
-        firstName: 'asc'
-      }
+      distinct: ['teacherProfile.department']
     });
+
+    const departments = [...new Set(availableDepartments
+      .map(t => t.teacherProfile?.department)
+      .filter(Boolean)
+    )].sort();
 
     return NextResponse.json({
       success: true,
       data: {
         teachers: teachers.map(teacher => ({
           id: teacher.id,
+          firstName: teacher.firstName,
+          lastName: teacher.lastName,
           name: `${teacher.firstName} ${teacher.lastName}`,
           email: teacher.email,
-          employeeId: teacher.teacherProfile?.employeeId,
-          department: teacher.teacherProfile?.department,
-          subjects: teacher.teacherProfile?.subjects || [],
-          qualification: teacher.teacherProfile?.qualification,
-          experienceYears: teacher.teacherProfile?.experienceYears,
-          joiningDate: teacher.teacherProfile?.joiningDate,
+          phone: teacher.phone,
+          address: teacher.address,
           avatar: teacher.avatar,
           isActive: teacher.isActive,
-          lastLogin: teacher.lastLogin
-        }))
+          lastLogin: teacher.lastLogin,
+          employeeId: teacher.teacherProfile?.employeeId,
+          department: teacher.teacherProfile?.department,
+          qualification: teacher.teacherProfile?.qualification,
+          experienceYears: teacher.teacherProfile?.experienceYears || 0,
+          joiningDate: teacher.teacherProfile?.joiningDate,
+          subjects: teacher.teacherProfile?.teachers?.map(ts => ({
+            name: ts.subject.name,
+            code: ts.subject.code,
+            category: ts.subject.category,
+            classes: ts.classes
+          })) || []
+        })),
+        pagination: {
+          currentPage: page,
+          totalPages: Math.ceil(totalTeachers / limit),
+          totalTeachers,
+          hasNext: page < Math.ceil(totalTeachers / limit),
+          hasPrev: page > 1
+        },
+        filters: {
+          availableDepartments: departments
+        }
       }
     });
 
