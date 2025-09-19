@@ -1,4 +1,4 @@
-// /app/api/auth/verify/route.js - Updated to handle head admin
+// /app/api/auth/verify/route.js - Updated for Teacher Subdivisions
 import jwt from 'jsonwebtoken';
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
@@ -44,9 +44,10 @@ export async function GET() {
       where: { id: decoded.userId },
       include: {
         school: decoded.role !== 'headadmin' ? true : false,
-        studentProfile: decoded.role === 'student',
-        teacherProfile: decoded.role === 'teacher',
-        adminProfile: decoded.role === 'admin' ? {
+        studentProfile: decoded.role === 'student' || user?.role === 'student',
+        teacherProfile: decoded.role === 'teacher' || user?.role === 'teacher' || 
+                      ['director', 'coordinator', 'class_teacher', 'subject_teacher'].includes(decoded.role),
+        adminProfile: decoded.role === 'admin' || user?.role === 'admin' ? {
           include: { permissions: true }
         } : false
       }
@@ -96,12 +97,37 @@ export async function GET() {
       );
     }
 
-    // Redirect URLs based on role
-    const redirectUrls = {
-      admin: '/protected/admin',
-      teacher: '/protected/teachers',
-      student: '/protected/students'
-    };
+    // Determine redirect URL based on actual user role and subdivisions
+    let redirectTo = '/protected/dashboard';
+    
+    if (user.role === 'student') {
+      redirectTo = '/protected/students';
+    } else if (user.role === 'admin') {
+      redirectTo = '/protected/admin';
+    } else if (user.role === 'teacher') {
+      // Handle teacher subdivisions based on their department
+      const teacherProfile = user.teacherProfile;
+      if (teacherProfile?.department) {
+        switch (teacherProfile.department) {
+          case 'director':
+            redirectTo = '/protected/teacher/director/dashboard';
+            break;
+          case 'coordinator':
+            redirectTo = '/protected/teacher/coordinator/dashboard';
+            break;
+          case 'class_teacher':
+            redirectTo = '/protected/teacher/class/dashboard';
+            break;
+          case 'subject_teacher':
+            redirectTo = '/protected/teacher/subject/dashboard';
+            break;
+          default:
+            redirectTo = '/protected/teachers';
+        }
+      } else {
+        redirectTo = '/protected/teachers';
+      }
+    }
 
     return NextResponse.json({
       authenticated: true,
@@ -112,6 +138,7 @@ export async function GET() {
         email: user.email,
         username: user.username,
         role: user.role,
+        department: user.teacherProfile?.department || null, // Add department info
         avatar: user.avatar,
         isEmailVerified: user.isEmailVerified,
         // Include profile data based on role
@@ -132,7 +159,7 @@ export async function GET() {
         subscriptionPlan: user.school.subscriptionPlan,
         subscriptionIsActive: user.school.subscriptionIsActive
       },
-      redirectTo: redirectUrls[user.role] || '/protected/dashboard'
+      redirectTo: redirectTo
     });
 
   } catch (error) {

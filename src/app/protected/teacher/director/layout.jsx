@@ -57,7 +57,19 @@ export default function DirectorLayout({ children }) {
 
       const data = await response.json();
       
-      if (data.user?.role !== 'director') {
+      // Check if user is a teacher with director department
+      if (data.user?.role !== 'teacher') {
+        window.location.href = '/auth/unauthorized';
+        return;
+      }
+
+      // Check if user has director department or if teacherProfile exists with director department
+      const isDirector = data.user?.department === 'director' || 
+                        data.user?.teacherProfile?.department === 'director';
+
+      if (!isDirector) {
+        console.log('User department:', data.user?.department);
+        console.log('Teacher profile department:', data.user?.teacherProfile?.department);
         window.location.href = '/auth/unauthorized';
         return;
       }
@@ -105,7 +117,7 @@ export default function DirectorLayout({ children }) {
             <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl animate-pulse"></div>
             <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-purple-400 rounded-2xl animate-ping"></div>
           </div>
-          <p className="text-white mt-6 font-medium text-lg">Verifying access...</p>
+          <p className="text-white mt-6 font-medium text-lg">Verifying director access...</p>
           <p className="text-gray-400 text-sm mt-2">Please wait while we authenticate your session</p>
         </div>
       </div>
@@ -143,7 +155,9 @@ export default function DirectorLayout({ children }) {
           </div>
           <div className="flex-1">
             <p className="font-semibold text-gray-900">{user?.firstName} {user?.lastName}</p>
-            <p className="text-xs text-gray-500 capitalize">{user?.department} Director</p>
+            <p className="text-xs text-gray-500 capitalize">
+              {user?.teacherProfile?.department || user?.department || 'Director'}
+            </p>
           </div>
         </div>
       </div>

@@ -1,131 +1,176 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import jwt from 'jsonwebtoken';
+import { requireAuth } from '@/lib/auth';
 
 export async function GET(request) {
   try {
-    const token = request.cookies.get('auth_token')?.value;
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    // Verify user is a director
-    const director = await prisma.user.findUnique({
-      where: { id: decoded.userId },
+    const user = await requireAuth(['teacher']);
+    
+    // Ensure user is a director
+    const director = await prisma.user.findFirst({
+      where: {
+        id: user.id,
+        teacherProfile: {
+          department: 'director'
+        }
+      },
       include: {
-        teacherProfile: true,
-        school: true
+        teacherProfile: {
+          include: {
+            teacherSubjects: {
+              include: {
+                subject: true
+              }
+            }
+          }
+        }
       }
     });
 
-    if (!director || director.role !== 'teacher' || director.teacherProfile?.department !== 'director') {
+    if (!director) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    // Get director's stage (assume first subject in subjects array is the stage)
-    const directorStage = director.teacherProfile.subjects[0];
+    // Get classes from TeacherSubjects
+    const classes = director.teacherProfile.teacherSubjects.flatMap(ts => ts.classes);
+    const uniqueClasses = [...new Set(classes)];
 
-    // Get total students in director's stage
-    const totalStudents = await prisma.user.count({
-      where: {
-        schoolId: director.schoolId,
-        role: 'student',
-        isActive: true,
-        studentProfile: {
-          className: {
-            startsWith: directorStage
+    // Get dashboard statistics
+    const [totalStudents, activeStudents, totalTeachers, recentActivities] = await Promise.all([
+      // Total students in these classes
+      prisma.user.count({
+        where: {
+          role: 'student',
+          schoolId: user.schoolId,
+          studentProfile: {
+            className: {
+              in: uniqueClasses
+            }
           }
         }
-      }
-    });
+      }),
 
-    // Get total teachers under supervision
-    const totalTeachers = await prisma.user.count({
-      where: {
-        schoolId: director.schoolId,
-        role: 'teacher',
-        isActive: true,
-        teacherProfile: {
-          subjects: {
-            hasSome: [directorStage]
+      // Active students (logged in within last 7 days)
+      prisma.user.count({
+        where: {
+          role: 'student',
+          schoolId: user.schoolId,
+          studentProfile: {
+            className: {
+              in: uniqueClasses
+            }
+          },
+          lastLogin: {
+            gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
           }
         }
-      }
-    });
+      }),
 
-    // Get pending timetable approvals (real data if you have a Timetable model)
-    let pendingApprovals = 0;
-    if (prisma.timetable) {
-      pendingApprovals = await prisma.timetable.count({
+      // Total teachers in the school
+      prisma.user.count({
         where: {
-          stage: directorStage,
-          status: 'pending'
+          role: 'teacher',
+          schoolId: user.schoolId,
+          teacherProfile: {
+            NOT: {
+              department: 'director'
+            }
+          }
         }
-      });
-    }
+      }),
 
-    // Get recent performance alerts (students with low grades, if you have a Result model)
-    let performanceAlerts = [];
-    if (prisma.result) {
-      const lowResults = await prisma.result.findMany({
+      // Recent activities
+      prisma.auditLog.findMany({
         where: {
-          schoolId: director.schoolId,
-          className: { startsWith: directorStage },
-          average: { lt: 50 }
+          user: {
+            schoolId: user.schoolId,
+            OR: [
+              {
+                role: 'teacher',
+                teacherProfile: {
+                  department: {
+                    not: 'director'
+                  }
+                }
+              },
+              {
+                role: 'student',
+                studentProfile: {
+                  className: {
+                    in: uniqueClasses
+                  }
+                }
+              }
+            ]
+          }
         },
+        orderBy: {
+          createdAt: 'desc'
+        },
+        take: 10,
         include: {
-          student: true
-        },
-        orderBy: { updatedAt: 'desc' },
-        take: 5
-      });
-      performanceAlerts = lowResults.map(r => ({
-        id: r.student.id,
-        name: `${r.student.firstName} ${r.student.lastName}`,
-        class: r.className,
-        alert: 'Low performance detected',
-        timestamp: r.updatedAt
-      }));
-    }
-
-    // Calculate average pass rate (if you have a Result model)
-    let averagePassRate = null;
-    if (prisma.result) {
-      const results = await prisma.result.findMany({
-        where: {
-          schoolId: director.schoolId,
-          className: { startsWith: directorStage }
+          user: {
+            select: {
+              firstName: true,
+              lastName: true,
+              role: true
+            }
+          }
         }
-      });
-      if (results.length > 0) {
-        const passCount = results.filter(r => r.average >= 50).length;
-        averagePassRate = (passCount / results.length) * 100;
-      }
-    }
+      })
+    ]);
+
+    // Get class statistics
+    const classStats = await Promise.all(
+      uniqueClasses.map(async (className) => {
+        const studentCount = await prisma.user.count({
+          where: {
+            role: 'student',
+            schoolId: user.schoolId,
+            studentProfile: {
+              className
+            }
+          }
+        });
+
+        return {
+          className,
+          studentCount,
+          // Add more class-specific stats here
+        };
+      })
+    );
 
     return NextResponse.json({
       success: true,
       data: {
-        director: {
-          id: director.id,
-          name: `${director.firstName} ${director.lastName}`,
-          stage: directorStage,
-          department: director.teacherProfile.department
-        },
         stats: {
           totalStudents,
+          activeStudents,
           totalTeachers,
-          averagePassRate,
-          pendingApprovals
+          classCount: uniqueClasses.length
         },
-        recentAlerts: performanceAlerts
+        classStats,
+        recentActivities: recentActivities.map(activity => ({
+          id: activity.id,
+          action: activity.action,
+          resource: activity.resource,
+          description: activity.description,
+          createdAt: activity.createdAt,
+          user: {
+            name: `${activity.user.firstName} ${activity.user.lastName}`,
+            role: activity.user.role
+          }
+        })),
+        classes: uniqueClasses
       }
     });
 
   } catch (error) {
     console.error('Director dashboard error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

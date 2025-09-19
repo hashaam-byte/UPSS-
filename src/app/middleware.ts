@@ -1,4 +1,4 @@
-// middleware.ts - Updated for Head Admin support
+// middleware.ts - Updated for Teacher Subdivisions Support
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import jwt from 'jsonwebtoken';
@@ -42,15 +42,18 @@ export async function middleware(request: NextRequest) {
         return response;
       }
 
-      // Role-based route protection
+      // Role-based route protection with teacher subdivisions
       const userRole = decoded.role;
-      const requestedPath = pathname.toLowerCase();
+      const requestedPath = pathname; // Keep original case for exact matching
 
+      // Define role permissions with exact path matching
       const rolePermissions: Record<string, string[]> = {
         headadmin: [
-          '/protected/Headadmin',
+          '/protected/headadmin',
+          '/protected/Headadmin', // Support both cases
           '/protected/admin',
           '/protected/teachers',
+          '/protected/Teachers', // Support both cases
           '/protected/students',
           '/api/protected/headadmin',
           '/api/protected/admin',
@@ -60,18 +63,63 @@ export async function middleware(request: NextRequest) {
         admin: [
           '/protected/admin',
           '/protected/teachers',
+          '/protected/Teachers', // Support both cases
           '/protected/students',
           '/api/protected/admin',
           '/api/protected/teachers',
           '/api/protected/students',
         ],
-        teacher: ['/protected/teachers', '/api/protected/teachers'],
-        student: ['/protected/students', '/api/protected/students'],
+        // Teacher role - includes all teacher subdivisions
+        teacher: [
+          '/protected/teachers',
+          '/protected/Teachers', // Support both cases
+          '/protected/teacher', // Base teacher routes
+          '/api/protected/teachers',
+        ],
+        // Teacher subdivisions - each has access to their specific area + base teacher routes
+        director: [
+          '/protected/teachers',
+          '/protected/Teachers', // Support both cases
+          '/protected/teacher',
+          '/protected/teacher/director',
+          '/api/protected/teachers',
+          '/api/protected/teacher/director',
+        ],
+        coordinator: [
+          '/protected/teachers',
+          '/protected/Teachers', // Support both cases
+          '/protected/teacher',
+          '/protected/teacher/coordinator',
+          '/api/protected/teachers',
+          '/api/protected/teacher/coordinator',
+        ],
+        class_teacher: [
+          '/protected/teachers',
+          '/protected/Teachers', // Support both cases
+          '/protected/teacher',
+          '/protected/teacher/class',
+          '/api/protected/teachers',
+          '/api/protected/teacher/class',
+        ],
+        subject_teacher: [
+          '/protected/teachers',
+          '/protected/Teachers', // Support both cases
+          '/protected/teacher',
+          '/protected/teacher/subject',
+          '/api/protected/teachers',
+          '/api/protected/teacher/subject',
+        ],
+        student: [
+          '/protected/students',
+          '/api/protected/students'
+        ],
       };
 
       const allowedPaths = rolePermissions[userRole] || [];
+      
+      // Check if user has permission - use startsWith for flexible matching
       const hasPermission = allowedPaths.some((allowedPath) =>
-        requestedPath.startsWith(allowedPath.toLowerCase())
+        requestedPath.startsWith(allowedPath)
       );
 
       if (!hasPermission) {
