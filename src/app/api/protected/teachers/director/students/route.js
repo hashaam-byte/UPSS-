@@ -55,18 +55,22 @@ export async function GET(request) {
       }
     }
 
-    // Build where clause for students
+    // Build where clause for students - Only include students with assigned classes
     let whereClause = {
-      schoolId: director.schoolId,
+      schoolId: director.schoolId, // CRITICAL: Only students from director's school
       role: 'student',
       isActive: true,
+      studentProfile: {
+        className: {
+          not: null,
+          notIn: ['', 'Not assigned', null] // Exclude unassigned students
+        }
+      }
     };
 
     // Add class filter if specified
     if (classFilter) {
-      whereClause.studentProfile = {
-        className: classFilter
-      };
+      whereClause.studentProfile.className = classFilter;
     } else {
       // Filter by director's allowed stages
       const stagePatterns = targetStages.map(stage => ({
@@ -76,6 +80,7 @@ export async function GET(request) {
       }));
       
       whereClause.studentProfile = {
+        ...whereClause.studentProfile,
         OR: stagePatterns
       };
     }
@@ -101,35 +106,35 @@ export async function GET(request) {
 
     const totalStudents = await prisma.user.count({ where: whereClause });
 
-    // Get available classes for filtering (only for director's allowed stages)
-    const availableClassesQuery = await prisma.user.findMany({
+    // Get available classes for filtering (only for director's allowed stages and school)
+    const availableClassesQuery = await prisma.studentProfile.findMany({
       where: {
-        schoolId: director.schoolId,
-        role: 'student',
-        isActive: true,
-        studentProfile: {
-          OR: targetStages.map(stage => ({
-            className: {
-              startsWith: stage
-            }
-          }))
-        }
+        user: {
+          schoolId: director.schoolId, // CRITICAL: Only from director's school
+          role: 'student',
+          isActive: true
+        },
+        className: {
+          not: null,
+          notIn: ['', 'Not assigned', null]
+        },
+        OR: targetStages.map(stage => ({
+          className: {
+            startsWith: stage
+          }
+        }))
       },
       select: {
-        studentProfile: {
-          select: {
-            className: true
-          }
-        }
-      }
+        className: true
+      },
+      distinct: ['className']
     });
 
     // Extract and organize unique class names by stage
-    const allClasses = [...new Set(
-      availableClassesQuery
-        .map(s => s.studentProfile?.className)
-        .filter(Boolean)
-    )].sort();
+    const allClasses = availableClassesQuery
+      .map(profile => profile.className)
+      .filter(Boolean)
+      .sort();
 
     // Group classes by stage
     const classesByStage = {
@@ -189,10 +194,37 @@ export async function GET(request) {
       }
     });
 
+    // Get pending students count (those in import queue)
+    const pendingStudents = await prisma.user.count({
+      where: {
+        schoolId: director.schoolId,
+        role: 'student',
+        isActive: true,
+        OR: [
+          {
+            studentProfile: {
+              className: null
+            }
+          },
+          {
+            studentProfile: {
+              className: {
+                in: ['', 'Not assigned']
+              }
+            }
+          },
+          {
+            studentProfile: null
+          }
+        ]
+      }
+    });
+
     // Calculate statistics
     const stats = {
       total: totalStudents,
       active: transformedStudents.filter(s => s.isActive).length,
+      pending: pendingStudents, // Students waiting for class assignment
       byStage: {
         JS: studentsByStage.JS.length,
         SS: studentsByStage.SS.length
@@ -228,8 +260,9 @@ export async function GET(request) {
           directorStages
         },
         summary: {
-          totalStudents,
+          totalStudents, // Only assigned students
           activeStudents: stats.active,
+          pendingStudents: pendingStudents, // Students in import queue
           classCount: allClasses.length,
           stageCount: directorStages.length,
           statistics: stats

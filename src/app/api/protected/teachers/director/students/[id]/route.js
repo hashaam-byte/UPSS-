@@ -59,32 +59,28 @@ export async function GET(request, { params }) {
     }
 
     // Get available classes in the same school
-    const availableClasses = await prisma.user.findMany({
+    const availableClasses = await prisma.studentProfile.findMany({
       where: {
-        schoolId: director.schoolId,
-        role: 'student',
-        studentProfile: {
-          className: {
-            not: null,
-            notIn: ['', 'Not assigned']
-          }
+        user: {
+          schoolId: director.schoolId,
+          role: 'student',
+          isActive: true
+        },
+        className: {
+          not: null,
+          notIn: ['', 'Not assigned']
         }
       },
       select: {
-        studentProfile: {
-          select: {
-            className: true
-          }
-        }
+        className: true
       },
-      distinct: ['studentProfile']
+      distinct: ['className']
     });
 
-    const classOptions = [...new Set(
-      availableClasses
-        .map(s => s.studentProfile?.className)
-        .filter(Boolean)
-    )].sort();
+    const classOptions = availableClasses
+      .map(profile => profile.className)
+      .filter(Boolean)
+      .sort();
 
     // Add common class patterns if none exist
     if (classOptions.length === 0) {
