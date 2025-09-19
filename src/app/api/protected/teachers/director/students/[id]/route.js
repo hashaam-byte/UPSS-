@@ -85,8 +85,12 @@ export async function GET(request, { params }) {
     // Add common class patterns if none exist
     if (classOptions.length === 0) {
       classOptions.push(
-        'JS1A', 'JS1B', 'JS2A', 'JS2B', 'JS3A', 'JS3B',
-        'SS1A', 'SS1B', 'SS2A', 'SS2B', 'SS3A', 'SS3B'
+        'JS1 silver', 'JS1 diamond', 'JS1 mercury', 'JS1 platinum', 'JS1 copper','JS1 gold',
+        'JS2 silver', 'JS2 diamond', 'JS2 mercury', 'JS2 platinum', 'JS2 copper','JS2 gold',
+        'JS3 silver', 'JS3 diamond', 'JS3 mercury', 'JS3 platinum', 'JS3 copper','JS3 gold',
+        'SS1 silver', 'SS1 diamond', 'SS1 mercury', 'SS1 platinum', 'SS1 copper','SS1 gold',
+        'SS2 silver', 'SS2 diamond', 'SS2 mercury', 'SS2 platinum', 'SS2 copper',
+        'SS3 silver', 'SS3 diamond', 'SS3 mercury', 'SS3 platinum', 'SS3 copper'
       );
     }
 
