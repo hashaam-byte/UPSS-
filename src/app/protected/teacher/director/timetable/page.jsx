@@ -7,7 +7,7 @@ const TimetableManagementPage = () => {
   const [availableClasses, setAvailableClasses] = useState([]);
   const [availableTeachers, setAvailableTeachers] = useState([]);
   const [subjects, setSubjects] = useState([]);
-  const [allSubjects, setAllSubjects] = useState([]); // New state for all subjects from subjects API
+  const [allSubjects, setAllSubjects] = useState([]);
   const [periods, setPeriods] = useState({});
   const [daysOfWeek, setDaysOfWeek] = useState([]);
   const [statistics, setStatistics] = useState({});
@@ -15,6 +15,7 @@ const TimetableManagementPage = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadingSubjects, setLoadingSubjects] = useState(false);
+  const [loadingClasses, setLoadingClasses] = useState(false);
   const [error, setError] = useState(null);
   
   // Filters
@@ -47,14 +48,77 @@ const TimetableManagementPage = () => {
 
   useEffect(() => {
     fetchTimetableData();
-    fetchAllSubjects(); // Fetch subjects when component mounts
+    fetchAllSubjects();
+    fetchAvailableClasses();
   }, [filters]);
 
-  // New function to fetch all subjects from the subjects API
+  // Refresh subjects when needed
+  const refreshSubjects = async () => {
+    await fetchAllSubjects();
+  };
+
+  // Fetch available classes from the students API
+  const fetchAvailableClasses = async () => {
+    setLoadingClasses(true);
+    try {
+      const response = await fetch('/api/protected/teachers/director/students?limit=1', {
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.success && data.data.filters?.availableClasses) {
+        let classOptions = data.data.filters.availableClasses;
+        
+        // If no classes exist, provide fallback options
+        if (classOptions.length === 0) {
+          classOptions = [
+            'JS1 silver', 'JS1 diamond', 'JS1 mercury', 'JS1 platinum', 'JS1 copper', 'JS1 gold',
+            'JS2 silver', 'JS2 diamond', 'JS2 mercury', 'JS2 platinum', 'JS2 copper', 'JS2 gold',
+            'JS3 silver', 'JS3 diamond', 'JS3 mercury', 'JS3 platinum', 'JS3 copper', 'JS3 gold',
+            'SS1 silver', 'SS1 diamond', 'SS1 mercury', 'SS1 platinum', 'SS1 copper', 'SS1 gold',
+            'SS2 silver', 'SS2 diamond', 'SS2 mercury', 'SS2 platinum', 'SS2 copper', 'SS2 gold',
+            'SS3 silver', 'SS3 diamond', 'SS3 mercury', 'SS3 platinum', 'SS3 copper', 'SS3 gold'
+          ];
+        }
+        
+        setAvailableClasses(classOptions);
+      } else {
+        console.error('Failed to fetch classes:', data.error || 'Unknown error');
+        // Use fallback classes
+        setAvailableClasses([
+          'JS1 silver', 'JS1 diamond', 'JS1 mercury', 'JS1 platinum', 'JS1 copper', 'JS1 gold',
+          'JS2 silver', 'JS2 diamond', 'JS2 mercury', 'JS2 platinum', 'JS2 copper', 'JS2 gold',
+          'JS3 silver', 'JS3 diamond', 'JS3 mercury', 'JS3 platinum', 'JS3 copper', 'JS3 gold',
+          'SS1 silver', 'SS1 diamond', 'SS1 mercury', 'SS1 platinum', 'SS1 copper', 'JS1 gold',
+          'SS2 silver', 'SS2 diamond', 'SS2 mercury', 'SS2 platinum', 'SS2 copper', 'SS2 gold',
+          'SS3 silver', 'SS3 diamond', 'SS3 mercury', 'SS3 platinum', 'SS3 copper', 'SS3 gold'
+        ]);
+      }
+    } catch (error) {
+      console.error('Error fetching classes:', error);
+      // Use fallback classes
+      setAvailableClasses([
+        'JS1 silver', 'JS1 diamond', 'JS1 mercury', 'JS1 platinum', 'JS1 copper', 'JS1 gold',
+        'JS2 silver', 'JS2 diamond', 'JS2 mercury', 'JS2 platinum', 'JS2 copper', 'JS2 gold',
+        'JS3 silver', 'JS3 diamond', 'JS3 mercury', 'JS3 platinum', 'JS3 copper', 'JS3 gold',
+        'SS1 silver', 'SS1 diamond', 'SS1 mercury', 'SS1 platinum', 'SS1 copper', 'SS1 gold',
+        'SS2 silver', 'SS2 diamond', 'SS2 mercury', 'SS2 platinum', 'SS2 copper', 'SS2 gold',
+        'SS3 silver', 'SS3 diamond', 'SS3 mercury', 'SS3 platinum', 'SS3 copper', 'SS3 gold'
+      ]);
+    } finally {
+      setLoadingClasses(false);
+    }
+  };
+
+  // Fetch all subjects from the subjects API
   const fetchAllSubjects = async () => {
     setLoadingSubjects(true);
     try {
-      const response = await fetch('/api/protected/teachers/director/subjects', {
+      const response = await fetch('/api/protected/teacher/director/subjects', {
         credentials: 'include'
       });
 
@@ -67,12 +131,10 @@ const TimetableManagementPage = () => {
         setAllSubjects(data.data.subjects);
       } else {
         console.error('Failed to fetch subjects:', data.error || 'Unknown error');
-        // Fallback to empty array if subjects API fails
         setAllSubjects([]);
       }
     } catch (error) {
       console.error('Error fetching subjects:', error);
-      // Fallback to empty array if request fails
       setAllSubjects([]);
     } finally {
       setLoadingSubjects(false);
@@ -89,7 +151,7 @@ const TimetableManagementPage = () => {
       if (filters.teacherId) params.append('teacher', filters.teacherId);
       params.append('view', filters.view);
 
-      const response = await fetch(`/api/protected/teachers/director/timetable?${params}`, {
+      const response = await fetch(`/api/protected/teacher/director/timetable?${params}`, {
         credentials: 'include'
       });
 
@@ -100,7 +162,10 @@ const TimetableManagementPage = () => {
       const data = await response.json();
       if (data.success) {
         setTimetableData(data.data.timetable || {});
-        setAvailableClasses(data.data.availableClasses || []);
+        // Don't overwrite availableClasses if we already have them from the students API
+        if (availableClasses.length === 0 && data.data.availableClasses) {
+          setAvailableClasses(data.data.availableClasses);
+        }
         setAvailableTeachers(data.data.availableTeachers || []);
         setSubjects(data.data.subjects || []); // Keep this for backward compatibility
         setPeriods(data.data.periods || {});
@@ -117,27 +182,76 @@ const TimetableManagementPage = () => {
     }
   };
 
-  // Filter subjects based on selected class
+  // Get stage prefix from class name (JS1, SS2, etc.)
+  const getClassStageLevel = (className) => {
+    if (!className) return '';
+    const match = className.match(/^(JS|SS)([1-3])/i);
+    return match ? `${match[1]}${match[2]}` : className.substring(0, 3);
+  };
+
+  // Get stage from class name (JS or SS)
+  const getClassStage = (className) => {
+    if (!className) return '';
+    if (className.startsWith('JS')) return 'JS';
+    if (className.startsWith('SS')) return 'SS';
+    return '';
+  };
+
+  // Filter subjects based on selected class - Now shows all subjects since they're available for all classes
   const getFilteredSubjects = () => {
+    // Since subjects are now available for all classes, we show all subjects
+    // but we can still filter by stage if needed for better organization
     if (!formData.className) {
       return allSubjects;
     }
 
-    // Filter subjects that are available for the selected class
-    return allSubjects.filter(subject => 
-      subject.classes && subject.classes.includes(formData.className)
-    );
+    const classStage = getClassStage(formData.className);
+    const classStageLevel = getClassStageLevel(formData.className);
+    
+    // Return all subjects but prioritize those specifically assigned to this class/stage
+    return allSubjects.filter(subject => {
+      // If subject has no classes defined, show it (it's available for all)
+      if (!subject.classes || !Array.isArray(subject.classes) || subject.classes.length === 0) {
+        return true;
+      }
+      
+      // Check if the subject is available for this class, level, or stage
+      return subject.classes.some(subjectClass => {
+        return subjectClass === formData.className || 
+               subjectClass === classStageLevel ||
+               subjectClass === classStage ||
+               subjectClass.startsWith(classStage); // Match JS or SS stage
+      });
+    }).sort((a, b) => {
+      // Sort subjects with exact class match first, then by name
+      const aHasExactMatch = a.classes?.includes(formData.className) || a.classes?.includes(classStageLevel);
+      const bHasExactMatch = b.classes?.includes(formData.className) || b.classes?.includes(classStageLevel);
+      
+      if (aHasExactMatch && !bHasExactMatch) return -1;
+      if (!aHasExactMatch && bHasExactMatch) return 1;
+      
+      return a.name.localeCompare(b.name);
+    });
   };
 
   const handleAddEntry = async () => {
+    const availableSubjectsForClass = getFilteredSubjects();
+    
     if (!formData.className || !formData.dayOfWeek || !formData.period || !formData.subject || !formData.teacherId) {
       alert('Please fill in all required fields');
       return;
     }
 
+    // Validate that the selected subject is available for this class
+    const selectedSubject = availableSubjectsForClass.find(s => s.name === formData.subject);
+    if (!selectedSubject && availableSubjectsForClass.length > 0) {
+      alert('Please select a valid subject for this class');
+      return;
+    }
+
     setSaving(true);
     try {
-      const response = await fetch('/api/protected/teachers/director/timetable', {
+      const response = await fetch('/api/protected/teacher/director/timetable', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -152,12 +266,13 @@ const TimetableManagementPage = () => {
         setShowAddModal(false);
         setFormData({ className: '', dayOfWeek: '', period: '', subject: '', teacherId: '' });
         fetchTimetableData(); // Refresh data
+        alert('Timetable entry created successfully!');
       } else {
         alert(result.error || 'Failed to create timetable entry');
       }
     } catch (error) {
       console.error('Error creating timetable entry:', error);
-      alert('Failed to create timetable entry');
+      alert('Failed to create timetable entry. Please check your connection and try again.');
     } finally {
       setSaving(false);
     }
@@ -166,9 +281,23 @@ const TimetableManagementPage = () => {
   const handleEditEntry = async () => {
     if (!selectedEntry) return;
 
+    const availableSubjectsForClass = getFilteredSubjects();
+    
+    if (!formData.className || !formData.dayOfWeek || !formData.period || !formData.subject || !formData.teacherId) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    // Validate that the selected subject is available for this class
+    const selectedSubject = availableSubjectsForClass.find(s => s.name === formData.subject);
+    if (!selectedSubject && availableSubjectsForClass.length > 0) {
+      alert('Please select a valid subject for this class');
+      return;
+    }
+
     setSaving(true);
     try {
-      const response = await fetch(`/api/protected/teachers/director/timetable?id=${selectedEntry.id}`, {
+      const response = await fetch(`/api/protected/teacher/director/timetable?id=${selectedEntry.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -184,12 +313,13 @@ const TimetableManagementPage = () => {
         setSelectedEntry(null);
         setFormData({ className: '', dayOfWeek: '', period: '', subject: '', teacherId: '' });
         fetchTimetableData(); // Refresh data
+        alert('Timetable entry updated successfully!');
       } else {
         alert(result.error || 'Failed to update timetable entry');
       }
     } catch (error) {
       console.error('Error updating timetable entry:', error);
-      alert('Failed to update timetable entry');
+      alert('Failed to update timetable entry. Please check your connection and try again.');
     } finally {
       setSaving(false);
     }
@@ -199,7 +329,7 @@ const TimetableManagementPage = () => {
     if (!confirm('Are you sure you want to delete this timetable entry?')) return;
 
     try {
-      const response = await fetch(`/api/protected/teachers/director/timetable?id=${entryId}`, {
+      const response = await fetch(`/api/protected/teacher/director/timetable?id=${entryId}`, {
         method: 'DELETE',
         credentials: 'include'
       });
@@ -504,7 +634,12 @@ const TimetableManagementPage = () => {
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Class *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Class *
+                {loadingClasses && (
+                  <span className="ml-2 text-xs text-gray-500">(Loading...)</span>
+                )}
+              </label>
               <select
                 value={formData.className}
                 onChange={(e) => {
@@ -516,8 +651,11 @@ const TimetableManagementPage = () => {
                 }}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
+                disabled={loadingClasses}
               >
-                <option value="">Select Class</option>
+                <option value="">
+                  {loadingClasses ? 'Loading classes...' : 'Select Class'}
+                </option>
                 {availableClasses.map(className => (
                   <option key={className} value={className}>{className}</option>
                 ))}
@@ -562,32 +700,70 @@ const TimetableManagementPage = () => {
                 {loadingSubjects && (
                   <span className="ml-2 text-xs text-gray-500">(Loading...)</span>
                 )}
+                {!loadingSubjects && allSubjects.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={refreshSubjects}
+                    className="ml-2 text-xs text-blue-600 hover:text-blue-800 underline"
+                  >
+                    Refresh
+                  </button>
+                )}
               </label>
               <select
                 value={formData.subject}
                 onChange={(e) => setFormData(prev => ({ ...prev, subject: e.target.value }))}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
-                disabled={loadingSubjects || !formData.className}
+                disabled={loadingSubjects}
               >
                 <option value="">
-                  {!formData.className 
-                    ? 'Select a class first' 
-                    : loadingSubjects 
+                  {loadingSubjects 
                     ? 'Loading subjects...' 
                     : 'Select Subject'}
                 </option>
-                {availableSubjectsForClass.map(subject => (
-                  <option key={subject.id} value={subject.name}>
-                    {subject.name} {subject.code && `(${subject.code})`}
-                    {subject.category && ` - ${subject.category}`}
-                  </option>
-                ))}
+                {availableSubjectsForClass.length > 0 ? (
+                  (() => {
+                    // Group subjects by category for better organization
+                    const subjectsByCategory = availableSubjectsForClass.reduce((acc, subject) => {
+                      const category = subject.category || 'GENERAL';
+                      if (!acc[category]) acc[category] = [];
+                      acc[category].push(subject);
+                      return acc;
+                    }, {});
+
+                    return Object.entries(subjectsByCategory).map(([category, subjects]) => (
+                      <optgroup key={category} label={category}>
+                        {subjects.map(subject => (
+                          <option key={subject.id} value={subject.name}>
+                            {subject.name}
+                            {subject.code && ` (${subject.code})`}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ));
+                  })()
+                ) : !loadingSubjects ? (
+                  <option value="" disabled>No subjects available</option>
+                ) : null}
               </select>
-              {formData.className && availableSubjectsForClass.length === 0 && !loadingSubjects && (
-                <p className="text-xs text-amber-600 mt-1">
-                  No subjects available for {formData.className}
-                </p>
+              {!loadingSubjects && (
+                <div className="mt-1">
+                  {availableSubjectsForClass.length > 0 ? (
+                    <p className="text-xs text-green-600">
+                      {availableSubjectsForClass.length} subject{availableSubjectsForClass.length !== 1 ? 's' : ''} available
+                      {formData.className && ` for ${formData.className}`}
+                    </p>
+                  ) : allSubjects.length === 0 ? (
+                    <p className="text-xs text-amber-600">
+                      No subjects configured yet. Please contact admin to add subjects.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-blue-600">
+                      All subjects are available for this class
+                    </p>
+                  )}
+                </div>
               )}
             </div>
 
@@ -612,7 +788,7 @@ const TimetableManagementPage = () => {
           <div className="flex gap-3 mt-6">
             <button
               onClick={handleAction}
-              disabled={saving || loadingSubjects}
+              disabled={saving || loadingSubjects || loadingClasses}
               className="flex-1 bg-blue-600 text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {saving ? (

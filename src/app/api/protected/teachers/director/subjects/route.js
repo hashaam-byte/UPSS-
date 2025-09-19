@@ -45,6 +45,18 @@ const SENIOR_SUBJECTS = {
   ]
 };
 
+// All available classes including both JS and SS with their arms
+const ALL_AVAILABLE_CLASSES = [
+  // Junior Secondary
+  'JS1', 'JS1 silver', 'JS1 diamond', 'JS1 mercury', 'JS1 platinum', 'JS1 copper', 'JS1 gold',
+  'JS2', 'JS2 silver', 'JS2 diamond', 'JS2 mercury', 'JS2 platinum', 'JS2 copper', 'JS2 gold',
+  'JS3', 'JS3 silver', 'JS3 diamond', 'JS3 mercury', 'JS3 platinum', 'JS3 copper', 'JS3 gold',
+  // Senior Secondary
+  'SS1', 'SS1 silver', 'SS1 diamond', 'SS1 mercury', 'SS1 platinum', 'SS1 copper', 'SS1 gold',
+  'SS2', 'SS2 silver', 'SS2 diamond', 'SS2 mercury', 'SS2 platinum', 'SS2 copper', 'SS2 gold',
+  'SS3', 'SS3 silver', 'SS3 diamond', 'SS3 mercury', 'SS3 platinum', 'SS3 copper', 'SS3 gold'
+];
+
 // Helper function to verify director access
 async function verifyDirectorAccess(token) {
   if (!token) {
@@ -64,9 +76,33 @@ async function verifyDirectorAccess(token) {
   return user;
 }
 
+// Helper function to validate class names
+function validateClasses(classes) {
+  if (!Array.isArray(classes)) {
+    return { valid: false, error: 'Classes must be an array' };
+  }
+
+  const invalidClasses = classes.filter(cls => !ALL_AVAILABLE_CLASSES.includes(cls));
+  if (invalidClasses.length > 0) {
+    return { 
+      valid: false, 
+      error: `Invalid classes: ${invalidClasses.join(', ')}. Valid classes include: JS1-JS3 and SS1-SS3 with optional arms (silver, diamond, mercury, platinum, copper, gold)` 
+    };
+  }
+
+  return { valid: true };
+}
+
+// Helper function to get class stage (JS or SS)
+function getClassStage(className) {
+  if (className.startsWith('JS')) return 'JS';
+  if (className.startsWith('SS')) return 'SS';
+  return null;
+}
+
 export async function GET(request) {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const token = cookieStore.get('auth_token')?.value;
     
     const user = await verifyDirectorAccess(token);
@@ -74,15 +110,24 @@ export async function GET(request) {
     const classFilter = searchParams.get('class');
 
     // Build where clause based on whether class filter is provided
-    const whereClause = {
+    let whereClause = {
       schoolId: user.schoolId,
-      isActive: true,
-      ...(classFilter && {
-        classes: {
-          hasSome: [classFilter]
-        }
-      })
+      isActive: true
     };
+
+    // If class filter is provided, filter subjects that apply to that class or its stage
+    if (classFilter) {
+      const classStage = getClassStage(classFilter);
+      const classLevel = classFilter.substring(0, 3); // JS1, SS2, etc.
+      
+      whereClause.classes = {
+        hasSome: [
+          classFilter, // Exact class match
+          classLevel,  // Level match (JS1, SS2)
+          classStage   // Stage match (JS, SS)
+        ].filter(Boolean)
+      };
+    }
 
     // Get subjects with their assigned teachers
     const subjects = await prisma.subject.findMany({
@@ -134,7 +179,11 @@ export async function GET(request) {
         name: `${ts.teacher.user.firstName} ${ts.teacher.user.lastName}`,
         email: ts.teacher.user.email,
         classes: classFilter 
-          ? ts.classes.filter(c => c === classFilter || c.startsWith(classFilter.substring(0, 3)))
+          ? ts.classes.filter(c => {
+              const classStage = getClassStage(classFilter);
+              const classLevel = classFilter.substring(0, 3);
+              return c === classFilter || c === classLevel || c === classStage;
+            })
           : ts.classes
       }))
     }));
@@ -144,11 +193,16 @@ export async function GET(request) {
       subjects: transformedSubjects,
       categories: existingCategories,
       availableSubjects: SENIOR_SUBJECTS,
+      availableClasses: ALL_AVAILABLE_CLASSES,
       totalSubjects: subjects.length,
       ...(classFilter && {
         classFilter,
         classSpecificSubjects: transformedSubjects.filter(s => 
-          s.classes.includes(classFilter)
+          s.classes.some(cls => {
+            const classStage = getClassStage(classFilter);
+            const classLevel = classFilter.substring(0, 3);
+            return cls === classFilter || cls === classLevel || cls === classStage;
+          })
         ).map(s => s.name)
       })
     };
@@ -174,7 +228,7 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const token = cookieStore.get('auth_token')?.value;
     
     const user = await verifyDirectorAccess(token);
@@ -187,19 +241,16 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
-    // Validate classes are valid senior secondary classes
-    const validClasses = ['SS1', 'SS2', 'SS3'];
-    const invalidClasses = classes.filter(cls => !validClasses.includes(cls));
-    if (invalidClasses.length > 0) {
-      return NextResponse.json({ 
-        error: `Invalid classes: ${invalidClasses.join(', ')}. Valid classes are: ${validClasses.join(', ')}` 
-      }, { status: 400 });
+    // Validate classes
+    const classValidation = validateClasses(classes);
+    if (!classValidation.valid) {
+      return NextResponse.json({ error: classValidation.error }, { status: 400 });
     }
 
     // Check if subject with same code already exists in the school
     const existingSubject = await prisma.subject.findFirst({
       where: {
-        code,
+        code: code.toUpperCase(),
         schoolId: user.schoolId
       }
     });
@@ -241,15 +292,23 @@ export async function POST(request) {
       }
 
       // Create teacher-subject assignments
-      await Promise.all(teacherIds.map(teacherId =>
-        prisma.teacherSubject.create({
+      const teacherAssignments = teacherIds.map(teacherId => {
+        // Find the corresponding teacher profile ID
+        const teacher = teachers.find(t => t.id === teacherId);
+        if (!teacher?.teacherProfile?.id) {
+          throw new Error(`Teacher profile not found for user ID: ${teacherId}`);
+        }
+
+        return prisma.teacherSubject.create({
           data: {
-            teacherId,
+            teacherId: teacher.teacherProfile.id, // Use teacher profile ID, not user ID
             subjectId: subject.id,
             classes: classes // Assign to all classes the subject covers
           }
-        })
-      ));
+        });
+      });
+
+      await Promise.all(teacherAssignments);
     }
 
     // Fetch the created subject with teacher assignments
@@ -310,7 +369,7 @@ export async function POST(request) {
 
 export async function PUT(request) {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const token = cookieStore.get('auth_token')?.value;
     
     const user = await verifyDirectorAccess(token);
@@ -325,7 +384,7 @@ export async function PUT(request) {
     // Verify subject belongs to the director's school
     const existingSubject = await prisma.subject.findFirst({
       where: {
-        id: parseInt(subjectId),
+        id: subjectId,
         schoolId: user.schoolId
       }
     });
@@ -334,9 +393,17 @@ export async function PUT(request) {
       return NextResponse.json({ error: 'Subject not found' }, { status: 404 });
     }
 
+    // Validate classes if provided
+    if (classes) {
+      const classValidation = validateClasses(classes);
+      if (!classValidation.valid) {
+        return NextResponse.json({ error: classValidation.error }, { status: 400 });
+      }
+    }
+
     // Update subject
     const updatedSubject = await prisma.subject.update({
-      where: { id: parseInt(subjectId) },
+      where: { id: subjectId },
       data: {
         ...(name && { name }),
         ...(code && { code: code.toUpperCase() }),
@@ -350,20 +417,34 @@ export async function PUT(request) {
     if (teacherIds && Array.isArray(teacherIds)) {
       // Remove existing assignments
       await prisma.teacherSubject.deleteMany({
-        where: { subjectId: parseInt(subjectId) }
+        where: { subjectId: subjectId }
       });
 
       // Add new assignments
       if (teacherIds.length > 0) {
-        await Promise.all(teacherIds.map(teacherId =>
-          prisma.teacherSubject.create({
-            data: {
-              teacherId,
-              subjectId: parseInt(subjectId),
-              classes: classes || existingSubject.classes
-            }
-          })
-        ));
+        // Get teacher profile IDs for the provided user IDs
+        const teachers = await prisma.user.findMany({
+          where: {
+            id: { in: teacherIds },
+            schoolId: user.schoolId,
+            role: 'teacher'
+          },
+          include: { teacherProfile: true }
+        });
+
+        const teacherAssignments = teachers
+          .filter(t => t.teacherProfile?.id)
+          .map(teacher => 
+            prisma.teacherSubject.create({
+              data: {
+                teacherId: teacher.teacherProfile.id,
+                subjectId: subjectId,
+                classes: classes || existingSubject.classes
+              }
+            })
+          );
+
+        await Promise.all(teacherAssignments);
       }
     }
 
@@ -389,7 +470,7 @@ export async function PUT(request) {
 
 export async function DELETE(request) {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const token = cookieStore.get('auth_token')?.value;
     
     const user = await verifyDirectorAccess(token);
@@ -403,7 +484,7 @@ export async function DELETE(request) {
     // Verify subject belongs to the director's school
     const existingSubject = await prisma.subject.findFirst({
       where: {
-        id: parseInt(subjectId),
+        id: subjectId,
         schoolId: user.schoolId
       }
     });
@@ -414,12 +495,12 @@ export async function DELETE(request) {
 
     // Delete teacher assignments first
     await prisma.teacherSubject.deleteMany({
-      where: { subjectId: parseInt(subjectId) }
+      where: { subjectId: subjectId }
     });
 
     // Delete the subject
     await prisma.subject.delete({
-      where: { id: parseInt(subjectId) }
+      where: { id: subjectId }
     });
 
     return NextResponse.json({
