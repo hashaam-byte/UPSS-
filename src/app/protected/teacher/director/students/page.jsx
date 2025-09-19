@@ -158,6 +158,11 @@ export default function StudentsManagement() {
     if (stage === 'SS') return 'from-blue-500 to-indigo-500';
     return 'from-gray-500 to-gray-600';
   };
+  // 🔄 Refresh students after import
+   const handleImportComplete = () => {
+  fetchStudents();
+};
+
 
   const handleSelectStudent = (studentId) => {
     const newSelected = new Set(selectedStudents);
