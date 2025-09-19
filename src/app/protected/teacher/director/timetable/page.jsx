@@ -118,7 +118,7 @@ const TimetableManagementPage = () => {
   const fetchAllSubjects = async () => {
     setLoadingSubjects(true);
     try {
-      const response = await fetch('/api/protected/teacher/director/subjects', {
+      const response = await fetch('/api/protected/teachers/director/subjects', {
         credentials: 'include'
       });
 
@@ -151,7 +151,7 @@ const TimetableManagementPage = () => {
       if (filters.teacherId) params.append('teacher', filters.teacherId);
       params.append('view', filters.view);
 
-      const response = await fetch(`/api/protected/teacher/director/timetable?${params}`, {
+      const response = await fetch(`/api/protected/teachers/director/timetable?${params}`, {
         credentials: 'include'
       });
 
@@ -251,7 +251,7 @@ const TimetableManagementPage = () => {
 
     setSaving(true);
     try {
-      const response = await fetch('/api/protected/teacher/director/timetable', {
+      const response = await fetch('/api/protected/teachers/director/timetable', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -297,7 +297,7 @@ const TimetableManagementPage = () => {
 
     setSaving(true);
     try {
-      const response = await fetch(`/api/protected/teacher/director/timetable?id=${selectedEntry.id}`, {
+      const response = await fetch(`/api/protected/teachers/director/timetable?id=${selectedEntry.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -329,7 +329,7 @@ const TimetableManagementPage = () => {
     if (!confirm('Are you sure you want to delete this timetable entry?')) return;
 
     try {
-      const response = await fetch(`/api/protected/teacher/director/timetable?id=${entryId}`, {
+      const response = await fetch(`/api/protected/teachers/director/timetable?id=${entryId}`, {
         method: 'DELETE',
         credentials: 'include'
       });
