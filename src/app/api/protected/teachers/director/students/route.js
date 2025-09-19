@@ -12,6 +12,7 @@ export async function GET(request) {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const { searchParams } = new URL(request.url);
     const classFilter = searchParams.get('class');
+    const stageFilter = searchParams.get('stage'); // 'JS' or 'SS'
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
 
@@ -19,15 +20,8 @@ export async function GET(request) {
     const director = await prisma.user.findUnique({
       where: { id: decoded.userId },
       include: { 
-        teacherProfile: {
-          include: {
-            teacherSubjects: { // ✅ Correct field name
-              include: {
-                subject: true
-              }
-            }
-          }
-        }
+        teacherProfile: true,
+        school: true
       }
     });
 
@@ -35,19 +29,29 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    // Get director's stage from their assigned subjects or default to all senior classes
-    let directorStage = 'SS'; // Default to all senior secondary
+    // Determine director's stage based on their department or default to both
+    let directorStages = ['JS', 'SS']; // Default: can see both Junior and Senior Secondary
     
-    if (director.teacherProfile?.teacherSubjects?.length > 0) {
-      const firstSubject = director.teacherProfile.teacherSubjects[0];
-      if (firstSubject.classes && firstSubject.classes.length > 0) {
-        // Extract stage from class (e.g., "SS1A" -> "SS1", "SS2B" -> "SS2")
-        const classCode = firstSubject.classes[0];
-        if (classCode.length >= 3) {
-          directorStage = classCode.substring(0, 3); // Gets "SS1", "SS2", etc.
-        } else {
-          directorStage = classCode.substring(0, 2); // Gets "SS" if format is different
-        }
+    // If director has a specific stage designation in their department
+    if (director.teacherProfile?.department) {
+      const dept = director.teacherProfile.department.toLowerCase();
+      if (dept.includes('junior') || dept.includes('js')) {
+        directorStages = ['JS'];
+      } else if (dept.includes('senior') || dept.includes('ss')) {
+        directorStages = ['SS'];
+      }
+      // If department is just 'director', they can see all stages
+    }
+
+    // Apply stage filter if provided
+    let targetStages = directorStages;
+    if (stageFilter && ['JS', 'SS'].includes(stageFilter.toUpperCase())) {
+      const requestedStage = stageFilter.toUpperCase();
+      // Only allow if director has access to this stage
+      if (directorStages.includes(requestedStage)) {
+        targetStages = [requestedStage];
+      } else {
+        return NextResponse.json({ error: 'Access denied to this stage' }, { status: 403 });
       }
     }
 
@@ -64,11 +68,15 @@ export async function GET(request) {
         className: classFilter
       };
     } else {
-      // Filter by director's stage (all classes starting with director's stage)
-      whereClause.studentProfile = {
+      // Filter by director's allowed stages
+      const stagePatterns = targetStages.map(stage => ({
         className: {
-          startsWith: directorStage
+          startsWith: stage
         }
+      }));
+      
+      whereClause.studentProfile = {
+        OR: stagePatterns
       };
     }
 
@@ -81,6 +89,11 @@ export async function GET(request) {
       skip: (page - 1) * limit,
       take: limit,
       orderBy: [
+        { 
+          studentProfile: {
+            className: 'asc'
+          }
+        },
         { firstName: 'asc' },
         { lastName: 'asc' }
       ]
@@ -88,16 +101,18 @@ export async function GET(request) {
 
     const totalStudents = await prisma.user.count({ where: whereClause });
 
-    // Get available classes for filtering (only for director's stage)
+    // Get available classes for filtering (only for director's allowed stages)
     const availableClassesQuery = await prisma.user.findMany({
       where: {
         schoolId: director.schoolId,
         role: 'student',
         isActive: true,
         studentProfile: {
-          className: {
-            startsWith: directorStage
-          }
+          OR: targetStages.map(stage => ({
+            className: {
+              startsWith: stage
+            }
+          }))
         }
       },
       select: {
@@ -109,12 +124,18 @@ export async function GET(request) {
       }
     });
 
-    // Extract unique class names
-    const classes = [...new Set(
+    // Extract and organize unique class names by stage
+    const allClasses = [...new Set(
       availableClassesQuery
         .map(s => s.studentProfile?.className)
         .filter(Boolean)
     )].sort();
+
+    // Group classes by stage
+    const classesByStage = {
+      JS: allClasses.filter(className => className.startsWith('JS')),
+      SS: allClasses.filter(className => className.startsWith('SS'))
+    };
 
     // Transform student data
     const transformedStudents = students.map(student => ({
@@ -137,7 +158,12 @@ export async function GET(request) {
       section: student.studentProfile?.section,
       admissionDate: student.studentProfile?.admissionDate,
       
-      // Guardian/Parent information
+      // Extract stage from class name
+      stage: student.studentProfile?.className?.substring(0, 2), // 'JS' or 'SS'
+      level: student.studentProfile?.className?.substring(0, 3), // 'JS1', 'SS2', etc.
+      arm: student.studentProfile?.className?.substring(3), // 'A', 'B', etc.
+      
+      // Parent/Guardian information
       parentName: student.studentProfile?.parentName,
       parentPhone: student.studentProfile?.parentPhone,
       parentEmail: student.studentProfile?.parentEmail,
@@ -147,10 +173,44 @@ export async function GET(request) {
       attendance: Math.floor(Math.random() * 20) + 80, // 80-100%
     }));
 
+    // Group students by stage and level
+    const studentsByStage = {
+      JS: transformedStudents.filter(s => s.stage === 'JS'),
+      SS: transformedStudents.filter(s => s.stage === 'SS')
+    };
+
+    const studentsByLevel = {};
+    transformedStudents.forEach(student => {
+      if (student.level) {
+        if (!studentsByLevel[student.level]) {
+          studentsByLevel[student.level] = [];
+        }
+        studentsByLevel[student.level].push(student);
+      }
+    });
+
+    // Calculate statistics
+    const stats = {
+      total: totalStudents,
+      active: transformedStudents.filter(s => s.isActive).length,
+      byStage: {
+        JS: studentsByStage.JS.length,
+        SS: studentsByStage.SS.length
+      },
+      byLevel: Object.keys(studentsByLevel).reduce((acc, level) => {
+        acc[level] = studentsByLevel[level].length;
+        return acc;
+      }, {}),
+      excellentPerformers: transformedStudents.filter(s => s.currentAverage >= 80).length,
+      needsAttention: transformedStudents.filter(s => s.currentAverage < 60).length
+    };
+
     return NextResponse.json({
       success: true,
       data: {
         students: transformedStudents,
+        studentsByStage,
+        studentsByLevel,
         pagination: {
           currentPage: page,
           totalPages: Math.ceil(totalStudents / limit),
@@ -160,14 +220,19 @@ export async function GET(request) {
           hasPrev: page > 1
         },
         filters: {
-          availableClasses: classes,
+          availableClasses: allClasses,
+          classesByStage,
+          availableStages: directorStages,
           currentClassFilter: classFilter,
-          directorStage
+          currentStageFilter: stageFilter,
+          directorStages
         },
         summary: {
           totalStudents,
-          activeStudents: transformedStudents.filter(s => s.isActive).length,
-          classCount: classes.length
+          activeStudents: stats.active,
+          classCount: allClasses.length,
+          stageCount: directorStages.length,
+          statistics: stats
         }
       }
     });

@@ -22,6 +22,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "src/app/protected/admin/page.jsx", "src/app/protected/teachers/page.jsx", "src/app/protected/students/page.jsx", "src/app/protected/Headadmin/page.jsx", "src/app/protected/page.jsx", "src/app/auth/login/page.jsx", "src/app/protected/headadmin/invoices/create/page.jsx"],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "src/app/protected/admin/page.jsx", "src/app/protected/teachers/page.jsx", "src/app/protected/students/page.jsx", "src/app/protected/Headadmin/page.jsx", "src/app/protected/page.jsx", "src/app/auth/login/page.jsx", "src/app/protected/headadmin/invoices/create/page.jsx", "src/app/protected/teacher/director/timetable/page.jsx"],
   "exclude": ["node_modules"]
 }
