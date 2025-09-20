@@ -551,14 +551,3 @@ export async function PUT(request) {
     );
   }
 }
-
-// Minimal GET endpoint to verify the route and DB connection
-export async function GET() {
-  try {
-    // Just a test query to ensure DB connection
-    await prisma.user.count();
-    return NextResponse.json({ success: true, message: 'Import students API is working.' });
-  } catch (error) {
-    return NextResponse.json({ error: 'Database connection failed.' }, { status: 500 });
-  }
-}
