@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Bell,
   Check,
-  CheckAll,
   Trash2,
   Calendar,
   Users,
@@ -216,7 +215,7 @@ const CoordinatorNotifications = () => {
               onClick={markAllAsRead}
               className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center space-x-2"
             >
-              <CheckAll className="w-4 h-4" />
+              <Check className="w-4 h-4" />
               <span>Mark All Read</span>
             </button>
           </div>
