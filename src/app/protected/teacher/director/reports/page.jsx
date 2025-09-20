@@ -1,3 +1,4 @@
+'use client'
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, LineChart, Line, ResponsiveContainer } from 'recharts';
 import { FileText, Download, Calendar, Filter, Users, TrendingUp, Award, Clock, MapPin, Eye, AlertCircle } from 'lucide-react';
