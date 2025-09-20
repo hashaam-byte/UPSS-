@@ -1,5 +1,6 @@
 'use client'
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   Users, 
   GraduationCap, 
@@ -31,6 +32,7 @@ import {
 } from 'lucide-react';
 
 const AdminUsersPage = () => {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState('students');
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -59,8 +61,8 @@ const AdminUsersPage = () => {
     dateOfBirth: '',
     address: '',
     gender: '',
-    teacherType: '', // Add this field
-    coordinatorClass: '', // Add this field
+    teacherType: '', 
+    coordinatorClass: '', 
   });
 
   useEffect(() => {
@@ -100,7 +102,6 @@ const AdminUsersPage = () => {
     try {
       setIsLoading(true);
       const payload = { ...createForm };
-      // Only send coordinatorClass if role is teacher and teacherType is coordinator
       if (!(payload.role === 'teacher' && payload.teacherType === 'coordinator')) {
         delete payload.coordinatorClass;
       }
@@ -127,7 +128,9 @@ const AdminUsersPage = () => {
           phone: '',
           dateOfBirth: '',
           address: '',
-          gender: ''
+          gender: '',
+          teacherType: '',
+          coordinatorClass: ''
         });
         fetchUsers();
       } else {
@@ -475,7 +478,7 @@ const AdminUsersPage = () => {
                                 {user.isActive ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                               </button>
                               <button
-                                onClick={() => {/* Handle edit */}}
+                                onClick={() => router.push(`users/${user.id}`)}
                                 className="p-2 text-blue-600 hover:bg-blue-100 border border-blue-200 rounded-xl transition-all shadow-lg"
                                 title="Edit user"
                               >
