@@ -82,6 +82,12 @@ export async function getCurrentUser() {
       return null;
     }
 
+    // Add coordinatorClass if coordinator
+    const coordinatorClass =
+      user.teacherProfile?.department === 'coordinator'
+        ? user.teacherProfile?.coordinatorClass
+        : null;
+
     return {
       id: user.id,
       firstName: user.firstName,
@@ -89,7 +95,8 @@ export async function getCurrentUser() {
       email: user.email,
       username: user.username,
       role: user.role,
-      department: user.teacherProfile?.department || null, // Add department info
+      department: user.teacherProfile?.department || null,
+      coordinatorClass, // <-- add this
       avatar: user.avatar,
       isEmailVerified: user.isEmailVerified,
       school: user.school,
@@ -208,3 +215,26 @@ export class RateLimiter {
 
 // Global rate limiter instance
 export const rateLimiter = new RateLimiter();
+
+// Helper for login redirect
+export function getRedirectPathForUser(user) {
+  if (user.role === 'teacher' && user.department === 'coordinator') {
+    return '/protected/teacher/coordinator';
+  }
+  if (user.role === 'teacher' && user.department === 'director') {
+    return '/protected/teacher/director';
+  }
+  if (user.role === 'teacher') {
+    return '/protected/teacher';
+  }
+  if (user.role === 'student') {
+    return '/protected/student';
+  }
+  if (user.role === 'admin') {
+    return '/protected/admin';
+  }
+  if (user.role === 'headadmin') {
+    return '/protected/headadmin';
+  }
+  return '/login';
+}

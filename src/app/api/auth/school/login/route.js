@@ -165,14 +165,16 @@ export async function POST(request) {
 
     // Determine redirect URL based on role
     let redirectTo = '/protected/dashboard';
-    
+
     if (user.role === 'student') {
       redirectTo = '/protected/students';
     } else if (user.role === 'admin') {
       redirectTo = '/protected/admin';
     } else if (user.role === 'teacher') {
-      // Handle teacher subdivisions
-      const teacherProfile = user.teacherProfile;
+      // Always check the latest teacherProfile from DB for department
+      const teacherProfile = await prisma.teacherProfile.findUnique({
+        where: { userId: user.id }
+      });
       if (teacherProfile?.department) {
         switch (teacherProfile.department) {
           case 'director':
@@ -188,10 +190,10 @@ export async function POST(request) {
             redirectTo = '/protected/teacher/subject/dashboard';
             break;
           default:
-            redirectTo = '/protected/teachers';
+            redirectTo = '/protected/teacher';
         }
       } else {
-        redirectTo = '/protected/teachers';
+        redirectTo = '/protected/teacher';
       }
     }
 

@@ -1,31 +1,408 @@
-import React from 'react';
+'use client'
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Users, BarChart3, MessageSquare, Settings, Home, Calendar, Activity } from 'lucide-react';
+import { useRouter, usePathname } from 'next/navigation';
+import {
+  Home,
+  Calendar,
+  Users,
+  FileText,
+  Bell,
+  Settings,
+  LogOut,
+  Menu,
+  X,
+  GraduationCap,
+  ChevronDown,
+  BookOpen,
+  UserCheck,
+  BarChart3,
+  Clock,
+  Shield,
+  AlertCircle,
+  CheckCircle
+} from 'lucide-react';
 
-const sidebarItems = [
-  { title: 'Dashboard', href: '/protected/teacher/coordinator/dashboard', icon: Home },
-  { title: 'Timetables', href: '/protected/teacher/coordinator/timetables', icon: Calendar },
-  { title: 'Subject Allocation', href: '/protected/teacher/coordinator/allocation', icon: Users },
-  { title: 'Reports', href: '/protected/teacher/coordinator/reports', icon: BarChart3 },
-  { title: 'Messages', href: '/protected/teacher/coordinator/messages', icon: MessageSquare },
-  { title: 'Settings', href: '/protected/teacher/coordinator/settings', icon: Settings }
-];
+const CoordinatorLayout = ({ children }) => {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [user, setUser] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-export default function CoordinatorLayout({ children }) {
+  useEffect(() => {
+    checkAuthAndFetchData();
+  }, []);
+
+  const checkAuthAndFetchData = async () => {
+    try {
+      const response = await fetch('/api/auth/verify', {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Verify user is a coordinator
+        if (data.user.role !== 'teacher' || data.user.department !== 'coordinator') {
+          router.push('/auth/unauthorized');
+          return;
+        }
+        
+        setUser(data.user);
+      } else {
+        // Not authenticated, redirect to login
+        router.push('/protected?role=teacher');
+        return;
+      }
+    } catch (error) {
+      console.error('Auth check error:', error);
+      setError('Authentication failed');
+      router.push('/protected?role=teacher');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include'
+      });
+      router.push('/protected?role=teacher');
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Force redirect even if logout fails
+      router.push('/protected?role=teacher');
+    }
+  };
+
+  const sidebarItems = [
+    {
+      href: '/protected/teacher/coordinator/dashboard',
+      icon: Home,
+      label: 'Dashboard',
+      description: 'Overview and quick actions',
+      badge: null
+    },
+    {
+      href: '/protected/teacher/coordinator/students',
+      icon: GraduationCap,
+      label: 'Student Management',
+      description: 'Assign arms and organize classes',
+      badge: null
+    },
+    {
+      href: '/protected/teacher/coordinator/timetable',
+      icon: Calendar,
+      label: 'Timetable Builder',
+      description: 'Create and manage schedules',
+      badge: null
+    },
+    {
+      href: '/protected/teacher/coordinator/teachers',
+      icon: UserCheck,
+      label: 'Teacher Allocation',
+      description: 'Assign subjects to teachers',
+      badge: null
+    },
+    {
+      href: '/protected/teacher/coordinator/reports',
+      icon: FileText,
+      label: 'Reports & Analytics',
+      description: 'Generate coordination reports',
+      badge: null
+    }
+  ];
+
+  const unreadNotifications = notifications.filter(n => !n.isRead).length;
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading coordinator dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Error</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={() => router.push('/protected?role=teacher')}
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+          >
+            Return to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex min-h-screen">
-      <aside className="w-64 bg-green-900 text-white flex flex-col">
-        <div className="p-6 font-bold text-xl border-b border-green-700">Coordinator Panel</div>
-        <nav className="flex-1 p-4 space-y-2">
-          {sidebarItems.map(item => (
-            <Link key={item.href} href={item.href} className="flex items-center gap-3 p-3 rounded hover:bg-green-800 transition">
-              <item.icon className="w-5 h-5" />
-              {item.title}
+    <div className="min-h-screen bg-gray-50 flex">
+      {/* Mobile sidebar backdrop */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <div className={`
+        fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
+        <div className="flex flex-col h-full">
+          {/* Header */}
+          <div className="flex items-center justify-between h-16 px-6 bg-gradient-to-r from-purple-600 to-blue-600">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
+                <BookOpen className="w-5 h-5 text-purple-600" />
+              </div>
+              <div>
+                <h1 className="text-white font-bold text-lg">U PLUS</h1>
+                <p className="text-purple-100 text-xs">Coordinator Portal</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="lg:hidden text-white hover:bg-white/20 p-1 rounded"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* User Info */}
+          {user && (
+            <div className="p-6 bg-gradient-to-b from-purple-50 to-white border-b">
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                  {user.firstName?.charAt(0)}{user.lastName?.charAt(0)}
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900">
+                    {user.firstName} {user.lastName}
+                  </p>
+                  <p className="text-sm text-gray-600">Academic Coordinator</p>
+                  <div className="flex items-center space-x-2 text-xs text-gray-500 mt-1">
+                    <Shield className="w-3 h-3" />
+                    <span>Verified Access</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Navigation */}
+          <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+            {sidebarItems.map((item) => {
+              const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`
+                    flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group relative
+                    ${isActive
+                      ? 'bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow-lg'
+                      : 'text-gray-600 hover:bg-purple-50 hover:text-purple-600'
+                    }
+                  `}
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <item.icon className={`
+                    w-5 h-5 mr-3 transition-transform duration-200
+                    ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-purple-500'}
+                    ${isActive ? 'scale-110' : 'group-hover:scale-105'}
+                  `} />
+                  <div className="flex-1">
+                    <div className={isActive ? 'text-white' : 'group-hover:text-purple-600'}>
+                      {item.label}
+                    </div>
+                    <div className={`
+                      text-xs mt-0.5 transition-colors duration-200
+                      ${isActive ? 'text-purple-100' : 'text-gray-400 group-hover:text-purple-400'}
+                    `}>
+                      {item.description}
+                    </div>
+                  </div>
+                  {item.badge && (
+                    <span className="ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                      {item.badge}
+                    </span>
+                  )}
+                  {isActive && (
+                    <div className="w-2 h-2 bg-white rounded-full ml-2" />
+                  )}
+                </Link>
+              );
+            })}
+          </nav>
+
+          {/* Bottom Actions */}
+          <div className="p-4 border-t bg-gray-50 space-y-2">
+            <Link
+              href="/protected/teacher/coordinator/notifications"
+              className={`
+                flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200
+                ${pathname === '/protected/teacher/coordinator/notifications'
+                  ? 'bg-purple-100 text-purple-600'
+                  : 'text-gray-600 hover:bg-gray-100'
+                }
+              `}
+            >
+              <Bell className="w-4 h-4 mr-3" />
+              Notifications
+              {unreadNotifications > 0 && (
+                <span className="ml-auto bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                  {unreadNotifications}
+                </span>
+              )}
             </Link>
-          ))}
-        </nav>
-      </aside>
-      <main className="flex-1 p-8 bg-green-50">{children}</main>
+            
+            <Link
+              href="/protected/teacher/coordinator/settings"
+              className={`
+                flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200
+                ${pathname === '/protected/teacher/coordinator/settings'
+                  ? 'bg-purple-100 text-purple-600'
+                  : 'text-gray-600 hover:bg-gray-100'
+                }
+              `}
+            >
+              <Settings className="w-4 h-4 mr-3" />
+              Settings
+            </Link>
+
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center px-4 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors duration-200"
+            >
+              <LogOut className="w-4 h-4 mr-3" />
+              Logout
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col lg:ml-0">
+        {/* Top Bar */}
+        <header className="bg-white shadow-sm border-b h-16 flex items-center justify-between px-6 lg:px-8">
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="lg:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            
+            <div>
+              <h1 className="text-xl font-semibold text-gray-900">
+                Coordinator Dashboard
+              </h1>
+              <p className="text-sm text-gray-600">
+                Academic coordination and management portal
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-4">
+            {/* Quick Actions */}
+            <div className="hidden md:flex items-center space-x-2">
+              <Link
+                href="/protected/teacher/coordinator/timetable"
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors duration-200 flex items-center space-x-2"
+              >
+                <Calendar className="w-4 h-4" />
+                <span>Create Timetable</span>
+              </Link>
+              <Link
+                href="/protected/teacher/coordinator/students"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors duration-200 flex items-center space-x-2"
+              >
+                <GraduationCap className="w-4 h-4" />
+                <span>Assign Arms</span>
+              </Link>
+            </div>
+
+            {/* Notifications */}
+            <div className="relative">
+              <button
+                onClick={() => router.push('/protected/teacher/coordinator/notifications')}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors duration-200 relative"
+              >
+                <Bell className="w-5 h-5" />
+                {unreadNotifications > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                    {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* User Menu */}
+            {user && (
+              <div className="relative">
+                <div className="flex items-center space-x-2 px-3 py-2 bg-gray-50 rounded-lg">
+                  <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                    {user.firstName?.charAt(0)}{user.lastName?.charAt(0)}
+                  </div>
+                  <div className="hidden sm:block">
+                    <p className="text-sm font-medium text-gray-900">
+                      {user.firstName} {user.lastName}
+                    </p>
+                    <p className="text-xs text-gray-600">Coordinator</p>
+                  </div>
+                  <ChevronDown className="w-4 h-4 text-gray-400" />
+                </div>
+              </div>
+            )}
+          </div>
+        </header>
+
+        {/* Main Content Area */}
+        <main className="flex-1 overflow-y-auto bg-gray-50">
+          <div className="container mx-auto px-6 lg:px-8 py-8">
+            {children}
+          </div>
+        </main>
+
+        {/* Footer */}
+        <footer className="bg-white border-t px-6 py-4">
+          <div className="flex items-center justify-between text-sm text-gray-600">
+            <div className="flex items-center space-x-4">
+              <span>© 2024 U PLUS Education Platform</span>
+              <span>•</span>
+              <span>Coordinator Portal v2.0</span>
+            </div>
+            <div className="flex items-center space-x-4">
+              <Link href="/help" className="hover:text-purple-600 transition-colors">
+                Help & Support
+              </Link>
+              <Link href="/privacy" className="hover:text-purple-600 transition-colors">
+                Privacy Policy
+              </Link>
+            </div>
+          </div>
+        </footer>
+      </div>
     </div>
   );
-}
+};
+
+export default CoordinatorLayout;

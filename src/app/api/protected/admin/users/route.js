@@ -111,7 +111,7 @@ export async function POST(request) {
     const currentUser = await requireAuth(['admin', 'headadmin']);
     const body = await request.json();
 
-    const { firstName, lastName, email, username, password, role, schoolId, teacherType } = body;
+    const { firstName, lastName, email, username, password, role, schoolId, teacherType, coordinatorClass } = body;
 
     // Validate required fields
     if (!firstName || !lastName || !email || !password || !role) {
@@ -195,10 +195,16 @@ export async function POST(request) {
       await prisma.teacherProfile.create({
         data: {
           userId: newUser.id,
-          employeeId: `TCH${Date.now()}`, // Generate unique employee ID
+          employeeId: `TCH${Date.now()}`,
           joiningDate: new Date(),
-          // Add teacherType field
-          department: teacherType || null
+          // Set department as 'coordinator' or 'director' or other type
+          department: teacherType === 'coordinator'
+            ? 'coordinator'
+            : teacherType === 'director'
+              ? 'director'
+              : teacherType || null,
+          // Save coordinatorClass only if coordinator
+          coordinatorClass: teacherType === 'coordinator' ? coordinatorClass || null : null
         }
       });
     } else if (role === 'admin') {

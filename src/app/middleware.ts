@@ -86,8 +86,8 @@ export async function middleware(request: NextRequest) {
           '/api/protected/teacher/director',
         ],
         coordinator: [
-          '/protected/teachers',
-          '/protected/Teachers', // Support both cases
+          '/protected/teacher',
+          '/protected/Teacher', // Support both cases
           '/protected/teacher',
           '/protected/teacher/coordinator',
           '/api/protected/teachers',

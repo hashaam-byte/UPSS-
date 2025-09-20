@@ -59,7 +59,8 @@ const AdminUsersPage = () => {
     dateOfBirth: '',
     address: '',
     gender: '',
-    teacherType: '' // Add this field
+    teacherType: '', // Add this field
+    coordinatorClass: '', // Add this field
   });
 
   useEffect(() => {
@@ -98,12 +99,17 @@ const AdminUsersPage = () => {
     
     try {
       setIsLoading(true);
+      const payload = { ...createForm };
+      // Only send coordinatorClass if role is teacher and teacherType is coordinator
+      if (!(payload.role === 'teacher' && payload.teacherType === 'coordinator')) {
+        delete payload.coordinatorClass;
+      }
       const response = await fetch('/api/protected/admin/users', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(createForm)
+        body: JSON.stringify(payload)
       });
 
       const data = await response.json();
@@ -595,7 +601,7 @@ const AdminUsersPage = () => {
                   </label>
                   <select
                     value={createForm.role}
-                    onChange={(e) => setCreateForm(prev => ({ ...prev, role: e.target.value }))}
+                    onChange={(e) => setCreateForm(prev => ({ ...prev, role: e.target.value, teacherType: '', coordinatorClass: '' }))}
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
                     required
                   >
@@ -612,7 +618,7 @@ const AdminUsersPage = () => {
                     </label>
                     <select
                       value={createForm.teacherType}
-                      onChange={e => setCreateForm(prev => ({ ...prev, teacherType: e.target.value }))}
+                      onChange={e => setCreateForm(prev => ({ ...prev, teacherType: e.target.value, coordinatorClass: '' }))}
                       className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
                       required
                     >
@@ -621,6 +627,29 @@ const AdminUsersPage = () => {
                       <option value="director">Director</option>
                       <option value="class_teacher">Class Teacher</option>
                       <option value="subject_teacher">Subject Teacher</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Coordinator Class Selection */}
+                {createForm.role === 'teacher' && createForm.teacherType === 'coordinator' && (
+                  <div>
+                    <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-wider">
+                      Coordinator Class *
+                    </label>
+                    <select
+                      value={createForm.coordinatorClass}
+                      onChange={e => setCreateForm(prev => ({ ...prev, coordinatorClass: e.target.value }))}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
+                      required
+                    >
+                      <option value="">Select class</option>
+                      <option value="JS1">JS1</option>
+                      <option value="JS2">JS2</option>
+                      <option value="JS3">JS3</option>
+                      <option value="SS1">SS1</option>
+                      <option value="SS2">SS2</option>
+                      <option value="SS3">SS3</option>
                     </select>
                   </div>
                 )}

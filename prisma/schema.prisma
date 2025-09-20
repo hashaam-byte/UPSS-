@@ -102,6 +102,9 @@ model User {
   uploadedResources      Resource[]      @relation("UserUploadedResources")
   taughtLessons    Timetable[] @relation("TimetableTeacher")
   createdTimetables Timetable[] @relation("TimetableCreator")
+  coordinatorApprovals TimetableApproval[] @relation("CoordinatorApprovals")
+  directorApprovals    TimetableApproval[] @relation("DirectorApprovals")
+  coordinatorReports   CoordinatorReport[] @relation("CoordinatorReports")
 
   @@unique([email, schoolId])
   @@unique([username, schoolId])
@@ -141,6 +144,7 @@ model TeacherProfile {
   qualification   String?   @db.VarChar(255)
   experienceYears Int       @default(0) @map("experience_years")
   joiningDate     DateTime? @map("joining_date") @db.Date
+  coordinatorClass String?   @db.VarChar(10) // e.g., "SS1", "JS2", etc.
   
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
@@ -534,6 +538,7 @@ model Timetable {
   school        School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   teacher       User     @relation("TimetableTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
   createdBy     User     @relation("TimetableCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  approvals     TimetableApproval[]
 
   @@index([schoolId])
   @@index([className])
@@ -573,5 +578,53 @@ model TeacherSubject {
 
   @@unique([teacherId, subjectId])
   @@map("teacher_subjects")
+}
+
+// Timetable approvals for director review
+model TimetableApproval {
+  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  timetableId   String   @db.Uuid
+  coordinatorId String   @db.Uuid
+  directorId    String?  @db.Uuid
+  status        ApprovalStatus @default(pending)
+  comments      String?
+  conflictData  Json?    @map("conflict_data") // Store conflict information
+  submittedAt   DateTime @default(now()) @map("submitted_at") @db.Timestamptz
+  reviewedAt    DateTime? @map("reviewed_at") @db.Timestamptz
+
+  // Relations
+  timetable     Timetable @relation(fields: [timetableId], references: [id], onDelete: Cascade)
+  coordinator   User     @relation("CoordinatorApprovals", fields: [coordinatorId], references: [id])
+  director      User?    @relation("DirectorApprovals", fields: [directorId], references: [id])
+
+  @@index([coordinatorId])
+  @@index([directorId])
+  @@index([status])
+  @@map("timetable_approvals")
+}
+
+// Coordinator reports storage
+model CoordinatorReport {
+  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  coordinatorId String   @db.Uuid
+  reportType    String   @db.VarChar(50)
+  reportData    Json     @map("report_data")
+  parameters    Json?
+  downloadCount Int      @default(0) @map("download_count")
+  generatedAt   DateTime @default(now()) @map("generated_at") @db.Timestamptz
+
+  // Relations
+  coordinator   User     @relation("CoordinatorReports", fields: [coordinatorId], references: [id], onDelete: Cascade)
+
+  @@index([coordinatorId])
+  @@index([reportType])
+  @@map("coordinator_reports")
+}
+
+enum ApprovalStatus {
+  pending
+  approved
+  rejected
+  revision_requested
 }
 
