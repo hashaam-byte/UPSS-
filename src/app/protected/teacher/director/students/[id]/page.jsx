@@ -516,7 +516,7 @@ const IndividualStudentPage = ({ params }) => {
                         className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 backdrop-blur-sm transition-all"
                       >
                         <option value="">Select class</option>
-                        {availableClasses.map(className => (
+                        {['JS1', 'JS2', 'JS3', 'SS1', 'SS2', 'SS3'].map(className => (
                           <option key={className} value={className}>{className}</option>
                         ))}
                       </select>
