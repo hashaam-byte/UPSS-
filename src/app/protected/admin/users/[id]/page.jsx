@@ -141,7 +141,7 @@ const UserEditPage = () => {
       if (response.ok) {
         setSuccessMessage('User updated successfully');
         setTimeout(() => {
-          router.push('/admin/users');
+          router.push('/protected/admin/users');
         }, 1500);
       } else {
         setError(data.error || 'Failed to update user');
@@ -219,7 +219,7 @@ const UserEditPage = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => router.push('/admin/users')}
+                onClick={() => router.push('/protected/admin/users')}
                 className="p-3 bg-white/50 hover:bg-white/80 text-gray-600 rounded-2xl transition-all shadow-lg"
               >
                 <ArrowLeft className="w-5 h-5" />
@@ -577,7 +577,7 @@ const UserEditPage = () => {
           <div className="flex gap-4 justify-end">
             <button
               type="button"
-              onClick={() => router.push('/admin/users')}
+              onClick={() => router.push('/protected/admin/users')}
               className="px-8 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl font-bold transition-all"
             >
               Cancel
