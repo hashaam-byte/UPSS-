@@ -1,6 +1,5 @@
 'use client'
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { 
   Users, 
   GraduationCap, 
@@ -28,8 +27,11 @@ import {
   Zap,
   Star,
   Activity,
-  Crown
+  Crown,
+  BookOpen,
+  ChevronDown
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 const AdminUsersPage = () => {
   const router = useRouter();
@@ -50,6 +52,8 @@ const AdminUsersPage = () => {
     { id: 'admins', label: 'Admins', icon: Shield, count: 0, gradient: 'from-purple-500 to-pink-500' }
   ];
 
+  const classLevels = ['JS1', 'JS2', 'JS3', 'SS1', 'SS2', 'SS3'];
+
   const [createForm, setCreateForm] = useState({
     firstName: '',
     lastName: '',
@@ -61,8 +65,8 @@ const AdminUsersPage = () => {
     dateOfBirth: '',
     address: '',
     gender: '',
-    teacherType: '', 
-    coordinatorClass: '', 
+    teacherType: '',
+    coordinatorClasses: [] // New field for coordinator classes
   });
 
   useEffect(() => {
@@ -99,18 +103,26 @@ const AdminUsersPage = () => {
   const handleCreateUser = async (e) => {
     e.preventDefault();
     
+    // Validation for coordinator
+    if (createForm.teacherType === 'coordinator' && createForm.coordinatorClasses.length === 0) {
+      setError('Please select at least one class for the coordinator to manage');
+      return;
+    }
+    
     try {
       setIsLoading(true);
-      const payload = { ...createForm };
-      if (!(payload.role === 'teacher' && payload.teacherType === 'coordinator')) {
-        delete payload.coordinatorClass;
-      }
       const response = await fetch('/api/protected/admin/users', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          ...createForm,
+          // Include coordinator classes if it's a coordinator
+          ...(createForm.teacherType === 'coordinator' && {
+            coordinatorClasses: createForm.coordinatorClasses
+          })
+        })
       });
 
       const data = await response.json();
@@ -130,7 +142,7 @@ const AdminUsersPage = () => {
           address: '',
           gender: '',
           teacherType: '',
-          coordinatorClass: ''
+          coordinatorClasses: []
         });
         fetchUsers();
       } else {
@@ -190,6 +202,10 @@ const AdminUsersPage = () => {
     }
   };
 
+  const handleEditUser = (userId) => {
+    router.push(`/protected/admin/users/${userId}/edit`);
+  };
+
   const generatePassword = () => {
     const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&*';
     let password = '';
@@ -199,8 +215,40 @@ const AdminUsersPage = () => {
     setCreateForm(prev => ({ ...prev, password }));
   };
 
+  const handleClassToggle = (className) => {
+    setCreateForm(prev => ({
+      ...prev,
+      coordinatorClasses: prev.coordinatorClasses.includes(className)
+        ? prev.coordinatorClasses.filter(c => c !== className)
+        : [...prev.coordinatorClasses, className]
+    }));
+  };
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString();
+  };
+
+  const getTeacherTypeDisplay = (teacherProfile) => {
+    if (!teacherProfile) return null;
+    
+    const typeMap = {
+      coordinator: 'Coordinator',
+      director: 'Director', 
+      class_teacher: 'Class Teacher',
+      subject_teacher: 'Subject Teacher'
+    };
+    
+    return typeMap[teacherProfile.department] || teacherProfile.department;
+  };
+
+  const getCoordinatorClasses = (user) => {
+    if (user.role !== 'teacher' || user.teacherProfile?.department !== 'coordinator') {
+      return null;
+    }
+    
+    // Get classes from TeacherSubjects relations
+    const classes = user.teacherProfile?.teacherSubjects?.flatMap(ts => ts.classes) || [];
+    return [...new Set(classes)];
   };
 
   if (isLoading && users.length === 0) {
@@ -221,7 +269,7 @@ const AdminUsersPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       <div className="space-y-8">
-        {/* Futuristic Header */}
+        {/* Header */}
         <div className="relative overflow-hidden bg-gradient-to-r from-white/80 to-blue-50/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-8">
           <div className="absolute inset-0 bg-gradient-to-br from-blue-600/5 via-purple-600/5 to-pink-600/5"></div>
           <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-blue-400/20 to-transparent rounded-full blur-3xl"></div>
@@ -295,7 +343,7 @@ const AdminUsersPage = () => {
         {/* Enhanced Tabs and Content */}
         <div className="relative overflow-hidden bg-gradient-to-br from-white/80 to-blue-50/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50">
           <div className="p-8">
-            {/* Futuristic Tab Navigation */}
+            {/* Tabs */}
             <div className="flex flex-wrap gap-3 mb-8">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
@@ -323,15 +371,12 @@ const AdminUsersPage = () => {
                         {users.length} active
                       </div>
                     </div>
-                    {activeTab === tab.id && (
-                      <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-50"></div>
-                    )}
                   </button>
                 );
               })}
             </div>
 
-            {/* Enhanced Search and Controls */}
+            {/* Search and Controls */}
             <div className="flex flex-col lg:flex-row gap-6 mb-8">
               <div className="relative flex-1">
                 <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -355,7 +400,7 @@ const AdminUsersPage = () => {
               </div>
             </div>
 
-            {/* Enhanced Users Table */}
+            {/* Users Table */}
             {isLoading ? (
               <div className="flex items-center justify-center py-20">
                 <div className="text-center">
@@ -384,122 +429,154 @@ const AdminUsersPage = () => {
                         </th>
                         <th className="text-left py-4 px-6 font-black text-gray-700 uppercase tracking-wider">User Profile</th>
                         <th className="text-left py-4 px-6 font-black text-gray-700 uppercase tracking-wider">Contact Info</th>
+                        <th className="text-left py-4 px-6 font-black text-gray-700 uppercase tracking-wider">Role & Permissions</th>
                         <th className="text-left py-4 px-6 font-black text-gray-700 uppercase tracking-wider">System Status</th>
                         <th className="text-left py-4 px-6 font-black text-gray-700 uppercase tracking-wider">Registration</th>
-                        <th className="text-left py-4 px-6 font-black text-gray-700 uppercase tracking-wider">Last Active</th>
                         <th className="text-left py-4 px-6 font-black text-gray-700 uppercase tracking-wider">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {users.map((user) => (
-                        <tr key={user.id} className="border-b border-gray-100/50 hover:bg-white/50 transition-colors group">
-                          <td className="py-4 px-6">
-                            <input 
-                              type="checkbox" 
-                              className="w-5 h-5 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500"
-                              checked={selectedUsers.includes(user.id)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedUsers([...selectedUsers, user.id]);
-                                } else {
-                                  setSelectedUsers(selectedUsers.filter(id => id !== user.id));
-                                }
-                              }}
-                            />
-                          </td>
-                          <td className="py-4 px-6">
-                            <div className="flex items-center gap-4">
-                              <div className="relative">
-                                <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-500 rounded-2xl flex items-center justify-center text-white font-black text-lg shadow-lg">
-                                  {user.firstName?.charAt(0)}{user.lastName?.charAt(0)}
+                      {users.map((user) => {
+                        const coordinatorClasses = getCoordinatorClasses(user);
+                        return (
+                          <tr key={user.id} className="border-b border-gray-100/50 hover:bg-white/50 transition-colors group">
+                            <td className="py-4 px-6">
+                              <input 
+                                type="checkbox" 
+                                className="w-5 h-5 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500"
+                                checked={selectedUsers.includes(user.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedUsers([...selectedUsers, user.id]);
+                                  } else {
+                                    setSelectedUsers(selectedUsers.filter(id => id !== user.id));
+                                  }
+                                }}
+                              />
+                            </td>
+                            <td className="py-4 px-6">
+                              <div className="flex items-center gap-4">
+                                <div className="relative">
+                                  <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-500 rounded-2xl flex items-center justify-center text-white font-black text-lg shadow-lg">
+                                    {user.firstName?.charAt(0)}{user.lastName?.charAt(0)}
+                                  </div>
+                                  {user.role === 'admin' && (
+                                    <Crown className="absolute -top-1 -right-1 w-5 h-5 text-yellow-500" />
+                                  )}
                                 </div>
-                                {user.role === 'admin' && (
-                                  <Crown className="absolute -top-1 -right-1 w-5 h-5 text-yellow-500" />
+                                <div>
+                                  <p className="font-black text-gray-900 text-lg">
+                                    {user.firstName} {user.lastName}
+                                  </p>
+                                  <p className="text-sm text-gray-500 font-medium">@{user.username}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-4 px-6">
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2 text-sm text-gray-700">
+                                  <Mail className="w-4 h-4" />
+                                  <span className="font-medium">{user.email}</span>
+                                </div>
+                                {user.phone && (
+                                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                                    <Phone className="w-4 h-4" />
+                                    <span className="font-medium">{user.phone}</span>
+                                  </div>
                                 )}
                               </div>
-                              <div>
-                                <p className="font-black text-gray-900 text-lg">
-                                  {user.firstName} {user.lastName}
-                                </p>
-                                <p className="text-sm text-gray-500 font-medium">@{user.username}</p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="py-4 px-6">
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2 text-sm text-gray-700">
-                                <Mail className="w-4 h-4" />
-                                <span className="font-medium">{user.email}</span>
-                              </div>
-                              {user.phone && (
-                                <div className="flex items-center gap-2 text-sm text-gray-600">
-                                  <Phone className="w-4 h-4" />
-                                  <span className="font-medium">{user.phone}</span>
+                            </td>
+                            <td className="py-4 px-6">
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-black ${
+                                    user.role === 'admin' ? 'bg-purple-100 text-purple-700' :
+                                    user.role === 'teacher' ? 'bg-emerald-100 text-emerald-700' :
+                                    'bg-blue-100 text-blue-700'
+                                  }`}>
+                                    {user.role.toUpperCase()}
+                                  </span>
+                                  {user.role === 'teacher' && (
+                                    <span className="text-xs text-gray-600 font-medium">
+                                      {getTeacherTypeDisplay(user.teacherProfile)}
+                                    </span>
+                                  )}
                                 </div>
-                              )}
-                            </div>
-                          </td>
-                          <td className="py-4 px-6">
-                            <div className="space-y-2">
-                              <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-black shadow-sm ${
-                                user.isActive 
-                                  ? 'bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-700 border border-emerald-300' 
-                                  : 'bg-gradient-to-r from-red-100 to-pink-100 text-red-700 border border-red-300'
-                              }`}>
-                                {user.isActive ? 'ONLINE' : 'OFFLINE'}
-                              </span>
-                              <div className={`text-xs font-bold ${
-                                user.isEmailVerified ? 'text-emerald-600' : 'text-yellow-600'
-                              }`}>
-                                {user.isEmailVerified ? '✓ VERIFIED' : '⚠ PENDING'}
+                                {coordinatorClasses && coordinatorClasses.length > 0 && (
+                                  <div className="flex flex-wrap gap-1">
+                                    {coordinatorClasses.slice(0, 3).map(className => (
+                                      <span key={className} className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded-full font-medium">
+                                        {className}
+                                      </span>
+                                    ))}
+                                    {coordinatorClasses.length > 3 && (
+                                      <span className="text-xs px-2 py-1 bg-gray-50 text-gray-600 rounded-full font-medium">
+                                        +{coordinatorClasses.length - 3} more
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
                               </div>
-                            </div>
-                          </td>
-                          <td className="py-4 px-6 text-sm text-gray-600 font-medium">
-                            <div className="flex items-center gap-2">
-                              <Calendar className="w-4 h-4" />
-                              {formatDate(user.createdAt)}
-                            </div>
-                          </td>
-                          <td className="py-4 px-6 text-sm text-gray-600 font-medium">
-                            {user.lastLogin ? formatDate(user.lastLogin) : 'Never'}
-                          </td>
-                          <td className="py-4 px-6">
-                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
-                                onClick={() => handleToggleUserStatus(user.id, user.isActive)}
-                                className={`p-2 rounded-xl transition-all shadow-lg ${
+                            </td>
+                            <td className="py-4 px-6">
+                              <div className="space-y-2">
+                                <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-black shadow-sm ${
                                   user.isActive 
-                                    ? 'text-red-600 hover:bg-red-100 border border-red-200' 
-                                    : 'text-emerald-600 hover:bg-emerald-100 border border-emerald-200'
-                                }`}
-                                title={user.isActive ? 'Deactivate user' : 'Activate user'}
-                              >
-                                {user.isActive ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                              </button>
-                              <button
-                                onClick={() => router.push(`users/${user.id}`)}
-                                className="p-2 text-blue-600 hover:bg-blue-100 border border-blue-200 rounded-xl transition-all shadow-lg"
-                                title="Edit user"
-                              >
-                                <Edit3 className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteUser(user.id)}
-                                className="p-2 text-red-600 hover:bg-red-100 border border-red-200 rounded-xl transition-all shadow-lg"
-                                title="Delete user"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                                    ? 'bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-700 border border-emerald-300' 
+                                    : 'bg-gradient-to-r from-red-100 to-pink-100 text-red-700 border border-red-300'
+                                }`}>
+                                  {user.isActive ? 'ONLINE' : 'OFFLINE'}
+                                </span>
+                                <div className={`text-xs font-bold ${
+                                  user.isEmailVerified ? 'text-emerald-600' : 'text-yellow-600'
+                                }`}>
+                                  {user.isEmailVerified ? '✓ VERIFIED' : '⚠ PENDING'}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-4 px-6 text-sm text-gray-600 font-medium">
+                              <div className="flex items-center gap-2">
+                                <Calendar className="w-4 h-4" />
+                                {formatDate(user.createdAt)}
+                              </div>
+                            </td>
+                            <td className="py-4 px-6">
+                              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() => handleToggleUserStatus(user.id, user.isActive)}
+                                  className={`p-2 rounded-xl transition-all shadow-lg ${
+                                    user.isActive 
+                                      ? 'text-red-600 hover:bg-red-100 border border-red-200' 
+                                      : 'text-emerald-600 hover:bg-emerald-100 border border-emerald-200'
+                                  }`}
+                                  title={user.isActive ? 'Deactivate user' : 'Activate user'}
+                                >
+                                  {user.isActive ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                                <button
+                                  onClick={() => handleEditUser(user.id)}
+                                  className="p-2 text-blue-600 hover:bg-blue-100 border border-blue-200 rounded-xl transition-all shadow-lg"
+                                  title="Edit user"
+                                >
+                                  <Edit3 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteUser(user.id)}
+                                  className="p-2 text-red-600 hover:bg-red-100 border border-red-200 rounded-xl transition-all shadow-lg"
+                                  title="Delete user"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
 
-                {/* Enhanced Pagination */}
+                {/* Pagination */}
                 {totalPages > 1 && (
                   <div className="flex items-center justify-between mt-8">
                     <div className="text-sm text-gray-600 font-medium">
@@ -531,7 +608,7 @@ const AdminUsersPage = () => {
         {/* Create User Modal */}
         {showCreateModal && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl shadow-2xl border border-gray-200/50 p-8 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-3xl shadow-2xl border border-gray-200/50 p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-8">
                 <div>
                   <h2 className="text-2xl font-black text-gray-900">Create New User</h2>
@@ -598,62 +675,70 @@ const AdminUsersPage = () => {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-wider">
-                    User Role *
-                  </label>
-                  <select
-                    value={createForm.role}
-                    onChange={(e) => setCreateForm(prev => ({ ...prev, role: e.target.value, teacherType: '', coordinatorClass: '' }))}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
-                    required
-                  >
-                    <option value="student">Student</option>
-                    <option value="teacher">Teacher</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </div>
-
-                {createForm.role === 'teacher' && (
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-wider">
-                      Teacher Type *
+                      User Role *
                     </label>
                     <select
-                      value={createForm.teacherType}
-                      onChange={e => setCreateForm(prev => ({ ...prev, teacherType: e.target.value, coordinatorClass: '' }))}
+                      value={createForm.role}
+                      onChange={(e) => setCreateForm(prev => ({ ...prev, role: e.target.value, teacherType: '', coordinatorClasses: [] }))}
                       className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
                       required
                     >
-                      <option value="">Select type</option>
-                      <option value="coordinator">Coordinator</option>
-                      <option value="director">Director</option>
-                      <option value="class_teacher">Class Teacher</option>
-                      <option value="subject_teacher">Subject Teacher</option>
+                      <option value="student">Student</option>
+                      <option value="teacher">Teacher</option>
+                      <option value="admin">Admin</option>
                     </select>
                   </div>
-                )}
 
-                {/* Coordinator Class Selection */}
+                  {createForm.role === 'teacher' && (
+                    <div>
+                      <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-wider">
+                        Teacher Type *
+                      </label>
+                      <select
+                        value={createForm.teacherType}
+                        onChange={e => setCreateForm(prev => ({ ...prev, teacherType: e.target.value, coordinatorClasses: [] }))}
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
+                        required
+                      >
+                        <option value="">Select type</option>
+                        <option value="coordinator">Coordinator</option>
+                        <option value="director">Director</option>
+                        <option value="class_teacher">Class Teacher</option>
+                        <option value="subject_teacher">Subject Teacher</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                {/* Coordinator Classes Selection */}
                 {createForm.role === 'teacher' && createForm.teacherType === 'coordinator' && (
                   <div>
-                    <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-wider">
-                      Coordinator Class *
+                    <label className="block text-sm font-black text-gray-700 mb-3 uppercase tracking-wider">
+                      Coordinator Classes * (Select classes this coordinator will manage)
                     </label>
-                    <select
-                      value={createForm.coordinatorClass}
-                      onChange={e => setCreateForm(prev => ({ ...prev, coordinatorClass: e.target.value }))}
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
-                      required
-                    >
-                      <option value="">Select class</option>
-                      <option value="JS1">JS1</option>
-                      <option value="JS2">JS2</option>
-                      <option value="JS3">JS3</option>
-                      <option value="SS1">SS1</option>
-                      <option value="SS2">SS2</option>
-                      <option value="SS3">SS3</option>
-                    </select>
+                    <div className="grid grid-cols-3 gap-3 p-4 bg-blue-50 rounded-xl border border-blue-200">
+                      {classLevels.map(className => (
+                        <label key={className} className="flex items-center space-x-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={createForm.coordinatorClasses.includes(className)}
+                            onChange={() => handleClassToggle(className)}
+                            className="w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-sm font-bold text-blue-800">{className}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {createForm.coordinatorClasses.length > 0 && (
+                      <div className="mt-2 p-2 bg-green-50 rounded-lg">
+                        <p className="text-sm text-green-700 font-medium">
+                          Selected: {createForm.coordinatorClasses.join(', ')}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -678,6 +763,39 @@ const AdminUsersPage = () => {
                     >
                       <Zap className="w-4 h-4" />
                     </button>
+                  </div>
+                  {createForm.password && (
+                    <p className="text-xs text-gray-500 mt-1">Password: {createForm.password}</p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-wider">
+                      Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={createForm.phone}
+                      onChange={(e) => setCreateForm(prev => ({ ...prev, phone: e.target.value }))}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-wider">
+                      Gender
+                    </label>
+                    <select
+                      value={createForm.gender}
+                      onChange={(e) => setCreateForm(prev => ({ ...prev, gender: e.target.value }))}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
+                    >
+                      <option value="">Select gender</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                    </select>
                   </div>
                 </div>
 

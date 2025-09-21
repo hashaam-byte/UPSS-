@@ -1,26 +1,29 @@
 'use client'
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import Link from 'next/link';
-import { 
-  ArrowLeft, 
-  Save, 
-  Loader2, 
-  User, 
-  Mail, 
-  Phone, 
-  Calendar, 
+import {
+  ArrowLeft,
+  User,
+  Mail,
+  Phone,
+  Calendar,
   MapPin,
   Shield,
+  BookOpen,
+  Save,
+  Eye,
+  EyeOff,
+  Camera,
+  Trash2,
+  CheckCircle,
+  AlertTriangle,
+  Loader2,
+  Crown,
   GraduationCap,
   UserCheck,
-  AlertTriangle,
-  Check,
   X,
   Plus,
-  Trash2,
-  BookOpen,
-  School
+  Minus
 } from 'lucide-react';
 
 const UserEditPage = () => {
@@ -29,578 +32,647 @@ const UserEditPage = () => {
   const userId = params.id;
 
   const [user, setUser] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
-  const [subjects, setSubjects] = useState([]);
-  
+  const [success, setSuccess] = useState('');
+
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     email: '',
     username: '',
     phone: '',
-    dateOfBirth: '',
     address: '',
+    dateOfBirth: '',
     gender: '',
-    role: 'student',
     isActive: true,
-    // Teacher specific fields
+    role: 'student',
     teacherType: '',
-    coordinatorClass: '',
-    directorClasses: [],
-    teacherSubjects: []
+    coordinatorClasses: []
   });
 
-  const teacherTypes = [
-    { value: 'coordinator', label: 'Class Coordinator' },
-    { value: 'director', label: 'Academic Director' },
-    { value: 'class_teacher', label: 'Class Teacher' },
-    { value: 'subject_teacher', label: 'Subject Teacher' }
-  ];
+  const [passwordData, setPasswordData] = useState({
+    newPassword: '',
+    confirmPassword: ''
+  });
 
-  const classOptions = ['JS1', 'JS2', 'JS3', 'SS1', 'SS2', 'SS3'];
+  const [showPasswordSection, setShowPasswordSection] = useState(false);
+
+  const classLevels = ['JS1', 'JS2', 'JS3', 'SS1', 'SS2', 'SS3'];
 
   useEffect(() => {
     if (userId) {
-      fetchUser();
-      fetchSubjects();
+      fetchUserData();
     }
   }, [userId]);
 
-  const fetchUser = async () => {
+  const fetchUserData = async () => {
     try {
-      setIsLoading(true);
-      const response = await fetch(`/api/protected/admin/users/${userId}`);
-      const data = await response.json();
+      setLoading(true);
+      const response = await fetch(`/api/protected/admin/users/${userId}`, {
+        credentials: 'include'
+      });
 
       if (response.ok) {
-        setUser(data.user);
+        const data = await response.json();
+        const userData = data.user;
+        
+        setUser(userData);
+        
+        // Get coordinator classes
+        let coordinatorClasses = [];
+        if (userData.role === 'teacher' && userData.teacherProfile?.department === 'coordinator') {
+          coordinatorClasses = userData.teacherProfile?.teacherSubjects?.flatMap(ts => ts.classes) || [];
+          coordinatorClasses = [...new Set(coordinatorClasses)];
+        }
+
         setFormData({
-          firstName: data.user.firstName || '',
-          lastName: data.user.lastName || '',
-          email: data.user.email || '',
-          username: data.user.username || '',
-          phone: data.user.phone || '',
-          dateOfBirth: data.user.dateOfBirth ? data.user.dateOfBirth.split('T')[0] : '',
-          address: data.user.address || '',
-          gender: data.user.gender || '',
-          role: data.user.role,
-          isActive: data.user.isActive,
-          // Teacher profile data
-          teacherType: data.user.teacherProfile?.teacherType || '',
-          coordinatorClass: data.user.teacherProfile?.coordinatorClass || '',
-          directorClasses: data.user.teacherProfile?.directorClasses || [],
-          teacherSubjects: data.user.teacherProfile?.teacherSubjects || []
+          firstName: userData.firstName || '',
+          lastName: userData.lastName || '',
+          email: userData.email || '',
+          username: userData.username || '',
+          phone: userData.phone || '',
+          address: userData.address || '',
+          dateOfBirth: userData.dateOfBirth ? 
+            new Date(userData.dateOfBirth).toISOString().split('T')[0] : '',
+          gender: userData.gender || '',
+          isActive: userData.isActive,
+          role: userData.role,
+          teacherType: userData.teacherProfile?.department || '',
+          coordinatorClasses
         });
       } else {
-        setError(data.error || 'Failed to fetch user');
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to fetch user data');
       }
     } catch (error) {
-      console.error('Error fetching user:', error);
+      console.error('Fetch user error:', error);
       setError('Network error occurred');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const fetchSubjects = async () => {
-    try {
-      const response = await fetch('/api/protected/admin/subjects');
-      const data = await response.json();
-      if (response.ok) {
-        setSubjects(data.subjects || []);
-      }
-    } catch (error) {
-      console.error('Error fetching subjects:', error);
+  const handleFormChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    
+    // Clear coordinator classes if role/type changes
+    if ((field === 'role' && value !== 'teacher') || 
+        (field === 'teacherType' && value !== 'coordinator')) {
+      setFormData(prev => ({ ...prev, coordinatorClasses: [] }));
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsSaving(true);
+  const handleClassToggle = (className) => {
+    setFormData(prev => ({
+      ...prev,
+      coordinatorClasses: prev.coordinatorClasses.includes(className)
+        ? prev.coordinatorClasses.filter(c => c !== className)
+        : [...prev.coordinatorClasses, className]
+    }));
+  };
+
+  const handleSaveChanges = async () => {
+    setSaving(true);
     setError('');
+    setSuccess('');
 
     try {
-      const payload = {
-        ...formData,
-        dateOfBirth: formData.dateOfBirth || null
-      };
+      // Validation for coordinator
+      if (formData.role === 'teacher' && formData.teacherType === 'coordinator' && formData.coordinatorClasses.length === 0) {
+        setError('Please select at least one class for the coordinator to manage');
+        setSaving(false);
+        return;
+      }
 
       const response = await fetch(`/api/protected/admin/users/${userId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(payload)
+        credentials: 'include',
+        body: JSON.stringify({
+          ...formData,
+          ...(formData.role === 'teacher' && formData.teacherType === 'coordinator' && {
+            coordinatorClasses: formData.coordinatorClasses
+          })
+        })
       });
 
-      const data = await response.json();
-
       if (response.ok) {
-        setSuccessMessage('User updated successfully');
-        setTimeout(() => {
-          router.push('/protected/admin/users');
-        }, 1500);
+        setSuccess('User updated successfully!');
+        fetchUserData(); // Refresh data
       } else {
-        setError(data.error || 'Failed to update user');
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to update user');
       }
     } catch (error) {
-      console.error('Error updating user:', error);
+      console.error('Update user error:', error);
       setError('Network error occurred');
     } finally {
-      setIsSaving(false);
+      setSaving(false);
     }
   };
 
-  const addDirectorClass = () => {
-    setFormData(prev => ({
-      ...prev,
-      directorClasses: [...prev.directorClasses, '']
-    }));
+  const handlePasswordUpdate = async () => {
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    if (passwordData.newPassword.length < 8) {
+      setError('Password must be at least 8 characters long');
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+
+    try {
+      const response = await fetch(`/api/protected/admin/users/${userId}/password`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          newPassword: passwordData.newPassword
+        })
+      });
+
+      if (response.ok) {
+        setSuccess('Password updated successfully!');
+        setPasswordData({ newPassword: '', confirmPassword: '' });
+        setShowPasswordSection(false);
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to update password');
+      }
+    } catch (error) {
+      console.error('Password update error:', error);
+      setError('Network error occurred');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const updateDirectorClass = (index, value) => {
-    setFormData(prev => ({
-      ...prev,
-      directorClasses: prev.directorClasses.map((cls, i) => i === index ? value : cls)
-    }));
+  const handleDeleteUser = async () => {
+    if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const response = await fetch(`/api/protected/admin/users/${userId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        router.push('/protected/admin/users?deleted=true');
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to delete user');
+      }
+    } catch (error) {
+      console.error('Delete user error:', error);
+      setError('Network error occurred');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const removeDirectorClass = (index) => {
-    setFormData(prev => ({
-      ...prev,
-      directorClasses: prev.directorClasses.filter((_, i) => i !== index)
-    }));
+  const getRoleIcon = (role, teacherType) => {
+    if (role === 'admin') return Crown;
+    if (role === 'teacher') {
+      switch (teacherType) {
+        case 'coordinator': return BookOpen;
+        case 'director': return Shield;
+        default: return UserCheck;
+      }
+    }
+    return GraduationCap;
   };
 
-  const addTeacherSubject = () => {
-    setFormData(prev => ({
-      ...prev,
-      teacherSubjects: [...prev.teacherSubjects, { subjectId: '', classes: [] }]
-    }));
+  const getRoleBadgeColor = (role, teacherType) => {
+    if (role === 'admin') return 'from-purple-500 to-pink-500';
+    if (role === 'teacher') {
+      switch (teacherType) {
+        case 'coordinator': return 'from-blue-500 to-indigo-500';
+        case 'director': return 'from-emerald-500 to-teal-500';
+        default: return 'from-green-500 to-emerald-500';
+      }
+    }
+    return 'from-blue-500 to-cyan-500';
   };
 
-  const updateTeacherSubject = (index, field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      teacherSubjects: prev.teacherSubjects.map((subject, i) => 
-        i === index ? { ...subject, [field]: value } : subject
-      )
-    }));
-  };
-
-  const removeTeacherSubject = (index) => {
-    setFormData(prev => ({
-      ...prev,
-      teacherSubjects: prev.teacherSubjects.filter((_, i) => i !== index)
-    }));
-  };
-
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-20 h-20 bg-gradient-to-r from-blue-600 to-purple-600 rounded-3xl animate-pulse shadow-2xl flex items-center justify-center">
-            <Loader2 className="w-10 h-10 text-white animate-spin" />
-          </div>
-          <p className="text-gray-700 mt-6 font-bold text-lg">Loading User Details...</p>
+          <Loader2 className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-gray-600 font-bold">Loading user data...</p>
         </div>
       </div>
     );
   }
 
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
+        <div className="text-center">
+          <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-gray-900 mb-2">User Not Found</h2>
+          <p className="text-gray-600 mb-6">The requested user could not be found.</p>
+          <button
+            onClick={() => router.push('/protected/admin/users')}
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+          >
+            Back to Users
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const RoleIcon = getRoleIcon(user.role, user.teacherProfile?.department);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      <div className="max-w-4xl mx-auto p-6 space-y-8">
         {/* Header */}
-        <div className="bg-gradient-to-r from-white/80 to-blue-50/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => router.push('/protected/admin/users')}
-                className="p-3 bg-white/50 hover:bg-white/80 text-gray-600 rounded-2xl transition-all shadow-lg"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-              <div>
-                <h1 className="text-3xl font-black bg-gradient-to-r from-gray-800 via-blue-800 to-purple-800 bg-clip-text text-transparent">
-                  Edit User
-                </h1>
-                <p className="text-gray-600 font-medium">
-                  Update user information and permissions
-                </p>
-              </div>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => router.back()}
+              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-white/50 rounded-xl transition-all"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Edit User Profile</h1>
+              <p className="text-gray-600">Modify user information and permissions</p>
             </div>
-            <div className="flex items-center gap-2">
-              <div className={`px-4 py-2 rounded-xl font-bold text-sm ${
-                user?.role === 'admin' ? 'bg-purple-100 text-purple-700' :
-                user?.role === 'teacher' ? 'bg-emerald-100 text-emerald-700' :
-                'bg-blue-100 text-blue-700'
-              }`}>
-                {user?.role?.toUpperCase()}
-              </div>
-            </div>
+          </div>
+          
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => setShowPasswordSection(!showPasswordSection)}
+              className="px-4 py-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 font-medium flex items-center space-x-2"
+            >
+              <Shield className="w-4 h-4" />
+              <span>Change Password</span>
+            </button>
+            <button
+              onClick={handleDeleteUser}
+              className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 font-medium flex items-center space-x-2"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Delete User</span>
+            </button>
           </div>
         </div>
 
         {/* Messages */}
-        {successMessage && (
-          <div className="bg-gradient-to-r from-emerald-50/90 to-green-50/90 border border-emerald-300 rounded-2xl p-6 shadow-xl">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-green-500 rounded-2xl flex items-center justify-center">
-                <Check className="w-6 h-6 text-white" />
-              </div>
-              <p className="text-emerald-700 font-bold text-lg">{successMessage}</p>
-            </div>
-          </div>
-        )}
-
         {error && (
-          <div className="bg-gradient-to-r from-red-50/90 to-pink-50/90 border border-red-300 rounded-2xl p-6 shadow-xl">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-pink-500 rounded-2xl flex items-center justify-center">
-                <AlertTriangle className="w-6 h-6 text-white" />
-              </div>
-              <p className="text-red-700 font-bold text-lg">{error}</p>
-              <button onClick={() => setError('')} className="ml-auto p-2 text-red-600 hover:bg-red-100 rounded-xl">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl flex items-center">
+            <AlertTriangle className="h-5 w-5 mr-3" />
+            <span>{error}</span>
+            <button onClick={() => setError('')} className="ml-auto text-red-700 hover:text-red-900">
+              <X className="w-4 h-4" />
+            </button>
           </div>
         )}
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Basic Information */}
-          <div className="bg-gradient-to-br from-white/80 to-blue-50/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-8">
-            <div className="flex items-center gap-3 mb-6">
-              <User className="w-6 h-6 text-blue-600" />
-              <h2 className="text-2xl font-black text-gray-900">Basic Information</h2>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-wider">
-                  First Name *
-                </label>
-                <input
-                  type="text"
-                  value={formData.firstName}
-                  onChange={(e) => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
-                  className="w-full px-4 py-3 bg-white/50 border border-gray-200 rounded-2xl text-gray-900 focus:ring-2 focus:ring-blue-500 transition-all font-medium"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-wider">
-                  Last Name *
-                </label>
-                <input
-                  type="text"
-                  value={formData.lastName}
-                  onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
-                  className="w-full px-4 py-3 bg-white/50 border border-gray-200 rounded-2xl text-gray-900 focus:ring-2 focus:ring-blue-500 transition-all font-medium"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-wider">
-                  Email Address *
-                </label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                  className="w-full px-4 py-3 bg-white/50 border border-gray-200 rounded-2xl text-gray-900 focus:ring-2 focus:ring-blue-500 transition-all font-medium"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-wider">
-                  Username
-                </label>
-                <input
-                  type="text"
-                  value={formData.username}
-                  onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
-                  className="w-full px-4 py-3 bg-white/50 border border-gray-200 rounded-2xl text-gray-900 focus:ring-2 focus:ring-blue-500 transition-all font-medium"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-wider">
-                  Phone Number
-                </label>
-                <input
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                  className="w-full px-4 py-3 bg-white/50 border border-gray-200 rounded-2xl text-gray-900 focus:ring-2 focus:ring-blue-500 transition-all font-medium"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-wider">
-                  Date of Birth
-                </label>
-                <input
-                  type="date"
-                  value={formData.dateOfBirth}
-                  onChange={(e) => setFormData(prev => ({ ...prev, dateOfBirth: e.target.value }))}
-                  className="w-full px-4 py-3 bg-white/50 border border-gray-200 rounded-2xl text-gray-900 focus:ring-2 focus:ring-blue-500 transition-all font-medium"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-wider">
-                  Gender
-                </label>
-                <select
-                  value={formData.gender}
-                  onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}
-                  className="w-full px-4 py-3 bg-white/50 border border-gray-200 rounded-2xl text-gray-900 focus:ring-2 focus:ring-blue-500 transition-all font-medium"
-                >
-                  <option value="">Select gender</option>
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-wider">
-                  Account Status
-                </label>
-                <select
-                  value={formData.isActive.toString()}
-                  onChange={(e) => setFormData(prev => ({ ...prev, isActive: e.target.value === 'true' }))}
-                  className="w-full px-4 py-3 bg-white/50 border border-gray-200 rounded-2xl text-gray-900 focus:ring-2 focus:ring-blue-500 transition-all font-medium"
-                >
-                  <option value="true">Active</option>
-                  <option value="false">Inactive</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-wider">
-                Address
-              </label>
-              <textarea
-                value={formData.address}
-                onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
-                className="w-full px-4 py-3 bg-white/50 border border-gray-200 rounded-2xl text-gray-900 focus:ring-2 focus:ring-blue-500 transition-all font-medium"
-                rows={3}
-              />
-            </div>
+        {success && (
+          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-xl flex items-center">
+            <CheckCircle className="h-5 w-5 mr-3" />
+            <span>{success}</span>
+            <button onClick={() => setSuccess('')} className="ml-auto text-green-700 hover:text-green-900">
+              <X className="w-4 h-4" />
+            </button>
           </div>
+        )}
 
-          {/* Teacher-specific sections */}
-          {formData.role === 'teacher' && (
-            <div className="bg-gradient-to-br from-white/80 to-emerald-50/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-8">
-              <div className="flex items-center gap-3 mb-6">
-                <GraduationCap className="w-6 h-6 text-emerald-600" />
-                <h2 className="text-2xl font-black text-gray-900">Teacher Configuration</h2>
-              </div>
-
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-wider">
-                    Teacher Type *
-                  </label>
-                  <select
-                    value={formData.teacherType}
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      teacherType: e.target.value,
-                      coordinatorClass: '',
-                      directorClasses: [],
-                      teacherSubjects: []
-                    }))}
-                    className="w-full px-4 py-3 bg-white/50 border border-gray-200 rounded-2xl text-gray-900 focus:ring-2 focus:ring-emerald-500 transition-all font-medium"
-                    required
-                  >
-                    <option value="">Select teacher type</option>
-                    {teacherTypes.map(type => (
-                      <option key={type.value} value={type.value}>{type.label}</option>
-                    ))}
-                  </select>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* User Profile Card */}
+          <div className="lg:col-span-1">
+            <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-8">
+              <div className="text-center">
+                <div className="relative mx-auto w-32 h-32 mb-6">
+                  <div className={`w-full h-full bg-gradient-to-br ${getRoleBadgeColor(user.role, user.teacherProfile?.department)} rounded-3xl flex items-center justify-center text-white shadow-2xl`}>
+                    <span className="text-3xl font-black">
+                      {user.firstName?.charAt(0)}{user.lastName?.charAt(0)}
+                    </span>
+                  </div>
+                  <div className="absolute -bottom-2 -right-2 w-12 h-12 bg-white rounded-2xl shadow-lg flex items-center justify-center">
+                    <RoleIcon className="w-6 h-6 text-gray-700" />
+                  </div>
                 </div>
 
-                {/* Coordinator Class Selection */}
-                {formData.teacherType === 'coordinator' && (
-                  <div>
-                    <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-wider">
-                      Coordinator Class *
-                    </label>
-                    <select
-                      value={formData.coordinatorClass}
-                      onChange={(e) => setFormData(prev => ({ ...prev, coordinatorClass: e.target.value }))}
-                      className="w-full px-4 py-3 bg-white/50 border border-gray-200 rounded-2xl text-gray-900 focus:ring-2 focus:ring-emerald-500 transition-all font-medium"
-                      required
-                    >
-                      <option value="">Select class</option>
-                      {classOptions.map(cls => (
-                        <option key={cls} value={cls}>{cls}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                <h2 className="text-2xl font-black text-gray-900 mb-2">
+                  {user.firstName} {user.lastName}
+                </h2>
+                <p className="text-gray-600 font-medium mb-4">@{user.username}</p>
 
-                {/* Director Classes */}
-                {formData.teacherType === 'director' && (
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <label className="block text-sm font-black text-gray-700 uppercase tracking-wider">
-                        Director Classes *
-                      </label>
-                      <button
-                        type="button"
-                        onClick={addDirectorClass}
-                        className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 transition-all"
-                      >
-                        <Plus className="w-4 h-4" />
-                        Add Class
-                      </button>
-                    </div>
-                    <div className="space-y-3">
-                      {formData.directorClasses.map((cls, index) => (
-                        <div key={index} className="flex gap-3">
-                          <select
-                            value={cls}
-                            onChange={(e) => updateDirectorClass(index, e.target.value)}
-                            className="flex-1 px-4 py-3 bg-white/50 border border-gray-200 rounded-2xl text-gray-900 focus:ring-2 focus:ring-emerald-500 transition-all font-medium"
-                            required
-                          >
-                            <option value="">Select class</option>
-                            {classOptions.map(classOption => (
-                              <option key={classOption} value={classOption}>{classOption}</option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            onClick={() => removeDirectorClass(index)}
-                            className="p-3 text-red-600 hover:bg-red-100 rounded-2xl transition-all"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
+                <div className="flex flex-wrap gap-2 justify-center mb-6">
+                  <span className={`px-3 py-1 rounded-full text-xs font-black text-white bg-gradient-to-r ${getRoleBadgeColor(user.role, user.teacherProfile?.department)}`}>
+                    {user.role.toUpperCase()}
+                  </span>
+                  {user.teacherProfile?.department && (
+                    <span className="px-3 py-1 rounded-full text-xs font-black text-gray-700 bg-gray-100">
+                      {user.teacherProfile.department.replace('_', ' ').toUpperCase()}
+                    </span>
+                  )}
+                  <span className={`px-3 py-1 rounded-full text-xs font-black ${
+                    user.isActive ? 'text-green-700 bg-green-100' : 'text-red-700 bg-red-100'
+                  }`}>
+                    {user.isActive ? 'ACTIVE' : 'INACTIVE'}
+                  </span>
+                </div>
+
+                {/* Coordinator Classes Display */}
+                {user.role === 'teacher' && user.teacherProfile?.department === 'coordinator' && formData.coordinatorClasses.length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="text-sm font-bold text-gray-700 mb-2">Managing Classes</h4>
+                    <div className="flex flex-wrap gap-1 justify-center">
+                      {formData.coordinatorClasses.map(className => (
+                        <span key={className} className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full font-bold">
+                          {className}
+                        </span>
                       ))}
-                      {formData.directorClasses.length === 0 && (
-                        <p className="text-gray-500 italic">No classes assigned. Click "Add Class" to start.</p>
-                      )}
                     </div>
                   </div>
                 )}
 
-                {/* Subject Teacher Assignments */}
-                {formData.teacherType === 'subject_teacher' && (
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <label className="block text-sm font-black text-gray-700 uppercase tracking-wider">
-                        Subject Assignments *
-                      </label>
-                      <button
-                        type="button"
-                        onClick={addTeacherSubject}
-                        className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 transition-all"
-                      >
-                        <Plus className="w-4 h-4" />
-                        Add Subject
-                      </button>
-                    </div>
-                    <div className="space-y-4">
-                      {formData.teacherSubjects.map((subject, index) => (
-                        <div key={index} className="bg-white/30 p-4 rounded-2xl border border-gray-200">
-                          <div className="flex items-center justify-between mb-3">
-                            <h4 className="font-bold text-gray-800">Subject #{index + 1}</h4>
-                            <button
-                              type="button"
-                              onClick={() => removeTeacherSubject(index)}
-                              className="p-2 text-red-600 hover:bg-red-100 rounded-xl transition-all"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">Subject</label>
-                              <select
-                                value={subject.subjectId}
-                                onChange={(e) => updateTeacherSubject(index, 'subjectId', e.target.value)}
-                                className="w-full px-4 py-3 bg-white/50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-emerald-500 transition-all"
-                                required
-                              >
-                                <option value="">Select subject</option>
-                                {subjects.map(subj => (
-                                  <option key={subj.id} value={subj.id}>{subj.name} ({subj.code})</option>
-                                ))}
-                              </select>
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">Classes</label>
-                              <select
-                                multiple
-                                value={subject.classes || []}
-                                onChange={(e) => {
-                                  const selectedClasses = Array.from(e.target.selectedOptions, option => option.value);
-                                  updateTeacherSubject(index, 'classes', selectedClasses);
-                                }}
-                                className="w-full px-4 py-3 bg-white/50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-emerald-500 transition-all"
-                                size={6}
-                              >
-                                {classOptions.map(cls => (
-                                  <option key={cls} value={cls}>{cls}</option>
-                                ))}
-                              </select>
-                              <p className="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple classes</p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                      {formData.teacherSubjects.length === 0 && (
-                        <p className="text-gray-500 italic">No subjects assigned. Click "Add Subject" to start.</p>
-                      )}
-                    </div>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center text-gray-600">
+                    <Calendar className="w-4 h-4 mr-2" />
+                    <span>Joined {new Date(user.createdAt).toLocaleDateString()}</span>
                   </div>
-                )}
+                  {user.lastLogin && (
+                    <div className="flex items-center text-gray-600">
+                      <User className="w-4 h-4 mr-2" />
+                      <span>Last login {new Date(user.lastLogin).toLocaleDateString()}</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          )}
-
-          {/* Action Buttons */}
-          <div className="flex gap-4 justify-end">
-            <button
-              type="button"
-              onClick={() => router.push('/protected/admin/users')}
-              className="px-8 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl font-bold transition-all"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 text-white rounded-2xl font-bold flex items-center gap-3 transition-all shadow-xl"
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="w-5 h-5" />
-                  Save Changes
-                </>
-              )}
-            </button>
           </div>
-        </form>
+
+          {/* Edit Form */}
+          <div className="lg:col-span-2">
+            <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-8">
+              <div className="space-y-8">
+                {/* Basic Information */}
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-6">Basic Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-2">First Name</label>
+                      <input
+                        type="text"
+                        value={formData.firstName}
+                        onChange={(e) => handleFormChange('firstName', e.target.value)}
+                        className="w-full px-4 py-3 bg-white/70 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-2">Last Name</label>
+                      <input
+                        type="text"
+                        value={formData.lastName}
+                        onChange={(e) => handleFormChange('lastName', e.target.value)}
+                        className="w-full px-4 py-3 bg-white/70 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-2">Email</label>
+                      <input
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => handleFormChange('email', e.target.value)}
+                        className="w-full px-4 py-3 bg-white/70 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-2">Username</label>
+                      <input
+                        type="text"
+                        value={formData.username}
+                        onChange={(e) => handleFormChange('username', e.target.value)}
+                        className="w-full px-4 py-3 bg-white/70 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-2">Phone</label>
+                      <input
+                        type="tel"
+                        value={formData.phone}
+                        onChange={(e) => handleFormChange('phone', e.target.value)}
+                        className="w-full px-4 py-3 bg-white/70 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-2">Gender</label>
+                      <select
+                        value={formData.gender}
+                        onChange={(e) => handleFormChange('gender', e.target.value)}
+                        className="w-full px-4 py-3 bg-white/70 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="">Select gender</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-2">Date of Birth</label>
+                      <input
+                        type="date"
+                        value={formData.dateOfBirth}
+                        onChange={(e) => handleFormChange('dateOfBirth', e.target.value)}
+                        className="w-full px-4 py-3 bg-white/70 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-bold text-gray-700 mb-2">Address</label>
+                      <textarea
+                        value={formData.address}
+                        onChange={(e) => handleFormChange('address', e.target.value)}
+                        rows={3}
+                        className="w-full px-4 py-3 bg-white/70 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Role & Permissions */}
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-6">Role & Permissions</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-2">User Role</label>
+                      <select
+                        value={formData.role}
+                        onChange={(e) => handleFormChange('role', e.target.value)}
+                        className="w-full px-4 py-3 bg-white/70 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="student">Student</option>
+                        <option value="teacher">Teacher</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    </div>
+
+                    {formData.role === 'teacher' && (
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Teacher Type</label>
+                        <select
+                          value={formData.teacherType}
+                          onChange={(e) => handleFormChange('teacherType', e.target.value)}
+                          className="w-full px-4 py-3 bg-white/70 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          <option value="">Select type</option>
+                          <option value="coordinator">Coordinator</option>
+                          <option value="director">Director</option>
+                          <option value="class_teacher">Class Teacher</option>
+                          <option value="subject_teacher">Subject Teacher</option>
+                        </select>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-2">Account Status</label>
+                      <div className="flex items-center space-x-3">
+                        <button
+                          type="button"
+                          onClick={() => handleFormChange('isActive', !formData.isActive)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                            formData.isActive ? 'bg-green-600' : 'bg-gray-200'
+                          }`}
+                        >
+                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            formData.isActive ? 'translate-x-6' : 'translate-x-1'
+                          }`} />
+                        </button>
+                        <span className="text-sm font-medium text-gray-700">
+                          {formData.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Coordinator Classes Selection */}
+                  {formData.role === 'teacher' && formData.teacherType === 'coordinator' && (
+                    <div className="mt-6">
+                      <label className="block text-sm font-bold text-gray-700 mb-3">
+                        Coordinator Classes (Select classes this coordinator will manage)
+                      </label>
+                      <div className="grid grid-cols-3 gap-3 p-4 bg-blue-50 rounded-xl border border-blue-200">
+                        {classLevels.map(className => (
+                          <label key={className} className="flex items-center space-x-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={formData.coordinatorClasses.includes(className)}
+                              onChange={() => handleClassToggle(className)}
+                              className="w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500"
+                            />
+                            <span className="text-sm font-bold text-blue-800">{className}</span>
+                          </label>
+                        ))}
+                      </div>
+                      {formData.coordinatorClasses.length > 0 && (
+                        <div className="mt-2 p-2 bg-green-50 rounded-lg">
+                          <p className="text-sm text-green-700 font-medium">
+                            Selected: {formData.coordinatorClasses.join(', ')}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Password Section */}
+                {showPasswordSection && (
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-6">Change Password</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">New Password</label>
+                        <input
+                          type="password"
+                          value={passwordData.newPassword}
+                          onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
+                          className="w-full px-4 py-3 bg-white/70 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          minLength={8}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Confirm Password</label>
+                        <input
+                          type="password"
+                          value={passwordData.confirmPassword}
+                          onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                          className="w-full px-4 py-3 bg-white/70 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          minLength={8}
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-4 flex gap-3">
+                      <button
+                        type="button"
+                        onClick={handlePasswordUpdate}
+                        disabled={saving || !passwordData.newPassword || !passwordData.confirmPassword}
+                        className="px-6 py-3 bg-yellow-600 text-white rounded-xl hover:bg-yellow-700 disabled:opacity-50 font-bold flex items-center space-x-2"
+                      >
+                        <Shield className="w-4 h-4" />
+                        <span>Update Password</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowPasswordSection(false)}
+                        className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-bold"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Save Button */}
+                <div className="flex justify-end space-x-4 pt-6 border-t">
+                  <button
+                    type="button"
+                    onClick={() => router.back()}
+                    className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-bold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveChanges}
+                    disabled={saving}
+                    className="px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 font-bold flex items-center space-x-2 shadow-xl"
+                  >
+                    {saving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        <span>Save Changes</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

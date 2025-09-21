@@ -1,8 +1,9 @@
-// /app/api/protected/admin/users/route.js
+
+// /app/api/protected/admin/users/route.js - UPDATED to support coordinator classes
 import { requireAuth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import bcrypt from 'bcryptjs'; // ✅ use import instead of require
+import bcrypt from 'bcryptjs';
 
 export async function GET(request) {
   try {
@@ -45,7 +46,15 @@ export async function GET(request) {
         include: {
           school: true,
           studentProfile: true,
-          teacherProfile: true,
+          teacherProfile: {
+            include: {
+              teacherSubjects: {
+                include: {
+                  subject: true
+                }
+              }
+            }
+          },
           adminProfile: {
             include: {
               permissions: true
@@ -72,8 +81,14 @@ export async function GET(request) {
         isEmailVerified: user.isEmailVerified,
         lastLogin: user.lastLogin,
         createdAt: user.createdAt,
+        phone: user.phone,
+        dateOfBirth: user.dateOfBirth,
+        address: user.address,
+        gender: user.gender,
         school: user.school,
-        profile: user.studentProfile || user.teacherProfile || user.adminProfile
+        studentProfile: user.studentProfile,
+        teacherProfile: user.teacherProfile,
+        adminProfile: user.adminProfile
       })),
       pagination: {
         page,
@@ -111,12 +126,34 @@ export async function POST(request) {
     const currentUser = await requireAuth(['admin', 'headadmin']);
     const body = await request.json();
 
-    const { firstName, lastName, email, username, password, role, schoolId, teacherType, coordinatorClass } = body;
+    const { 
+      firstName, 
+      lastName, 
+      email, 
+      username, 
+      password, 
+      role, 
+      schoolId, 
+      teacherType, 
+      coordinatorClasses = [],
+      phone,
+      dateOfBirth,
+      address,
+      gender
+    } = body;
 
     // Validate required fields
     if (!firstName || !lastName || !email || !password || !role) {
       return NextResponse.json(
         { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    // Validate coordinator classes if it's a coordinator
+    if (role === 'teacher' && teacherType === 'coordinator' && coordinatorClasses.length === 0) {
+      return NextResponse.json(
+        { error: 'Coordinators must be assigned to at least one class' },
         { status: 400 }
       );
     }
@@ -161,7 +198,7 @@ export async function POST(request) {
       );
     }
 
-    // Hash password ✅
+    // Hash password
     const passwordHash = await bcrypt.hash(password, 12);
 
     // Create user
@@ -174,6 +211,10 @@ export async function POST(request) {
         passwordHash: passwordHash,
         role: role,
         schoolId: targetSchoolId,
+        phone: phone || null,
+        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+        address: address || null,
+        gender: gender || null,
         isActive: true,
         isEmailVerified: false
       },
@@ -187,31 +228,64 @@ export async function POST(request) {
       await prisma.studentProfile.create({
         data: {
           userId: newUser.id,
-          studentId: `STU${Date.now()}`, // Generate unique student ID
+          studentId: `STU${Date.now()}`,
           admissionDate: new Date()
         }
       });
     } else if (role === 'teacher') {
-      await prisma.teacherProfile.create({
+      const teacherProfile = await prisma.teacherProfile.create({
         data: {
           userId: newUser.id,
           employeeId: `TCH${Date.now()}`,
           joiningDate: new Date(),
-          // Set department as 'coordinator' or 'director' or other type
-          department: teacherType === 'coordinator'
-            ? 'coordinator'
-            : teacherType === 'director'
-              ? 'director'
-              : teacherType || null,
-          // Save coordinatorClass only if coordinator
-          coordinatorClass: teacherType === 'coordinator' ? coordinatorClass || null : null
+          department: teacherType || 'subject_teacher'
         }
       });
+
+      // If coordinator, create subject assignments for the classes
+      if (teacherType === 'coordinator' && coordinatorClasses.length > 0) {
+        // Get or create coordination subject
+        let coordinationSubject = await prisma.subject.findFirst({
+          where: {
+            schoolId: targetSchoolId,
+            code: 'COORD',
+            name: 'Academic Coordination'
+          }
+        });
+
+        if (!coordinationSubject) {
+          coordinationSubject = await prisma.subject.create({
+            data: {
+              name: 'Academic Coordination',
+              code: 'COORD',
+              category: 'CORE',
+              classes: coordinatorClasses,
+              schoolId: targetSchoolId
+            }
+          });
+        } else {
+          // Update existing subject to include new classes
+          const updatedClasses = [...new Set([...coordinationSubject.classes, ...coordinatorClasses])];
+          coordinationSubject = await prisma.subject.update({
+            where: { id: coordinationSubject.id },
+            data: { classes: updatedClasses }
+          });
+        }
+
+        // Create teacher-subject assignment
+        await prisma.teacherSubject.create({
+          data: {
+            teacherId: teacherProfile.id,
+            subjectId: coordinationSubject.id,
+            classes: coordinatorClasses
+          }
+        });
+      }
     } else if (role === 'admin') {
       await prisma.adminProfile.create({
         data: {
           userId: newUser.id,
-          employeeId: `ADM${Date.now()}` // Generate unique employee ID
+          employeeId: `ADM${Date.now()}`
         }
       });
     }
