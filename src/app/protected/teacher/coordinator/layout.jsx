@@ -1,5 +1,5 @@
 'use client'
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import {
@@ -20,7 +20,9 @@ import {
   Clock,
   Shield,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  User,
+  HelpCircle
 } from 'lucide-react';
 
 const CoordinatorLayout = ({ children }) => {
@@ -31,9 +33,31 @@ const CoordinatorLayout = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
+
+  const userDropdownRef = useRef(null);
+  const notificationDropdownRef = useRef(null);
 
   useEffect(() => {
     checkAuthAndFetchData();
+    fetchNotifications();
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target)) {
+        setShowUserDropdown(false);
+      }
+      if (notificationDropdownRef.current && !notificationDropdownRef.current.contains(event.target)) {
+        setShowNotificationDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
 
   const checkAuthAndFetchData = async () => {
@@ -53,8 +77,7 @@ const CoordinatorLayout = ({ children }) => {
         
         setUser(data.user);
       } else {
-        // Not authenticated, redirect to login
-        router.push('/protected?role=teacher');
+        router.push('/protected');
         return;
       }
     } catch (error) {
@@ -66,17 +89,48 @@ const CoordinatorLayout = ({ children }) => {
     }
   };
 
+  const fetchNotifications = async () => {
+    try {
+      const response = await fetch('/api/protected/teachers/coordinator/notifications?filter=unread', {
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setNotifications(data.data.notifications.slice(0, 5)); // Get latest 5 notifications
+      }
+    } catch (error) {
+      console.error('Notifications fetch error:', error);
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await fetch('/api/auth/logout', {
         method: 'POST',
         credentials: 'include'
       });
-      router.push('/protected?role=teacher');
+      router.push('/protected');
     } catch (error) {
       console.error('Logout error:', error);
-      // Force redirect even if logout fails
-      router.push('/protected?role=teacher');
+      router.push('/protected');
+    }
+  };
+
+  const markNotificationAsRead = async (notificationId) => {
+    try {
+      await fetch('/api/protected/teachers/coordinator/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'mark_read',
+          notificationIds: [notificationId]
+        })
+      });
+      fetchNotifications(); // Refresh notifications
+    } catch (error) {
+      console.error('Mark notification as read error:', error);
     }
   };
 
@@ -119,6 +173,21 @@ const CoordinatorLayout = ({ children }) => {
   ];
 
   const unreadNotifications = notifications.filter(n => !n.isRead).length;
+
+  const getNotificationIcon = (type) => {
+    switch (type) {
+      case 'system':
+        return <AlertCircle className="w-4 h-4 text-blue-500" />;
+      case 'success':
+        return <CheckCircle className="w-4 h-4 text-green-500" />;
+      case 'warning':
+        return <AlertCircle className="w-4 h-4 text-yellow-500" />;
+      case 'error':
+        return <X className="w-4 h-4 text-red-500" />;
+      default:
+        return <Bell className="w-4 h-4 text-gray-500" />;
+    }
+  };
 
   // Loading state
   if (loading) {
@@ -340,10 +409,13 @@ const CoordinatorLayout = ({ children }) => {
               </Link>
             </div>
 
-            {/* Notifications */}
-            <div className="relative">
+            {/* Notifications Dropdown */}
+            <div className="relative" ref={notificationDropdownRef}>
               <button
-                onClick={() => router.push('/protected/teacher/coordinator/notifications')}
+                onClick={() => {
+                  setShowNotificationDropdown(!showNotificationDropdown);
+                  setShowUserDropdown(false);
+                }}
                 className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors duration-200 relative"
               >
                 <Bell className="w-5 h-5" />
@@ -353,23 +425,158 @@ const CoordinatorLayout = ({ children }) => {
                   </span>
                 )}
               </button>
+
+              {/* Notifications Dropdown */}
+              {showNotificationDropdown && (
+                <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 z-50">
+                  <div className="p-4 border-b">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-gray-900">Notifications</h3>
+                      <span className="text-xs text-gray-500">
+                        {unreadNotifications} unread
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="max-h-80 overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <div className="p-6 text-center">
+                        <Bell className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                        <p className="text-sm text-gray-600">No notifications</p>
+                      </div>
+                    ) : (
+                      notifications.map((notification) => (
+                        <div
+                          key={notification.id}
+                          className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
+                            !notification.isRead ? 'bg-blue-25' : ''
+                          }`}
+                          onClick={() => markNotificationAsRead(notification.id)}
+                        >
+                          <div className="flex items-start space-x-3">
+                            <div className="flex-shrink-0 mt-1">
+                              {getNotificationIcon(notification.type)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between mb-1">
+                                <p className={`text-sm font-medium truncate ${
+                                  !notification.isRead ? 'text-gray-900' : 'text-gray-700'
+                                }`}>
+                                  {notification.title}
+                                </p>
+                                {!notification.isRead && (
+                                  <div className="w-2 h-2 bg-blue-500 rounded-full ml-2 flex-shrink-0"></div>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-600 line-clamp-2">
+                                {notification.content}
+                              </p>
+                              <p className="text-xs text-gray-400 mt-1">
+                                {new Date(notification.createdAt).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  
+                  <div className="p-4 border-t bg-gray-50">
+                    <Link
+                      href="/protected/teacher/coordinator/notifications"
+                      className="text-sm text-purple-600 hover:text-purple-800 font-medium"
+                      onClick={() => setShowNotificationDropdown(false)}
+                    >
+                      View all notifications →
+                    </Link>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* User Menu */}
+            {/* User Menu Dropdown */}
             {user && (
-              <div className="relative">
-                <div className="flex items-center space-x-2 px-3 py-2 bg-gray-50 rounded-lg">
+              <div className="relative" ref={userDropdownRef}>
+                <button
+                  onClick={() => {
+                    setShowUserDropdown(!showUserDropdown);
+                    setShowNotificationDropdown(false);
+                  }}
+                  className="flex items-center space-x-2 px-3 py-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors duration-200"
+                >
                   <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
                     {user.firstName?.charAt(0)}{user.lastName?.charAt(0)}
                   </div>
-                  <div className="hidden sm:block">
+                  <div className="hidden sm:block text-left">
                     <p className="text-sm font-medium text-gray-900">
                       {user.firstName} {user.lastName}
                     </p>
                     <p className="text-xs text-gray-600">Coordinator</p>
                   </div>
                   <ChevronDown className="w-4 h-4 text-gray-400" />
-                </div>
+                </button>
+
+                {/* User Dropdown */}
+                {showUserDropdown && (
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-200 z-50">
+                    <div className="p-4 border-b">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center text-white font-bold">
+                          {user.firstName?.charAt(0)}{user.lastName?.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">
+                            {user.firstName} {user.lastName}
+                          </p>
+                          <p className="text-sm text-gray-600">{user.email}</p>
+                          <p className="text-xs text-gray-500">Academic Coordinator</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="py-2">
+                      <Link
+                        href="/protected/teacher/coordinator/profile"
+                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                        onClick={() => setShowUserDropdown(false)}
+                      >
+                        <User className="w-4 h-4 mr-3" />
+                        My Profile
+                      </Link>
+                      
+                      <Link
+                        href="/protected/teacher/coordinator/settings"
+                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                        onClick={() => setShowUserDropdown(false)}
+                      >
+                        <Settings className="w-4 h-4 mr-3" />
+                        Settings
+                      </Link>
+                      
+                      <Link
+                        href="/help"
+                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                        onClick={() => setShowUserDropdown(false)}
+                      >
+                        <HelpCircle className="w-4 h-4 mr-3" />
+                        Help & Support
+                      </Link>
+                    </div>
+                    
+                    <div className="border-t py-2">
+                      <button
+                        onClick={() => {
+                          setShowUserDropdown(false);
+                          handleLogout();
+                        }}
+                        className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        <LogOut className="w-4 h-4 mr-3" />
+                        Sign Out
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

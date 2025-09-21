@@ -120,6 +120,7 @@ model StudentProfile {
   studentId     String?   @unique @map("student_id") @db.VarChar(50)
   className     String?   @map("class_name") @db.VarChar(50)
   section       String?   @db.VarChar(10)
+  department    String?   @db.VarChar(50) // science, arts, social_science
   admissionDate DateTime? @map("admission_date") @db.Date
   
   // Parent contact
@@ -627,4 +628,3 @@ enum ApprovalStatus {
   rejected
   revision_requested
 }
-

@@ -31,6 +31,8 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const classFilter = searchParams.get('class');
     const armFilter = searchParams.get('arm');
+    const departmentFilter = searchParams.get('department');
+    const assignedFilter = searchParams.get('assigned'); // 'true', 'false', or null
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
 
@@ -58,8 +60,8 @@ export async function GET(request) {
         data: {
           students: [],
           pagination: { currentPage: 1, totalPages: 0, totalStudents: 0 },
-          filters: { availableClasses: [], availableArms: [] },
-          summary: { totalStudents: 0, classCount: 0 }
+          filters: { availableClasses: [], availableArms: [], availableDepartments: [] },
+          summary: { totalStudents: 0, classCount: 0, assignedCount: 0, unassignedCount: 0 }
         }
       });
     }
@@ -70,20 +72,36 @@ export async function GET(request) {
       role: 'student',
       isActive: true,
       studentProfile: {
-        className: {
-          in: coordinatorClasses
-        }
+        className: assignedFilter === 'false' 
+          ? null  // Show unassigned students
+          : assignedFilter === 'true' 
+          ? { not: null }  // Show assigned students
+          : undefined  // Show all students
       }
     };
 
-    // Apply filters
-    if (classFilter) {
+    // If showing assigned students or all students, filter by coordinator classes
+    if (assignedFilter !== 'false') {
+      if (!whereClause.studentProfile) whereClause.studentProfile = {};
+      whereClause.studentProfile.className = {
+        in: coordinatorClasses
+      };
+    }
+
+    // Apply additional filters
+    if (classFilter && assignedFilter !== 'false') {
       whereClause.studentProfile.className = classFilter;
     }
-    if (armFilter) {
-      whereClause.studentProfile.className = {
-        contains: armFilter
-      };
+    if (armFilter && assignedFilter !== 'false') {
+      if (whereClause.studentProfile.className) {
+        whereClause.studentProfile.className = {
+          contains: armFilter
+        };
+      }
+    }
+    if (departmentFilter) {
+      if (!whereClause.studentProfile) whereClause.studentProfile = {};
+      whereClause.studentProfile.department = departmentFilter;
     }
 
     // Get students with pagination
@@ -107,33 +125,35 @@ export async function GET(request) {
 
     const totalStudents = await prisma.user.count({ where: whereClause });
 
-    // Get available classes and arms
+    // Get available classes, arms, and departments for filters
     const allStudents = await prisma.user.findMany({
       where: {
         schoolId: coordinator.schoolId,
         role: 'student',
-        isActive: true,
-        studentProfile: {
-          className: {
-            in: coordinatorClasses
-          }
-        }
+        isActive: true
       },
       include: { studentProfile: true }
     });
 
+    const assignedStudents = allStudents.filter(s => s.studentProfile?.className);
+    const unassignedStudents = allStudents.filter(s => !s.studentProfile?.className);
+
     const availableClasses = [...new Set(
-      allStudents.map(s => s.studentProfile?.className).filter(Boolean)
+      assignedStudents.map(s => s.studentProfile?.className).filter(Boolean)
     )].sort();
 
     const availableArms = [...new Set(
-      allStudents.map(s => {
+      assignedStudents.map(s => {
         const className = s.studentProfile?.className;
         if (className && className.includes(' ')) {
           return className.split(' ')[1]; // Get the arm part (silver, diamond, etc.)
         }
         return null;
       }).filter(Boolean)
+    )].sort();
+
+    const availableDepartments = [...new Set(
+      allStudents.map(s => s.studentProfile?.department).filter(Boolean)
     )].sort();
 
     // Transform student data
@@ -155,6 +175,7 @@ export async function GET(request) {
       studentId: student.studentProfile?.studentId,
       className: student.studentProfile?.className,
       section: student.studentProfile?.section,
+      department: student.studentProfile?.department,
       admissionDate: student.studentProfile?.admissionDate,
       
       // Extract stage, level, and arm from class name
@@ -170,34 +191,10 @@ export async function GET(request) {
       parentEmail: student.studentProfile?.parentEmail,
     }));
 
-    // Group students by class and arm
-    const studentsByClass = {};
-    const studentsByArm = {};
-
-    transformedStudents.forEach(student => {
-      // Group by class
-      if (student.className) {
-        if (!studentsByClass[student.className]) {
-          studentsByClass[student.className] = [];
-        }
-        studentsByClass[student.className].push(student);
-      }
-
-      // Group by arm
-      if (student.arm) {
-        if (!studentsByArm[student.arm]) {
-          studentsByArm[student.arm] = [];
-        }
-        studentsByArm[student.arm].push(student);
-      }
-    });
-
     return NextResponse.json({
       success: true,
       data: {
         students: transformedStudents,
-        studentsByClass,
-        studentsByArm,
         pagination: {
           currentPage: page,
           totalPages: Math.ceil(totalStudents / limit),
@@ -209,22 +206,20 @@ export async function GET(request) {
         filters: {
           availableClasses,
           availableArms,
+          availableDepartments,
           currentClassFilter: classFilter,
           currentArmFilter: armFilter,
+          currentDepartmentFilter: departmentFilter,
+          currentAssignedFilter: assignedFilter,
           coordinatorClasses
         },
         summary: {
-          totalStudents,
+          totalStudents: allStudents.length,
+          assignedCount: assignedStudents.length,
+          unassignedCount: unassignedStudents.length,
           classCount: availableClasses.length,
           armCount: availableArms.length,
-          classCounts: Object.entries(studentsByClass).map(([className, students]) => ({
-            className,
-            count: students.length
-          })),
-          armCounts: Object.entries(studentsByArm).map(([arm, students]) => ({
-            arm,
-            count: students.length
-          }))
+          departmentCount: availableDepartments.length
         }
       }
     });
@@ -246,14 +241,14 @@ export async function GET(request) {
   }
 }
 
-// POST - Assign arms to students
+// POST - Assign arms and departments to students
 export async function POST(request) {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get('auth_token')?.value;
     
     const coordinator = await verifyCoordinatorAccess(token);
-    const { studentIds, arm, className } = await request.json();
+    const { studentIds, arm, className, department } = await request.json();
 
     if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
       return NextResponse.json({ 
@@ -261,15 +256,9 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
-    if (!arm) {
+    if (!arm || !className) {
       return NextResponse.json({ 
-        error: 'Arm is required (e.g., silver, diamond, mercury, etc.)' 
-      }, { status: 400 });
-    }
-
-    if (!className) {
-      return NextResponse.json({ 
-        error: 'Class name is required (e.g., JS1, SS2, etc.)' 
+        error: 'Both arm and class name are required' 
       }, { status: 400 });
     }
 
@@ -288,8 +277,7 @@ export async function POST(request) {
       coordinatorSubjects.flatMap(ts => ts.classes)
     )];
 
-    // Check if the base class is in coordinator's classes
-    const baseClass = className.split(' ')[0]; // Extract JS1, SS2, etc.
+    const baseClass = className.split(' ')[0];
     if (!coordinatorClasses.some(cls => cls.startsWith(baseClass))) {
       return NextResponse.json({ 
         error: 'You do not have access to assign arms to this class' 
@@ -307,7 +295,6 @@ export async function POST(request) {
     // Process each student
     for (const studentId of studentIds) {
       try {
-        // Verify student exists and belongs to coordinator's school
         const student = await prisma.user.findFirst({
           where: {
             id: studentId,
@@ -328,15 +315,23 @@ export async function POST(request) {
           continue;
         }
 
-        // Update student's class with the arm
+        // Update student's class and department
+        const updateData = {
+          className: fullClassName
+        };
+
+        // Only add department for SS students if provided
+        if (department && baseClass.startsWith('SS')) {
+          updateData.department = department;
+        }
+
         await prisma.studentProfile.upsert({
           where: { userId: studentId },
-          update: {
-            className: fullClassName
-          },
+          update: updateData,
           create: {
             userId: studentId,
             className: fullClassName,
+            department: (department && baseClass.startsWith('SS')) ? department : null,
             admissionDate: new Date()
           }
         });
@@ -345,7 +340,8 @@ export async function POST(request) {
           studentId,
           studentName: `${student.firstName} ${student.lastName}`,
           oldClassName: student.studentProfile?.className || 'Unassigned',
-          newClassName: fullClassName
+          newClassName: fullClassName,
+          department: (department && baseClass.startsWith('SS')) ? department : null
         });
 
       } catch (error) {
@@ -358,18 +354,104 @@ export async function POST(request) {
 
     return NextResponse.json({
       success: true,
-      message: `Arm assignment completed. ${results.successful.length} students assigned successfully.`,
+      message: `Assignment completed. ${results.successful.length} students assigned successfully.`,
       data: {
         successful: results.successful,
         failed: results.failed,
         assignedArm: arm,
         className: fullClassName,
+        department: department,
         totalProcessed: studentIds.length
       }
     });
 
   } catch (error) {
     console.error('Assign arms error:', error);
+    
+    if (error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (error.message === 'Access denied') {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+    
+    return NextResponse.json({ 
+      error: 'Internal server error' 
+    }, { status: 500 });
+  }
+}
+
+// PUT - Edit student assignments
+export async function PUT(request) {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('auth_token')?.value;
+    
+    const coordinator = await verifyCoordinatorAccess(token);
+    const { studentId, className, department } = await request.json();
+
+    if (!studentId || !className) {
+      return NextResponse.json({ 
+        error: 'Student ID and class name are required' 
+      }, { status: 400 });
+    }
+
+    // Verify student exists and belongs to coordinator's school
+    const student = await prisma.user.findFirst({
+      where: {
+        id: studentId,
+        schoolId: coordinator.schoolId,
+        role: 'student',
+        isActive: true
+      },
+      include: {
+        studentProfile: true
+      }
+    });
+
+    if (!student) {
+      return NextResponse.json({ 
+        error: 'Student not found or access denied' 
+      }, { status: 404 });
+    }
+
+    // Update student's assignment
+    const updateData = { className };
+    const baseClass = className.split(' ')[0];
+    
+    // Handle department for SS students
+    if (baseClass.startsWith('SS')) {
+      updateData.department = department || null;
+    } else {
+      updateData.department = null; // Clear department for non-SS students
+    }
+
+    await prisma.studentProfile.upsert({
+      where: { userId: studentId },
+      update: updateData,
+      create: {
+        userId: studentId,
+        className: className,
+        department: updateData.department,
+        admissionDate: new Date()
+      }
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'Student assignment updated successfully',
+      data: {
+        studentId,
+        studentName: `${student.firstName} ${student.lastName}`,
+        oldClassName: student.studentProfile?.className,
+        newClassName: className,
+        oldDepartment: student.studentProfile?.department,
+        newDepartment: updateData.department
+      }
+    });
+
+  } catch (error) {
+    console.error('Edit student assignment error:', error);
     
     if (error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

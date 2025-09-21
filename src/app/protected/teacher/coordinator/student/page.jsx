@@ -15,16 +15,20 @@ import {
   GraduationCap,
   Mail,
   Phone,
-  MapPin
+  MapPin,
+  Toggle,
+  BookOpen
 } from 'lucide-react';
 
 const CoordinatorStudents = () => {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showAssigned, setShowAssigned] = useState(true); // Toggle state
   const [filters, setFilters] = useState({
     class: '',
     arm: '',
+    department: '',
     search: ''
   });
   const [pagination, setPagination] = useState({
@@ -34,20 +38,26 @@ const CoordinatorStudents = () => {
   });
   const [availableClasses, setAvailableClasses] = useState([]);
   const [availableArms, setAvailableArms] = useState([]);
+  const [availableDepartments, setAvailableDepartments] = useState([]);
   const [selectedStudents, setSelectedStudents] = useState([]);
-  const [showAssignArm, setShowAssignArm] = useState(false);
-  const [armAssignment, setArmAssignment] = useState({
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingStudent, setEditingStudent] = useState(null);
+  const [assignmentForm, setAssignmentForm] = useState({
     arm: '',
-    className: ''
+    className: '',
+    department: ''
   });
-  const [isAssigning, setIsAssigning] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [summary, setSummary] = useState({});
 
   const armOptions = ['silver', 'diamond', 'mercury', 'platinum', 'gold', 'ruby'];
   const classLevels = ['JS1', 'JS2', 'JS3', 'SS1', 'SS2', 'SS3'];
+  const departments = ['science', 'arts', 'social_science'];
 
   useEffect(() => {
     fetchStudents();
-  }, [filters, pagination.currentPage]);
+  }, [filters, pagination.currentPage, showAssigned]);
 
   const fetchStudents = async () => {
     try {
@@ -55,7 +65,9 @@ const CoordinatorStudents = () => {
       const params = new URLSearchParams();
       if (filters.class) params.append('class', filters.class);
       if (filters.arm) params.append('arm', filters.arm);
+      if (filters.department) params.append('department', filters.department);
       if (filters.search) params.append('search', filters.search);
+      params.append('assigned', showAssigned.toString());
       params.append('page', pagination.currentPage);
       params.append('limit', '20');
 
@@ -69,6 +81,8 @@ const CoordinatorStudents = () => {
         setPagination(data.data.pagination);
         setAvailableClasses(data.data.filters.availableClasses);
         setAvailableArms(data.data.filters.availableArms);
+        setAvailableDepartments(data.data.filters.availableDepartments);
+        setSummary(data.data.summary);
       } else {
         const errorData = await response.json();
         setError(errorData.error || 'Failed to fetch students');
@@ -86,8 +100,10 @@ const CoordinatorStudents = () => {
     setPagination(prev => ({ ...prev, currentPage: 1 }));
   };
 
-  const handlePageChange = (page) => {
-    setPagination(prev => ({ ...prev, currentPage: page }));
+  const handleToggleView = () => {
+    setShowAssigned(!showAssigned);
+    setSelectedStudents([]);
+    setPagination(prev => ({ ...prev, currentPage: 1 }));
   };
 
   const handleSelectStudent = (studentId) => {
@@ -106,13 +122,13 @@ const CoordinatorStudents = () => {
     }
   };
 
-  const handleAssignArm = async () => {
-    if (!armAssignment.arm || !armAssignment.className || selectedStudents.length === 0) {
+  const handleAssignStudents = async () => {
+    if (!assignmentForm.arm || !assignmentForm.className || selectedStudents.length === 0) {
       setError('Please select students, arm, and class level');
       return;
     }
 
-    setIsAssigning(true);
+    setIsProcessing(true);
     try {
       const response = await fetch('/api/protected/teachers/coordinator/students', {
         method: 'POST',
@@ -120,28 +136,81 @@ const CoordinatorStudents = () => {
         credentials: 'include',
         body: JSON.stringify({
           studentIds: selectedStudents,
-          arm: armAssignment.arm,
-          className: armAssignment.className
+          arm: assignmentForm.arm,
+          className: assignmentForm.className,
+          department: assignmentForm.department || null
         })
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        setShowAssignArm(false);
+        setShowAssignModal(false);
         setSelectedStudents([]);
-        setArmAssignment({ arm: '', className: '' });
-        fetchStudents(); // Refresh data
-        alert(`Successfully assigned ${data.data.successful.length} students to ${data.data.className}`);
+        setAssignmentForm({ arm: '', className: '', department: '' });
+        fetchStudents();
+        alert(`Successfully assigned ${data.data.successful.length} students`);
       } else {
-        setError(data.error || 'Failed to assign arms');
+        setError(data.error || 'Failed to assign students');
       }
     } catch (error) {
-      console.error('Assign arm error:', error);
+      console.error('Assign students error:', error);
       setError('Network error occurred');
     } finally {
-      setIsAssigning(false);
+      setIsProcessing(false);
     }
+  };
+
+  const handleEditStudent = async () => {
+    if (!editingStudent || !assignmentForm.className) {
+      setError('Class name is required');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const response = await fetch('/api/protected/teachers/coordinator/students', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          studentId: editingStudent.id,
+          className: assignmentForm.className,
+          department: assignmentForm.department || null
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setShowEditModal(false);
+        setEditingStudent(null);
+        setAssignmentForm({ arm: '', className: '', department: '' });
+        fetchStudents();
+        alert('Student assignment updated successfully');
+      } else {
+        setError(data.error || 'Failed to update student');
+      }
+    } catch (error) {
+      console.error('Edit student error:', error);
+      setError('Network error occurred');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const openEditModal = (student) => {
+    setEditingStudent(student);
+    setAssignmentForm({
+      arm: student.arm || '',
+      className: student.className || '',
+      department: student.department || ''
+    });
+    setShowEditModal(true);
+  };
+
+  const isSSLevel = (className) => {
+    return className && className.startsWith('SS');
   };
 
   if (loading && students.length === 0) {
@@ -158,17 +227,79 @@ const CoordinatorStudents = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Student Management</h1>
-          <p className="text-gray-600">Organize students into classes and arms</p>
+          <p className="text-gray-600">
+            {showAssigned ? 'Manage assigned students' : 'Assign unassigned students'}
+          </p>
         </div>
         <div className="flex space-x-3">
+          {/* Toggle Button */}
           <button
-            onClick={() => setShowAssignArm(true)}
-            disabled={selectedStudents.length === 0}
-            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+            onClick={handleToggleView}
+            className={`px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors duration-200 ${
+              showAssigned 
+                ? 'bg-green-100 text-green-700 hover:bg-green-200' 
+                : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+            }`}
           >
-            <UserPlus className="w-4 h-4" />
-            <span>Assign Arms ({selectedStudents.length})</span>
+            <Toggle className="w-4 h-4" />
+            <span>{showAssigned ? 'Showing Assigned' : 'Showing Unassigned'}</span>
           </button>
+
+          {/* Action Button */}
+          {showAssigned ? (
+            <span className="text-sm text-gray-500 flex items-center">
+              Click edit to modify assignments
+            </span>
+          ) : (
+            <button
+              onClick={() => setShowAssignModal(true)}
+              disabled={selectedStudents.length === 0}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>Assign Selected ({selectedStudents.length})</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl p-6 shadow-sm border">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Total Students</p>
+              <p className="text-2xl font-bold text-gray-900">{summary.totalStudents || 0}</p>
+            </div>
+            <Users className="w-8 h-8 text-blue-500" />
+          </div>
+        </div>
+        <div className="bg-white rounded-xl p-6 shadow-sm border">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Assigned</p>
+              <p className="text-2xl font-bold text-green-600">{summary.assignedCount || 0}</p>
+            </div>
+            <CheckCircle className="w-8 h-8 text-green-500" />
+          </div>
+        </div>
+        <div className="bg-white rounded-xl p-6 shadow-sm border">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Unassigned</p>
+              <p className="text-2xl font-bold text-orange-600">{summary.unassignedCount || 0}</p>
+            </div>
+            <AlertCircle className="w-8 h-8 text-orange-500" />
+          </div>
+        </div>
+        <div className="bg-white rounded-xl p-6 shadow-sm border">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Classes</p>
+              <p className="text-2xl font-bold text-purple-600">{summary.classCount || 0}</p>
+            </div>
+            <BookOpen className="w-8 h-8 text-purple-500" />
+          </div>
         </div>
       </div>
 
@@ -183,7 +314,7 @@ const CoordinatorStudents = () => {
 
       {/* Filters */}
       <div className="bg-white rounded-xl p-6 shadow-sm border">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Search Students</label>
             <div className="relative">
@@ -198,38 +329,60 @@ const CoordinatorStudents = () => {
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Class</label>
-            <select
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              value={filters.class}
-              onChange={(e) => handleFilterChange('class', e.target.value)}
-            >
-              <option value="">All Classes</option>
-              {availableClasses.map(cls => (
-                <option key={cls} value={cls}>{cls}</option>
-              ))}
-            </select>
-          </div>
+          {showAssigned && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Class</label>
+                <select
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  value={filters.class}
+                  onChange={(e) => handleFilterChange('class', e.target.value)}
+                >
+                  <option value="">All Classes</option>
+                  {availableClasses.map(cls => (
+                    <option key={cls} value={cls}>{cls}</option>
+                  ))}
+                </select>
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Arm</label>
-            <select
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              value={filters.arm}
-              onChange={(e) => handleFilterChange('arm', e.target.value)}
-            >
-              <option value="">All Arms</option>
-              {availableArms.map(arm => (
-                <option key={arm} value={arm}>{arm}</option>
-              ))}
-            </select>
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Arm</label>
+                <select
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  value={filters.arm}
+                  onChange={(e) => handleFilterChange('arm', e.target.value)}
+                >
+                  <option value="">All Arms</option>
+                  {availableArms.map(arm => (
+                    <option key={arm} value={arm}>{arm}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Department</label>
+                <select
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  value={filters.department}
+                  onChange={(e) => handleFilterChange('department', e.target.value)}
+                >
+                  <option value="">All Departments</option>
+                  {availableDepartments.map(dept => (
+                    <option key={dept} value={dept}>
+                      {dept === 'science' ? 'Science' : 
+                       dept === 'arts' ? 'Arts' : 
+                       dept === 'social_science' ? 'Social Science' : dept}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
 
           <div className="flex items-end">
             <button
               onClick={() => {
-                setFilters({ class: '', arm: '', search: '' });
+                setFilters({ class: '', arm: '', department: '', search: '' });
                 setPagination(prev => ({ ...prev, currentPage: 1 }));
               }}
               className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center justify-center space-x-2"
@@ -246,7 +399,7 @@ const CoordinatorStudents = () => {
         <div className="px-6 py-4 border-b bg-gray-50">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-medium text-gray-900">
-              Students ({pagination.totalStudents})
+              {showAssigned ? 'Assigned Students' : 'Unassigned Students'} ({pagination.totalStudents})
             </h3>
             <div className="flex items-center space-x-4">
               <label className="flex items-center space-x-2">
@@ -273,13 +426,13 @@ const CoordinatorStudents = () => {
                   Student
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Current Class
+                  {showAssigned ? 'Current Assignment' : 'Status'}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Contact Info
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
+                  Actions
                 </th>
               </tr>
             </thead>
@@ -310,13 +463,29 @@ const CoordinatorStudents = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {student.className || 'Not assigned'}
-                    </div>
-                    {student.arm && (
-                      <div className="text-xs text-purple-600 font-medium">
-                        {student.arm.toUpperCase()} ARM
+                    {showAssigned ? (
+                      <div>
+                        <div className="text-sm text-gray-900">
+                          {student.className || 'Not assigned'}
+                        </div>
+                        {student.arm && (
+                          <div className="text-xs text-purple-600 font-medium">
+                            {student.arm.toUpperCase()} ARM
+                          </div>
+                        )}
+                        {student.department && (
+                          <div className="text-xs text-blue-600">
+                            {student.department === 'science' ? 'Science' :
+                             student.department === 'arts' ? 'Arts' :
+                             student.department === 'social_science' ? 'Social Science' :
+                             student.department}
+                          </div>
+                        )}
                       </div>
+                    ) : (
+                      <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-orange-100 text-orange-800">
+                        Unassigned
+                      </span>
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -336,13 +505,15 @@ const CoordinatorStudents = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                      student.isActive 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-red-100 text-red-800'
-                    }`}>
-                      {student.isActive ? 'Active' : 'Inactive'}
-                    </span>
+                    {showAssigned && (
+                      <button
+                        onClick={() => openEditModal(student)}
+                        className="text-purple-600 hover:text-purple-800 text-sm flex items-center space-x-1"
+                      >
+                        <Edit className="w-4 h-4" />
+                        <span>Edit</span>
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -359,14 +530,14 @@ const CoordinatorStudents = () => {
               </div>
               <div className="flex space-x-2">
                 <button
-                  onClick={() => handlePageChange(pagination.currentPage - 1)}
+                  onClick={() => setPagination(prev => ({ ...prev, currentPage: prev.currentPage - 1 }))}
                   disabled={!pagination.hasPrev}
                   className="px-3 py-1 text-sm bg-white border rounded hover:bg-gray-50 disabled:opacity-50"
                 >
                   Previous
                 </button>
                 <button
-                  onClick={() => handlePageChange(pagination.currentPage + 1)}
+                  onClick={() => setPagination(prev => ({ ...prev, currentPage: prev.currentPage + 1 }))}
                   disabled={!pagination.hasNext}
                   className="px-3 py-1 text-sm bg-white border rounded hover:bg-gray-50 disabled:opacity-50"
                 >
@@ -378,12 +549,12 @@ const CoordinatorStudents = () => {
         )}
       </div>
 
-      {/* Assign Arm Modal */}
-      {showAssignArm && (
+      {/* Assign Modal */}
+      {showAssignModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
           <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Assign Students to Arm
+              Assign Students to Class
             </h3>
             
             <div className="space-y-4">
@@ -391,7 +562,7 @@ const CoordinatorStudents = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Selected Students: {selectedStudents.length}
                 </label>
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-gray-600 max-h-20 overflow-y-auto">
                   {students
                     .filter(s => selectedStudents.includes(s.id))
                     .map(s => s.fullName)
@@ -405,8 +576,8 @@ const CoordinatorStudents = () => {
                 </label>
                 <select
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  value={armAssignment.className}
-                  onChange={(e) => setArmAssignment(prev => ({ ...prev, className: e.target.value }))}
+                  value={assignmentForm.className}
+                  onChange={(e) => setAssignmentForm(prev => ({ ...prev, className: e.target.value }))}
                 >
                   <option value="">Select class level...</option>
                   {classLevels.map(level => (
@@ -421,8 +592,8 @@ const CoordinatorStudents = () => {
                 </label>
                 <select
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  value={armAssignment.arm}
-                  onChange={(e) => setArmAssignment(prev => ({ ...prev, arm: e.target.value }))}
+                  value={assignmentForm.arm}
+                  onChange={(e) => setAssignmentForm(prev => ({ ...prev, arm: e.target.value }))}
                 >
                   <option value="">Select arm...</option>
                   {armOptions.map(arm => (
@@ -431,10 +602,41 @@ const CoordinatorStudents = () => {
                 </select>
               </div>
 
-              {armAssignment.className && armAssignment.arm && (
+              {/* Department field for SS classes only */}
+              {assignmentForm.className && isSSLevel(assignmentForm.className) && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Department (Optional for SS classes)
+                  </label>
+                  <select
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    value={assignmentForm.department}
+                    onChange={(e) => setAssignmentForm(prev => ({ ...prev, department: e.target.value }))}
+                  >
+                    <option value="">Select department (optional)...</option>
+                    {departments.map(dept => (
+                      <option key={dept} value={dept}>
+                        {dept === 'science' ? 'Science' :
+                         dept === 'arts' ? 'Arts' :
+                         dept === 'social_science' ? 'Social Science' : dept}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {assignmentForm.className && assignmentForm.arm && (
                 <div className="p-3 bg-purple-50 rounded-lg">
                   <p className="text-sm text-purple-800">
-                    Students will be assigned to: <strong>{armAssignment.className} {armAssignment.arm}</strong>
+                    Students will be assigned to: <strong>{assignmentForm.className} {assignmentForm.arm}</strong>
+                    {assignmentForm.department && (
+                      <span className="block text-xs mt-1">
+                        Department: {assignmentForm.department === 'science' ? 'Science' :
+                                   assignmentForm.department === 'arts' ? 'Arts' :
+                                   assignmentForm.department === 'social_science' ? 'Social Science' :
+                                   assignmentForm.department}
+                      </span>
+                    )}
                   </p>
                 </div>
               )}
@@ -442,18 +644,18 @@ const CoordinatorStudents = () => {
 
             <div className="flex space-x-3 mt-6">
               <button
-                onClick={() => setShowAssignArm(false)}
+                onClick={() => setShowAssignModal(false)}
                 className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                disabled={isAssigning}
+                disabled={isProcessing}
               >
                 Cancel
               </button>
               <button
-                onClick={handleAssignArm}
-                disabled={isAssigning || !armAssignment.className || !armAssignment.arm}
+                onClick={handleAssignStudents}
+                disabled={isProcessing || !assignmentForm.className || !assignmentForm.arm}
                 className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center space-x-2"
               >
-                {isAssigning ? (
+                {isProcessing ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                     <span>Assigning...</span>
@@ -461,7 +663,104 @@ const CoordinatorStudents = () => {
                 ) : (
                   <>
                     <CheckCircle className="w-4 h-4" />
-                    <span>Assign Arms</span>
+                    <span>Assign Students</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {showEditModal && editingStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Edit Student Assignment
+            </h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Student
+                </label>
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <p className="text-sm font-medium">{editingStudent.fullName}</p>
+                  <p className="text-xs text-gray-500">ID: {editingStudent.studentId || 'Not assigned'}</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Class Assignment *
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g., SS1 silver"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  value={assignmentForm.className}
+                  onChange={(e) => setAssignmentForm(prev => ({ ...prev, className: e.target.value }))}
+                />
+              </div>
+
+              {/* Department field for SS classes only */}
+              {assignmentForm.className && isSSLevel(assignmentForm.className) && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Department (Optional for SS classes)
+                  </label>
+                  <select
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    value={assignmentForm.department}
+                    onChange={(e) => setAssignmentForm(prev => ({ ...prev, department: e.target.value }))}
+                  >
+                    <option value="">Select department (optional)...</option>
+                    {departments.map(dept => (
+                      <option key={dept} value={dept}>
+                        {dept === 'science' ? 'Science' :
+                         dept === 'arts' ? 'Arts' :
+                         dept === 'social_science' ? 'Social Science' : dept}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="p-3 bg-blue-50 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  <strong>Previous:</strong> {editingStudent.className || 'Unassigned'}
+                  {editingStudent.department && (
+                    <span className="block text-xs">
+                      Department: {editingStudent.department}
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                disabled={isProcessing}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEditStudent}
+                disabled={isProcessing || !assignmentForm.className}
+                className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center space-x-2"
+              >
+                {isProcessing ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Updating...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Update Assignment</span>
                   </>
                 )}
               </button>
