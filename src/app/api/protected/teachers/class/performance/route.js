@@ -1,9 +1,9 @@
 // /app/api/protected/teacher/class/performance/route.js
+import { requireAuth } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
 import jwt from 'jsonwebtoken';
-import { requireAuth } from '@/lib/auth';
 
 // Helper function to verify class teacher access
 async function verifyClassTeacherAccess(token) {
@@ -37,16 +37,17 @@ async function verifyClassTeacherAccess(token) {
 
 export async function GET(request) {
   try {
-    const user = await requireAuth(['class_teacher']);
+    await requireAuth(['class_teacher']);
 
     const cookieStore = await cookies();
     const token = cookieStore.get('auth_token')?.value;
     
     const classTeacher = await verifyClassTeacherAccess(token);
     const { searchParams } = new URL(request.url);
-    const period = searchParams.get('period') || 'current_term';
-    const subject = searchParams.get('subject') || 'all';
-    const studentId = searchParams.get('studentId');
+    const subject = searchParams.get('subject');
+    const performance = searchParams.get('performance');
+    const sortBy = searchParams.get('sortBy') || 'overall';
+    const search = searchParams.get('search') || '';
 
     // Get assigned classes
     const assignedClass = classTeacher.teacherProfile?.coordinatorClass;
@@ -55,6 +56,7 @@ export async function GET(request) {
     if (assignedClass) {
       classNames = [assignedClass];
     } else {
+      // If no coordinator class, get classes from teacher subjects
       const teacherSubjects = classTeacher.teacherProfile?.teacherSubjects || [];
       classNames = [...new Set(
         teacherSubjects.flatMap(ts => ts.classes)
@@ -66,19 +68,19 @@ export async function GET(request) {
         success: true,
         data: {
           students: [],
-          classAnalytics: {
-            totalStudents: 0,
-            averagePerformance: 0,
-            highPerformers: 0,
-            atRiskStudents: 0
+          overview: {
+            classAverage: 0,
+            studentsAbove70: 0,
+            atRiskStudents: 0,
+            averageAttendance: 0
           },
           message: 'No class assigned to this class teacher'
         }
       });
     }
 
-    // Get students in assigned classes
-    const whereConditions = {
+    // Build where conditions for students
+    let whereConditions = {
       schoolId: classTeacher.schoolId,
       role: 'student',
       isActive: true,
@@ -89,11 +91,20 @@ export async function GET(request) {
       }
     };
 
-    // If specific student requested
-    if (studentId) {
-      whereConditions.id = studentId;
+    // Add search filter
+    if (search) {
+      whereConditions.OR = [
+        { firstName: { contains: search, mode: 'insensitive' } },
+        { lastName: { contains: search, mode: 'insensitive' } },
+        { 
+          studentProfile: {
+            studentId: { contains: search, mode: 'insensitive' }
+          }
+        }
+      ];
     }
 
+    // Get students with their profiles
     const students = await prisma.user.findMany({
       where: whereConditions,
       include: {
@@ -105,157 +116,232 @@ export async function GET(request) {
       ]
     });
 
-    // Get all subjects for the school (for performance tracking)
-    const schoolSubjects = await prisma.subject.findMany({
-      where: {
-        schoolId: classTeacher.schoolId,
-        isActive: true,
-        classes: {
-          hasSome: classNames
-        }
-      }
-    });
+    // Get current academic year and term
+    const currentDate = new Date();
+    const academicYear = currentDate.getFullYear().toString();
+    const currentTerm = getCurrentTerm(currentDate);
 
     // Calculate performance data for each student
-    // Note: In a real system, this would come from actual grades/assignments/assessments tables
     const studentsWithPerformance = await Promise.all(
       students.map(async (student) => {
-        const baseData = {
+        // Get grades for current term
+        const grades = await prisma.grade.findMany({
+          where: {
+            studentId: student.id,
+            schoolId: classTeacher.schoolId,
+            term: currentTerm,
+            academicYear: academicYear
+          },
+          include: {
+            subject: true
+          }
+        });
+
+        // Calculate overall average
+        const overallAverage = grades.length > 0 
+          ? grades.reduce((sum, grade) => sum + grade.percentage, 0) / grades.length
+          : 0;
+
+        // Get attendance data for current term (last 30 days)
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        const attendanceRecords = await prisma.attendance.findMany({
+          where: {
+            studentId: student.id,
+            schoolId: classTeacher.schoolId,
+            date: {
+              gte: thirtyDaysAgo
+            }
+          }
+        });
+
+        const presentDays = attendanceRecords.filter(record => 
+          record.status === 'present' || record.status === 'late'
+        ).length;
+        const totalDays = attendanceRecords.length;
+        const attendanceRate = totalDays > 0 ? (presentDays / totalDays) * 100 : 0;
+
+        // Get assignment completion data
+        const assignments = await prisma.assignment.findMany({
+          where: {
+            schoolId: classTeacher.schoolId,
+            classes: {
+              hasSome: [student.studentProfile?.className].filter(Boolean)
+            },
+            status: 'active',
+            createdAt: {
+              gte: thirtyDaysAgo
+            }
+          }
+        });
+
+        const submissions = await prisma.assignmentSubmission.findMany({
+          where: {
+            studentId: student.id,
+            assignment: {
+              id: {
+                in: assignments.map(a => a.id)
+              }
+            }
+          }
+        });
+
+        const assignmentCompletion = assignments.length > 0 
+          ? (submissions.length / assignments.length) * 100
+          : 0;
+
+        // Get subject breakdown
+        const subjectBreakdown = [];
+        if (subject === 'all' || !subject) {
+          const subjectGrades = {};
+          grades.forEach(grade => {
+            const subjectName = grade.subject.name;
+            if (!subjectGrades[subjectName]) {
+              subjectGrades[subjectName] = [];
+            }
+            subjectGrades[subjectName].push(grade.percentage);
+          });
+
+          Object.entries(subjectGrades).forEach(([subjectName, scores]) => {
+            const average = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+            subjectBreakdown.push({
+              name: subjectName,
+              average: average,
+              gradeCount: scores.length
+            });
+          });
+        }
+
+        // Get active alerts
+        const alerts = await prisma.studentAlert.findMany({
+          where: {
+            studentId: student.id,
+            schoolId: classTeacher.schoolId,
+            status: 'active'
+          },
+          orderBy: {
+            createdAt: 'desc'
+          },
+          take: 5
+        });
+
+        // Determine performance trend (simplified - would need more historical data)
+        const trend = overallAverage >= 70 ? 'stable' : 
+                     overallAverage >= 50 ? 'stable' : 'declining';
+
+        return {
           id: student.id,
           firstName: student.firstName,
           lastName: student.lastName,
           email: student.email,
           avatar: student.avatar,
-          profile: {
-            studentId: student.studentProfile?.studentId,
-            className: student.studentProfile?.className,
-            section: student.studentProfile?.section,
-            department: student.studentProfile?.department,
-            parentName: student.studentProfile?.parentName,
-            parentPhone: student.studentProfile?.parentPhone,
-            parentEmail: student.studentProfile?.parentEmail
-          },
+          profile: student.studentProfile ? {
+            studentId: student.studentProfile.studentId,
+            className: student.studentProfile.className,
+            section: student.studentProfile.section,
+            department: student.studentProfile.department,
+            parentName: student.studentProfile.parentName,
+            parentPhone: student.studentProfile.parentPhone,
+            parentEmail: student.studentProfile.parentEmail
+          } : null,
           performance: {
-            overallAverage: null,
-            trend: 'stable',
-            subjects: {},
-            attendance: {
-              rate: null,
-              daysPresent: 0,
-              totalDays: 0
-            },
-            assignments: {
-              total: 0,
-              submitted: 0,
-              pending: 0,
-              submissionRate: 0
-            },
-            lastUpdated: new Date()
+            overallAverage: Number(overallAverage.toFixed(1)),
+            trend: trend,
+            subjectBreakdown: subjectBreakdown,
+            assignmentCompletion: Number(assignmentCompletion.toFixed(1)),
+            lastUpdated: currentDate
           },
-          alerts: [],
-          recommendations: []
+          attendance: {
+            rate: Number(attendanceRate.toFixed(1)),
+            presentDays: presentDays,
+            totalDays: totalDays,
+            period: '30 days'
+          },
+          alerts: alerts.map(alert => ({
+            id: alert.id,
+            type: alert.alertType,
+            title: alert.title,
+            priority: alert.priority,
+            createdAt: alert.createdAt
+          }))
         };
-
-        // TODO: In production, calculate from actual data:
-        // - Query grades/results table for subject scores
-        // - Query attendance table for attendance data
-        // - Query assignments table for assignment completion
-        // - Calculate trends from historical data
-
-        // For now, this would be placeholder for the structure
-        // but in your real implementation, you'd query these tables:
-        /*
-        const grades = await prisma.grade.findMany({
-          where: { studentId: student.id, term: period },
-          include: { subject: true }
-        });
-
-        const attendance = await prisma.attendance.findMany({
-          where: { studentId: student.id, term: period }
-        });
-
-        const assignments = await prisma.assignment.findMany({
-          where: { 
-            studentId: student.id,
-            dueDate: { gte: termStartDate, lte: termEndDate }
-          }
-        });
-        */
-
-        return baseData;
       })
     );
 
-    // Calculate class-wide analytics
-    const classAnalytics = {
-      totalStudents: students.length,
-      averagePerformance: null, // Calculate from actual grades
-      highPerformers: 0, // Students with >85% average
-      atRiskStudents: 0, // Students with <60% average
-      attendanceRate: null, // Overall class attendance
-      subjectPerformance: {},
-      trendAnalysis: {
-        improving: 0,
-        stable: 0,
-        declining: 0
-      }
-    };
-
-    // Generate insights and recommendations
-    const insights = [];
-    const recommendations = [];
-
-    if (studentsWithPerformance.length === 0) {
-      insights.push({
-        type: 'info',
-        message: 'No student data available for the selected period',
-        priority: 'low'
-      });
-    }
-
-    // If specific student requested, return detailed view
-    if (studentId && studentsWithPerformance.length === 1) {
-      const student = studentsWithPerformance[0];
-      
-      return NextResponse.json({
-        success: true,
-        data: {
-          student: student,
-          performanceHistory: [], // TODO: Query historical performance
-          subjectDetails: [], // TODO: Query subject-wise performance
-          attendanceHistory: [], // TODO: Query attendance records
-          assignmentHistory: [], // TODO: Query assignment records
-          recommendations: student.recommendations,
-          parentContactHistory: [] // TODO: Query communication log
+    // Apply performance filter
+    let filteredStudents = studentsWithPerformance;
+    if (performance && performance !== 'all') {
+      filteredStudents = studentsWithPerformance.filter(student => {
+        const avg = student.performance.overallAverage;
+        const attendance = student.attendance.rate;
+        
+        switch (performance) {
+          case 'excellent': return avg >= 80;
+          case 'good': return avg >= 70 && avg < 80;
+          case 'average': return avg >= 60 && avg < 70;
+          case 'poor': return avg < 60;
+          case 'at_risk': return avg < 50 || attendance < 75;
+          default: return true;
         }
       });
     }
 
+    // Sort students
+    filteredStudents.sort((a, b) => {
+      switch (sortBy) {
+        case 'name':
+          return `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
+        case 'attendance':
+          return b.attendance.rate - a.attendance.rate;
+        case 'recent_grades':
+          return b.performance.overallAverage - a.performance.overallAverage;
+        case 'overall':
+        default:
+          return b.performance.overallAverage - a.performance.overallAverage;
+      }
+    });
+
+    // Calculate overview statistics
+    const overview = {
+      classAverage: studentsWithPerformance.length > 0 
+        ? studentsWithPerformance.reduce((sum, s) => sum + s.performance.overallAverage, 0) / studentsWithPerformance.length
+        : 0,
+      studentsAbove70: studentsWithPerformance.filter(s => s.performance.overallAverage >= 70).length,
+      atRiskStudents: studentsWithPerformance.filter(s => 
+        s.performance.overallAverage < 50 || s.attendance.rate < 75
+      ).length,
+      averageAttendance: studentsWithPerformance.length > 0
+        ? studentsWithPerformance.reduce((sum, s) => sum + s.attendance.rate, 0) / studentsWithPerformance.length
+        : 0
+    };
+
     return NextResponse.json({
       success: true,
       data: {
-        students: studentsWithPerformance,
-        classAnalytics: classAnalytics,
-        assignedClasses: classNames,
-        schoolSubjects: schoolSubjects.map(subject => ({
-          id: subject.id,
-          name: subject.name,
-          code: subject.code,
-          category: subject.category
-        })),
-        insights: insights,
-        recommendations: recommendations,
+        students: filteredStudents,
+        overview: {
+          classAverage: Number(overview.classAverage.toFixed(1)),
+          studentsAbove70: overview.studentsAbove70,
+          atRiskStudents: overview.atRiskStudents,
+          averageAttendance: Number(overview.averageAttendance.toFixed(1))
+        },
         teacherInfo: {
           id: classTeacher.id,
           name: `${classTeacher.firstName} ${classTeacher.lastName}`,
-          assignedClasses: classNames,
-          employeeId: classTeacher.teacherProfile?.employeeId
+          assignedClasses: classNames
+        },
+        metadata: {
+          totalStudents: studentsWithPerformance.length,
+          filteredCount: filteredStudents.length,
+          currentTerm: currentTerm,
+          academicYear: academicYear
         }
       }
     });
 
   } catch (error) {
-    console.error('Class teacher performance error:', error);
+    console.error('Class teacher performance GET error:', error);
     
     if (error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -268,74 +354,15 @@ export async function GET(request) {
   }
 }
 
-// Create performance alert/flag for student
-export async function POST(request) {
-  try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get('auth_token')?.value;
-    
-    const classTeacher = await verifyClassTeacherAccess(token);
-    const body = await request.json();
-    const { studentId, alertType, message, priority = 'normal' } = body;
-
-    if (!studentId || !alertType || !message) {
-      return NextResponse.json({
-        error: 'Student ID, alert type, and message are required'
-      }, { status: 400 });
-    }
-
-    // Verify the student belongs to this teacher's class
-    const student = await prisma.user.findFirst({
-      where: {
-        id: studentId,
-        schoolId: classTeacher.schoolId,
-        role: 'student',
-        isActive: true
-      },
-      include: {
-        studentProfile: true
-      }
-    });
-
-    if (!student) {
-      return NextResponse.json({
-        error: 'Student not found'
-      }, { status: 404 });
-    }
-
-    // Create notification for the student
-    await prisma.notification.create({
-      data: {
-        userId: studentId,
-        schoolId: classTeacher.schoolId,
-        title: `Performance Alert: ${alertType}`,
-        content: message,
-        type: 'warning',
-        priority: priority,
-        isRead: false
-      }
-    });
-
-    // TODO: In production, you might also:
-    // - Create an entry in a performance_alerts table
-    // - Send notification to parents
-    // - Log the action in audit trail
-
-    return NextResponse.json({
-      success: true,
-      message: 'Performance alert created successfully'
-    });
-
-  } catch (error) {
-    console.error('Create performance alert error:', error);
-    
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (error.message === 'Access denied') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-    
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+// Helper function to determine current term
+function getCurrentTerm(date) {
+  const month = date.getMonth() + 1; // 0-based to 1-based
+  
+  if (month >= 9 && month <= 12) {
+    return 'First Term';
+  } else if (month >= 1 && month <= 4) {
+    return 'Second Term';
+  } else {
+    return 'Third Term';
   }
 }

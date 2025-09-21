@@ -45,6 +45,12 @@ model School {
   resources       Resource[]
   timetables     Timetable[]
   subjects       Subject[]
+  assignments    Assignment[]
+  submissions    AssignmentSubmission[]
+  attendance     Attendance[]
+  grades         Grade[]
+  studentAlerts  StudentAlert[]
+  calendarEvents CalendarEvent[]
   
   @@map("schools")
 }
@@ -105,6 +111,20 @@ model User {
   coordinatorApprovals TimetableApproval[] @relation("CoordinatorApprovals")
   directorApprovals    TimetableApproval[] @relation("DirectorApprovals")
   coordinatorReports   CoordinatorReport[] @relation("CoordinatorReports")
+
+  // Assignment & Academic relations
+  createdAssignments    Assignment[] @relation("AssignmentTeacher")
+  submissions           AssignmentSubmission[] @relation("StudentSubmissions")
+  gradedSubmissions     AssignmentSubmission[] @relation("SubmissionGrader")
+  attendance            Attendance[] @relation("StudentAttendance")
+  markedAttendance      Attendance[] @relation("AttendanceMarker")
+  receivedGrades        Grade[] @relation("StudentGrades")
+  givenGrades           Grade[] @relation("TeacherGrades")
+  createdGrades         Grade[] @relation("GradeCreator")
+  studentAlerts         StudentAlert[] @relation("StudentAlerts")
+  createdAlerts         StudentAlert[] @relation("AlertCreator")
+  resolvedAlerts        StudentAlert[] @relation("AlertResolver")
+  createdEvents         CalendarEvent[] @relation("EventCreator")
 
   @@unique([email, schoolId])
   @@unique([username, schoolId])
@@ -396,65 +416,6 @@ model SystemSetting {
   @@map("system_settings")
 }
 
-// Add new enums
-enum InvoiceStatus {
-  pending
-  paid
-  overdue
-  cancelled
-  refunded
-}
-
-enum PaymentStatus {
-  pending
-  completed
-  failed
-  refunded
-}
-
-enum MessageType {
-  direct
-  broadcast
-  system
-  announcement
-}
-
-enum MessagePriority {
-  low
-  normal
-  high
-  urgent
-}
-
-enum NotificationType {
-  info
-  success
-  warning
-  error
-  system
-}
-
-enum UserRole {
-  headadmin
-  admin
-  teacher
-  student
-}
-
-enum Gender {
-  male
-  female
-  other
-}
-
-enum SubjectCategory {
-  CORE
-  SCIENCE
-  ARTS
-  COMMERCIAL
-  VOCATIONAL
-}
-
 model Payment {
   id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   invoiceId       String   @map("invoice_id") @db.Uuid
@@ -562,6 +523,8 @@ model Subject {
   // Relations
   school      School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   teachers    TeacherSubject[]
+  assignments Assignment[]
+  grades      Grade[]
 
   @@index([schoolId])
   @@map("subjects")
@@ -622,9 +585,388 @@ model CoordinatorReport {
   @@map("coordinator_reports")
 }
 
+// NEW MODELS FROM DOCUMENT 4
+
+// Assignments table - Core functionality for Subject Teachers
+model Assignment {
+  id               String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  schoolId         String      @db.Uuid
+  subjectId        String      @db.Uuid
+  teacherId        String      @db.Uuid // The subject teacher who created it
+  
+  title            String      @db.VarChar(255)
+  description      String?     @db.Text
+  instructions     String?     @db.Text
+  assignmentType   AssignmentType @default(homework)
+  
+  // Scheduling
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  dueDate          DateTime    @map("due_date") @db.Timestamptz
+  availableFrom    DateTime?   @map("available_from") @db.Timestamptz
+  closedAt         DateTime?   @map("closed_at") @db.Timestamptz
+  
+  // Grading
+  maxScore         Int         @default(100) @map("max_score")
+  passingScore     Int?        @map("passing_score")
+  
+  // Classes this assignment is for
+  classes          String[]    // e.g., ["SS1A", "SS1B", "SS2A"]
+  
+  // Status and settings
+  status           AssignmentStatus @default(draft)
+  allowLateSubmission Boolean @default(false) @map("allow_late_submission")
+  lateSubmissionPenalty Int?  @map("late_submission_penalty") // Percentage reduction
+  
+  // File attachments (URLs to uploaded files)
+  attachments      String[]    // Array of file URLs
+  
+  updatedAt        DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+  
+  // Relations
+  school           School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  subject          Subject     @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  teacher          User        @relation("AssignmentTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  submissions      AssignmentSubmission[]
+  
+  @@index([schoolId])
+  @@index([subjectId])
+  @@index([teacherId])
+  @@index([dueDate])
+  @@index([status])
+  @@map("assignments")
+}
+
+// Student submissions for assignments
+model AssignmentSubmission {
+  id               String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  assignmentId     String      @db.Uuid
+  studentId        String      @db.Uuid
+  schoolId         String      @db.Uuid
+  
+  // Submission content
+  content          String?     @db.Text
+  attachments      String[]    // Array of file URLs
+  
+  // Submission tracking
+  submittedAt      DateTime    @map("submitted_at") @db.Timestamptz
+  isLateSubmission Boolean     @default(false) @map("is_late_submission")
+  attemptNumber    Int         @default(1) @map("attempt_number")
+  
+  // Grading
+  score            Int?
+  maxScore         Int         @map("max_score")
+  feedback         String?     @db.Text
+  gradedAt         DateTime?   @map("graded_at") @db.Timestamptz
+  gradedBy         String?     @map("graded_by") @db.Uuid
+  
+  status           SubmissionStatus @default(submitted)
+  
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+  
+  // Relations
+  assignment       Assignment  @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student          User        @relation("StudentSubmissions", fields: [studentId], references: [id], onDelete: Cascade)
+  grader           User?       @relation("SubmissionGrader", fields: [gradedBy], references: [id])
+  school           School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  
+  @@unique([assignmentId, studentId, attemptNumber])
+  @@index([assignmentId])
+  @@index([studentId])
+  @@index([status])
+  @@index([submittedAt])
+  @@map("assignment_submissions")
+}
+
+// Attendance tracking for Class Teachers
+model Attendance {
+  id          String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  studentId   String      @db.Uuid
+  schoolId    String      @db.Uuid
+  date        DateTime    @db.Date
+  period      String?     @db.VarChar(20) // morning, afternoon, full_day
+  
+  status      AttendanceStatus
+  arrivalTime String?     @map("arrival_time") @db.VarChar(10) // e.g., "08:15"
+  notes       String?     @db.Text
+  reason      String?     @db.Text // For excused absences
+  
+  markedBy    String      @map("marked_by") @db.Uuid
+  markedAt    DateTime    @default(now()) @map("marked_at") @db.Timestamptz
+  
+  // Relations
+  student     User        @relation("StudentAttendance", fields: [studentId], references: [id], onDelete: Cascade)
+  school      School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  marker      User        @relation("AttendanceMarker", fields: [markedBy], references: [id])
+  
+  @@unique([studentId, date, period])
+  @@index([studentId])
+  @@index([date])
+  @@index([status])
+  @@map("attendance")
+}
+
+// Grades/Results for students
+model Grade {
+  id          String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  studentId   String      @db.Uuid
+  subjectId   String      @db.Uuid
+  schoolId    String      @db.Uuid
+  teacherId   String      @db.Uuid
+  
+  // Assessment details
+  assessmentType AssessmentType
+  assessmentName String    @db.VarChar(255)
+  
+  // Scoring
+  score       Int
+  maxScore    Int         @map("max_score")
+  percentage  Decimal     @db.Decimal(5,2)
+  grade       String?     @db.VarChar(5) // A, B, C, etc.
+  
+  // Timing
+  term        String      @db.VarChar(20)
+  academicYear String    @map("academic_year") @db.VarChar(10)
+  assessmentDate DateTime @map("assessment_date") @db.Date
+  
+  // Additional info
+  comments    String?     @db.Text
+  position    Int?        // Class position
+  classAverage Decimal?   @map("class_average") @db.Decimal(5,2)
+  
+  createdBy   String      @map("created_by") @db.Uuid
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+  
+  // Relations
+  student     User        @relation("StudentGrades", fields: [studentId], references: [id], onDelete: Cascade)
+  subject     Subject     @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  school      School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  teacher     User        @relation("TeacherGrades", fields: [teacherId], references: [id])
+  creator     User        @relation("GradeCreator", fields: [createdBy], references: [id])
+  
+  @@index([studentId])
+  @@index([subjectId])
+  @@index([term, academicYear])
+  @@index([assessmentDate])
+  @@map("grades")
+}
+
+// Student alerts and flags for Class Teachers
+model StudentAlert {
+  id          String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  studentId   String      @db.Uuid
+  schoolId    String      @db.Uuid
+  createdBy   String      @map("created_by") @db.Uuid
+  
+  alertType   AlertType
+  priority    MessagePriority @default(normal)
+  title       String      @db.VarChar(255)
+  description String      @db.Text
+  
+  // Status tracking
+  status      AlertStatus @default(active)
+  resolvedAt  DateTime?   @map("resolved_at") @db.Timestamptz
+  resolvedBy  String?     @map("resolved_by") @db.Uuid
+  resolution  String?     @db.Text
+  
+  // Follow-up
+  parentNotified Boolean  @default(false) @map("parent_notified")
+  followUpDate   DateTime? @map("follow_up_date") @db.Date
+  
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+  
+  // Relations
+  student     User        @relation("StudentAlerts", fields: [studentId], references: [id], onDelete: Cascade)
+  school      School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  creator     User        @relation("AlertCreator", fields: [createdBy], references: [id])
+  resolver    User?       @relation("AlertResolver", fields: [resolvedBy], references: [id])
+  
+  @@index([studentId])
+  @@index([alertType])
+  @@index([status])
+  @@index([createdAt])
+  @@map("student_alerts")
+}
+
+// Calendar events for teachers
+model CalendarEvent {
+  id          String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  schoolId    String      @db.Uuid
+  createdBy   String      @map("created_by") @db.Uuid
+  
+  title       String      @db.VarChar(255)
+  description String?     @db.Text
+  eventType   EventType
+  
+  // Timing
+  startDate   DateTime    @map("start_date") @db.Timestamptz
+  endDate     DateTime    @map("end_date") @db.Timestamptz
+  isAllDay    Boolean     @default(false) @map("is_all_day")
+  
+  // Recurrence
+  isRecurring Boolean     @default(false) @map("is_recurring")
+  recurrenceRule String?  @map("recurrence_rule") @db.VarChar(255)
+  
+  // Participants
+  classes     String[]    // Classes involved
+  studentIds  String[]    @map("student_ids") // Specific students (optional)
+  teacherIds  String[]    @map("teacher_ids") // Other teachers involved
+  
+  // Settings
+  priority    MessagePriority @default(normal)
+  location    String?     @db.VarChar(255)
+  
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+  
+  // Relations
+  school      School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  creator     User        @relation("EventCreator", fields: [createdBy], references: [id])
+  
+  @@index([schoolId])
+  @@index([startDate])
+  @@index([eventType])
+  @@map("calendar_events")
+}
+
+// ALL ENUMS
+enum InvoiceStatus {
+  pending
+  paid
+  overdue
+  cancelled
+  refunded
+}
+
+enum PaymentStatus {
+  pending
+  completed
+  failed
+  refunded
+}
+
+enum MessageType {
+  direct
+  broadcast
+  system
+  announcement
+}
+
+enum MessagePriority {
+  low
+  normal
+  high
+  urgent
+}
+
+enum NotificationType {
+  info
+  success
+  warning
+  error
+  system
+}
+
+enum UserRole {
+  headadmin
+  admin
+  teacher
+  student
+}
+
+enum Gender {
+  male
+  female
+  other
+}
+
+enum SubjectCategory {
+  CORE
+  SCIENCE
+  ARTS
+  COMMERCIAL
+  VOCATIONAL
+}
+
 enum ApprovalStatus {
   pending
   approved
   rejected
   revision_requested
+}
+
+enum AssignmentType {
+  homework
+  project
+  quiz
+  exam
+  essay
+  lab_report
+  presentation
+  research
+  classwork
+}
+
+enum AssignmentStatus {
+  draft
+  active
+  closed
+  cancelled
+}
+
+enum SubmissionStatus {
+  submitted
+  graded
+  returned
+  late
+  missing
+}
+
+enum AttendanceStatus {
+  present
+  absent
+  late
+  excused
+  partial
+}
+
+enum AssessmentType {
+  test
+  exam
+  quiz
+  assignment
+  project
+  midterm
+  final
+  continuous_assessment
+  practical
+}
+
+enum AlertType {
+  performance_concern
+  attendance_issue
+  behavioral_issue
+  parent_meeting_required
+  academic_support_needed
+  commendation
+  disciplinary_action
+}
+
+enum AlertStatus {
+  active
+  in_progress
+  resolved
+  escalated
+}
+
+enum EventType {
+  class
+  exam
+  meeting
+  event
+  deadline
+  reminder
+  parent_meeting
 }
