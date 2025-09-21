@@ -45,6 +45,8 @@ const AdminUsersPage = () => {
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [availableArms, setAvailableArms] = useState([]); // New state for arms
+  const [loadingArms, setLoadingArms] = useState(false); // Loading state for arms
 
   const tabs = [
     { id: 'students', label: 'Students', icon: GraduationCap, count: 0, gradient: 'from-blue-500 to-cyan-500' },
@@ -66,12 +68,41 @@ const AdminUsersPage = () => {
     address: '',
     gender: '',
     teacherType: '',
-    coordinatorClasses: [] // New field for coordinator classes
+    coordinatorClasses: [], // For coordinator classes
+    classTeacherArms: []    // New field for class teacher arms
   });
 
   useEffect(() => {
     fetchUsers();
   }, [activeTab, currentPage, searchQuery]);
+
+  // New function to fetch available arms for a school
+  const fetchAvailableArms = async () => {
+    try {
+      setLoadingArms(true);
+      const response = await fetch('/api/protected/admin/school/arms');
+      const data = await response.json();
+
+      if (response.ok) {
+        setAvailableArms(data.arms || []);
+      } else {
+        console.error('Failed to fetch arms:', data.error);
+        setAvailableArms(['A', 'B', 'C']); // Fallback to default arms
+      }
+    } catch (error) {
+      console.error('Error fetching arms:', error);
+      setAvailableArms(['A', 'B', 'C']); // Fallback to default arms
+    } finally {
+      setLoadingArms(false);
+    }
+  };
+
+  // Fetch arms when modal opens and class_teacher is selected
+  useEffect(() => {
+    if (showCreateModal && createForm.teacherType === 'class_teacher') {
+      fetchAvailableArms();
+    }
+  }, [showCreateModal, createForm.teacherType]);
 
   const fetchUsers = async () => {
     try {
@@ -108,6 +139,12 @@ const AdminUsersPage = () => {
       setError('Please select at least one class for the coordinator to manage');
       return;
     }
+
+    // Validation for class teacher
+    if (createForm.teacherType === 'class_teacher' && createForm.classTeacherArms.length === 0) {
+      setError('Please select at least one class arm for the class teacher');
+      return;
+    }
     
     try {
       setIsLoading(true);
@@ -121,6 +158,10 @@ const AdminUsersPage = () => {
           // Include coordinator classes if it's a coordinator
           ...(createForm.teacherType === 'coordinator' && {
             coordinatorClasses: createForm.coordinatorClasses
+          }),
+          // Include class teacher arms if it's a class teacher
+          ...(createForm.teacherType === 'class_teacher' && {
+            classTeacherArms: createForm.classTeacherArms
           })
         })
       });
@@ -142,7 +183,8 @@ const AdminUsersPage = () => {
           address: '',
           gender: '',
           teacherType: '',
-          coordinatorClasses: []
+          coordinatorClasses: [],
+          classTeacherArms: []
         });
         fetchUsers();
       } else {
@@ -224,6 +266,16 @@ const AdminUsersPage = () => {
     }));
   };
 
+  // New function for handling class teacher arm selection
+  const handleArmToggle = (arm) => {
+    setCreateForm(prev => ({
+      ...prev,
+      classTeacherArms: prev.classTeacherArms.includes(arm)
+        ? prev.classTeacherArms.filter(a => a !== arm)
+        : [...prev.classTeacherArms, arm]
+    }));
+  };
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString();
   };
@@ -249,6 +301,17 @@ const AdminUsersPage = () => {
     // Get classes from TeacherSubjects relations
     const classes = user.teacherProfile?.teacherSubjects?.flatMap(ts => ts.classes) || [];
     return [...new Set(classes)];
+  };
+
+  // New function to get class teacher arms
+  const getClassTeacherArms = (user) => {
+    if (user.role !== 'teacher' || user.teacherProfile?.department !== 'class_teacher') {
+      return null;
+    }
+    
+    // Get arms from TeacherSubjects relations for class teachers
+    const arms = user.teacherProfile?.teacherSubjects?.flatMap(ts => ts.classes) || [];
+    return [...new Set(arms)];
   };
 
   if (isLoading && users.length === 0) {
@@ -438,6 +501,7 @@ const AdminUsersPage = () => {
                     <tbody>
                       {users.map((user) => {
                         const coordinatorClasses = getCoordinatorClasses(user);
+                        const classTeacherArms = getClassTeacherArms(user);
                         return (
                           <tr key={user.id} className="border-b border-gray-100/50 hover:bg-white/50 transition-colors group">
                             <td className="py-4 px-6">
@@ -512,6 +576,20 @@ const AdminUsersPage = () => {
                                     {coordinatorClasses.length > 3 && (
                                       <span className="text-xs px-2 py-1 bg-gray-50 text-gray-600 rounded-full font-medium">
                                         +{coordinatorClasses.length - 3} more
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                                {classTeacherArms && classTeacherArms.length > 0 && (
+                                  <div className="flex flex-wrap gap-1">
+                                    {classTeacherArms.slice(0, 3).map(arm => (
+                                      <span key={arm} className="text-xs px-2 py-1 bg-green-50 text-green-600 rounded-full font-medium">
+                                        {arm}
+                                      </span>
+                                    ))}
+                                    {classTeacherArms.length > 3 && (
+                                      <span className="text-xs px-2 py-1 bg-gray-50 text-gray-600 rounded-full font-medium">
+                                        +{classTeacherArms.length - 3} more
                                       </span>
                                     )}
                                   </div>
@@ -682,7 +760,13 @@ const AdminUsersPage = () => {
                     </label>
                     <select
                       value={createForm.role}
-                      onChange={(e) => setCreateForm(prev => ({ ...prev, role: e.target.value, teacherType: '', coordinatorClasses: [] }))}
+                      onChange={(e) => setCreateForm(prev => ({ 
+                        ...prev, 
+                        role: e.target.value, 
+                        teacherType: '', 
+                        coordinatorClasses: [],
+                        classTeacherArms: []
+                      }))}
                       className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
                       required
                     >
@@ -699,7 +783,12 @@ const AdminUsersPage = () => {
                       </label>
                       <select
                         value={createForm.teacherType}
-                        onChange={e => setCreateForm(prev => ({ ...prev, teacherType: e.target.value, coordinatorClasses: [] }))}
+                        onChange={e => setCreateForm(prev => ({ 
+                          ...prev, 
+                          teacherType: e.target.value, 
+                          coordinatorClasses: [],
+                          classTeacherArms: []
+                        }))}
                         className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
                         required
                       >
@@ -736,6 +825,42 @@ const AdminUsersPage = () => {
                       <div className="mt-2 p-2 bg-green-50 rounded-lg">
                         <p className="text-sm text-green-700 font-medium">
                           Selected: {createForm.coordinatorClasses.join(', ')}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Class Teacher Arms Selection */}
+                {createForm.role === 'teacher' && createForm.teacherType === 'class_teacher' && (
+                  <div>
+                    <label className="block text-sm font-black text-gray-700 mb-3 uppercase tracking-wider">
+                      Class Teacher Arms * (Select class arms this teacher will manage)
+                    </label>
+                    {loadingArms ? (
+                      <div className="flex items-center justify-center p-4 bg-green-50 rounded-xl border border-green-200">
+                        <Loader2 className="w-5 h-5 animate-spin text-green-600 mr-2" />
+                        <span className="text-green-700 font-medium">Loading available arms...</span>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-4 gap-3 p-4 bg-green-50 rounded-xl border border-green-200">
+                        {availableArms.map(arm => (
+                          <label key={arm} className="flex items-center space-x-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={createForm.classTeacherArms.includes(arm)}
+                              onChange={() => handleArmToggle(arm)}
+                              className="w-4 h-4 text-green-600 bg-white border-gray-300 rounded focus:ring-green-500"
+                            />
+                            <span className="text-sm font-bold text-green-800">{arm}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                    {createForm.classTeacherArms.length > 0 && (
+                      <div className="mt-2 p-2 bg-green-100 rounded-lg">
+                        <p className="text-sm text-green-700 font-medium">
+                          Selected Arms: {createForm.classTeacherArms.join(', ')}
                         </p>
                       </div>
                     )}

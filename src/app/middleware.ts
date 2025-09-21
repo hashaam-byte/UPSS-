@@ -74,7 +74,9 @@ export async function middleware(request: NextRequest) {
           '/protected/teachers',
           '/protected/Teachers', // Support both cases
           '/protected/teacher', // Base teacher routes
+          '/protected/teacher/class', // <-- add this
           '/api/protected/teachers',
+          '/api/protected/teacher/class', // <-- add this
         ],
         // Teacher subdivisions - each has access to their specific area + base teacher routes
         director: [
