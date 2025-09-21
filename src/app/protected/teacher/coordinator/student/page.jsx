@@ -16,7 +16,7 @@ import {
   Mail,
   Phone,
   MapPin,
-  Toggle,
+  ToggleLeft, // <-- Use ToggleLeft instead of Toggle
   BookOpen
 } from 'lucide-react';
 
@@ -241,7 +241,7 @@ const CoordinatorStudents = () => {
                 : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
             }`}
           >
-            <Toggle className="w-4 h-4" />
+            <ToggleLeft className="w-4 h-4" />
             <span>{showAssigned ? 'Showing Assigned' : 'Showing Unassigned'}</span>
           </button>
 
