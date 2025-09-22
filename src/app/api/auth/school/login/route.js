@@ -167,7 +167,7 @@ export async function POST(request) {
     let redirectTo = '/protected/dashboard';
 
     if (user.role === 'student') {
-      redirectTo = '/protected/students';
+      redirectTo = '/protected/students/dashboard';
     } else if (user.role === 'admin') {
       redirectTo = '/protected/admin';
     } else if (user.role === 'teacher') {
