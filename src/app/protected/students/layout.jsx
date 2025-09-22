@@ -107,54 +107,54 @@ const StudentLayout = ({ children }) => {
   const sidebarItems = [
     {
       name: 'Dashboard',
-      href: '/protected/student/dashboard',
+      href: '/protected/students/dashboard',
       icon: Home
     },
     {
       name: 'My Subjects',
-      href: '/protected/student/subjects',
+      href: '/protected/students/subjects',
       icon: BookOpen
     },
     {
       name: 'Assignments',
-      href: '/protected/student/assignments',
+      href: '/protected/students/assignments',
       icon: FileText,
       badge: 3 // Would be dynamic - pending assignments
     },
     {
       name: 'Grades',
-      href: '/protected/student/grades',
+      href: '/protected/students/grades',
       icon: Award
     },
     {
       name: 'Performance',
-      href: '/protected/student/performance',
+      href: '/protected/students/performance',
       icon: BarChart3
     },
     {
       name: 'Timetable',
-      href: '/protected/student/timetable',
+      href: '/protected/students/timetable',
       icon: Calendar
     },
     {
       name: 'Resources',
-      href: '/protected/student/resources',
+      href: '/protected/students/resources',
       icon: Download
     },
     {
       name: 'Messages',
-      href: '/protected/student/messages',
+      href: '/protected/students/messages',
       icon: MessageSquare,
       badge: unreadCount > 0 ? unreadCount : null
     },
     {
       name: 'Profile',
-      href: '/protected/student/profile',
+      href: '/protected/students/profile',
       icon: User
     },
     {
       name: 'Settings',
-      href: '/protected/student/settings',
+      href: '/protected/students/settings',
       icon: Settings
     }
   ];
