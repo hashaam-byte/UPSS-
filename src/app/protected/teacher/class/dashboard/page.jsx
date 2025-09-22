@@ -1,5 +1,4 @@
-// /app/protected/teacher/class/dashboard/page.jsx
-'use client';
+'use client'
 import React, { useState, useEffect } from 'react';
 import { 
   Users, 
@@ -24,7 +23,6 @@ const ClassTeacherDashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedView, setSelectedView] = useState('overview');
 
   useEffect(() => {
     fetchDashboardData();
@@ -35,29 +33,45 @@ const ClassTeacherDashboard = () => {
       setLoading(true);
       setError(null);
 
-      // Fetch dashboard data from multiple endpoints
-      const [studentsRes, attendanceRes, performanceRes, messagesRes] = await Promise.all([
-        fetch('/api/protected/teacher/class/students'),
-        fetch('/api/protected/teacher/class/attendance'),
-        fetch('/api/protected/teacher/class/performance'),
-        fetch('/api/protected/teacher/class/messages?limit=5')
-      ]);
-
-      if (!studentsRes.ok || !attendanceRes.ok || !performanceRes.ok || !messagesRes.ok) {
-        throw new Error('Failed to fetch dashboard data');
+      // Try to fetch from a single dashboard endpoint first
+      try {
+        const dashboardRes = await fetch('/api/protected/teacher/class/dashboard');
+        if (dashboardRes.ok) {
+          const dashboardData = await dashboardRes.json();
+          setDashboardData(dashboardData.data || dashboardData);
+          return;
+        }
+      } catch (err) {
+        console.warn('Dashboard endpoint not available, trying individual endpoints');
       }
 
-      const studentsData = await studentsRes.json();
-      const attendanceData = await attendanceRes.json();
-      const performanceData = await performanceRes.json();
-      const messagesData = await messagesRes.json();
+      // Fallback to individual endpoints with error handling
+      const endpoints = [
+        { key: 'students', url: '/api/protected/teacher/class/students' },
+        { key: 'attendance', url: '/api/protected/teacher/class/attendance' },
+        { key: 'performance', url: '/api/protected/teacher/class/performance' },
+        { key: 'messages', url: '/api/protected/teacher/class/messages?limit=5' }
+      ];
 
-      setDashboardData({
-        students: studentsData.data || studentsData,
-        attendance: attendanceData.data || attendanceData,
-        performance: performanceData.data || performanceData,
-        messages: messagesData.data || messagesData
-      });
+      const results = {};
+      
+      for (const endpoint of endpoints) {
+        try {
+          const response = await fetch(endpoint.url);
+          if (response.ok) {
+            const data = await response.json();
+            results[endpoint.key] = data.data || data;
+          } else {
+            console.warn(`${endpoint.key} endpoint failed:`, response.status);
+            results[endpoint.key] = [];
+          }
+        } catch (err) {
+          console.warn(`${endpoint.key} endpoint error:`, err);
+          results[endpoint.key] = [];
+        }
+      }
+
+      setDashboardData(results);
     } catch (err) {
       setError(err.message);
       console.error('Dashboard fetch error:', err);
@@ -67,37 +81,85 @@ const ClassTeacherDashboard = () => {
   };
 
   const getAttendanceToday = () => {
-    if (!dashboardData?.attendance?.attendance) return { present: 0, absent: 0, total: 0 };
+    if (!dashboardData?.attendance) return { present: 0, absent: 0, total: 0 };
     
-    const today = new Date().toISOString().split('T')[0];
-    const todayAttendance = dashboardData.attendance.attendance.filter(
-      record => record.attendance.some(a => a.date === today)
-    );
+    // Handle different possible response structures
+    const attendanceData = dashboardData.attendance;
     
-    const present = todayAttendance.filter(
-      record => record.attendance.some(a => a.date === today && a.status === 'present')
-    ).length;
+    if (typeof attendanceData === 'object' && attendanceData.present !== undefined) {
+      return {
+        present: attendanceData.present || 0,
+        absent: attendanceData.absent || 0,
+        total: (attendanceData.present || 0) + (attendanceData.absent || 0)
+      };
+    }
     
-    const absent = todayAttendance.filter(
-      record => record.attendance.some(a => a.date === today && a.status === 'absent')
-    ).length;
+    if (Array.isArray(attendanceData)) {
+      const today = new Date().toISOString().split('T')[0];
+      const todayRecords = attendanceData.filter(record => {
+        if (record.date === today) return true;
+        if (record.attendance?.some(a => a.date === today)) return true;
+        return false;
+      });
+      
+      const present = todayRecords.filter(record => 
+        record.status === 'present' || 
+        record.attendance?.some(a => a.date === today && a.status === 'present')
+      ).length;
+      
+      const absent = todayRecords.filter(record => 
+        record.status === 'absent' || 
+        record.attendance?.some(a => a.date === today && a.status === 'absent')
+      ).length;
+      
+      return { present, absent, total: present + absent };
+    }
     
-    return { present, absent, total: present + absent };
+    return { present: 0, absent: 0, total: 0 };
   };
 
   const getAtRiskStudents = () => {
     if (!dashboardData?.students) return [];
-    return dashboardData.students.filter(student => {
-      // Define at-risk criteria based on your school's standards
-      const hasLowAttendance = false; // Would calculate from actual attendance data
-      const hasLowPerformance = false; // Would calculate from actual grades
-      return hasLowAttendance || hasLowPerformance;
+    
+    const students = Array.isArray(dashboardData.students) ? dashboardData.students : [];
+    
+    return students.filter(student => {
+      // Simple at-risk detection - can be enhanced
+      if (student.attendanceRate && student.attendanceRate < 75) return true;
+      if (student.performanceAverage && student.performanceAverage < 50) return true;
+      if (student.alerts && student.alerts.length > 0) return true;
+      return false;
     });
   };
 
   const getRecentMessages = () => {
-    if (!dashboardData?.messages?.messages) return [];
-    return dashboardData.messages.messages.slice(0, 5);
+    if (!dashboardData?.messages) return [];
+    
+    const messages = Array.isArray(dashboardData.messages) ? dashboardData.messages : 
+                    (dashboardData.messages.messages ? dashboardData.messages.messages : []);
+    
+    return messages.slice(0, 5);
+  };
+
+  const getStudentsList = () => {
+    if (!dashboardData?.students) return [];
+    
+    return Array.isArray(dashboardData.students) ? dashboardData.students :
+           (dashboardData.students.students ? dashboardData.students.students : []);
+  };
+
+  const getAssignedClasses = () => {
+    if (!dashboardData?.students) return [];
+    
+    const students = getStudentsList();
+    if (Array.isArray(students) && students.length > 0) {
+      const classes = students
+        .map(s => s.profile?.className || s.studentProfile?.className)
+        .filter(Boolean);
+      return [...new Set(classes)];
+    }
+    
+    return dashboardData.assignedClasses || [];
   };
 
   if (loading) {
@@ -132,8 +194,9 @@ const ClassTeacherDashboard = () => {
   const attendanceToday = getAttendanceToday();
   const atRiskStudents = getAtRiskStudents();
   const recentMessages = getRecentMessages();
-  const assignedClasses = dashboardData?.students?.assignedClasses || [];
-  const totalStudents = dashboardData?.students?.length || 0;
+  const studentsList = getStudentsList();
+  const assignedClasses = getAssignedClasses();
+  const totalStudents = studentsList.length;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
@@ -144,7 +207,7 @@ const ClassTeacherDashboard = () => {
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Class Teacher Dashboard</h1>
               <p className="text-gray-600 mt-1">
-                Managing {assignedClasses.join(', ') || 'No classes assigned'} • {totalStudents} students
+                Managing {assignedClasses.length > 0 ? assignedClasses.join(', ') : 'No classes assigned'} • {totalStudents} students
               </p>
             </div>
             <div className="flex items-center space-x-4">
@@ -231,7 +294,7 @@ const ClassTeacherDashboard = () => {
               </div>
               
               <div className="space-y-4">
-                {dashboardData?.students?.slice(0, 5).map((student) => (
+                {studentsList.slice(0, 5).map((student) => (
                   <div key={student.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                     <div className="flex items-center space-x-3">
                       <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
@@ -242,19 +305,22 @@ const ClassTeacherDashboard = () => {
                           {student.firstName} {student.lastName}
                         </p>
                         <p className="text-sm text-gray-600">
-                          {student.profile?.className} • {student.profile?.studentId}
+                          {student.profile?.className || student.studentProfile?.className} • 
+                          {student.profile?.studentId || student.studentProfile?.studentId || 'No ID'}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        Active
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        student.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {student.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </div>
                   </div>
                 ))}
                 
-                {(!dashboardData?.students || dashboardData.students.length === 0) && (
+                {studentsList.length === 0 && (
                   <div className="text-center py-8 text-gray-500">
                     <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                     <p>No students assigned to your class yet.</p>
@@ -348,7 +414,7 @@ const ClassTeacherDashboard = () => {
                           {message.subject || 'No Subject'}
                         </p>
                         <p className="text-xs text-gray-600 mb-1">
-                          From: {message.from?.name || 'Unknown'}
+                          From: {message.fromUser?.firstName || message.from?.name || 'Unknown'}
                         </p>
                         <p className="text-xs text-gray-500">
                           {new Date(message.createdAt).toLocaleDateString()}
@@ -378,19 +444,21 @@ const ClassTeacherDashboard = () => {
               </div>
               
               <div className="space-y-3">
-                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <div className="flex items-start space-x-2">
-                    <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium text-yellow-800">
-                        {atRiskStudents.length} students may need attention
-                      </p>
-                      <p className="text-xs text-yellow-600">
-                        Based on attendance and performance data
-                      </p>
+                {atRiskStudents.length > 0 && (
+                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <div className="flex items-start space-x-2">
+                      <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-yellow-800">
+                          {atRiskStudents.length} students may need attention
+                        </p>
+                        <p className="text-xs text-yellow-600">
+                          Based on attendance and performance data
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
                 
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <div className="flex items-start space-x-2">
