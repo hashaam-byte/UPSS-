@@ -18,9 +18,6 @@ model School {
   logo        String?  @db.VarChar(500)
   website     String?  @db.VarChar(255)
   isActive    Boolean  @default(true) @map("is_active")
-  invoices      Invoice[]
-  messages      Message[]
-  notifications Notification[]
   
   // Subscription
   subscriptionPlan        String   @default("basic") @map("subscription_plan")
@@ -40,17 +37,28 @@ model School {
   
   // Relations
   users       User[]
-  payments     Payment[]
+  invoices    Invoice[]
+  messages    Message[]
+  notifications Notification[]
+  payments    Payment[]
   resourceFolders ResourceFolder[]
-  resources       Resource[]
-  timetables     Timetable[]
-  subjects       Subject[]
-  assignments    Assignment[]
-  submissions    AssignmentSubmission[]
-  attendance     Attendance[]
-  grades         Grade[]
-  studentAlerts  StudentAlert[]
+  resources   Resource[]
+  timetables  Timetable[]
+  subjects    Subject[]
+  assignments Assignment[]
+  submissions AssignmentSubmission[]
+  attendance  Attendance[]
+  grades      Grade[]
+  studentAlerts StudentAlert[]
   calendarEvents CalendarEvent[]
+  
+  // New relations from additional models
+  academicTerms        AcademicTerm[]
+  attendancePatterns   StudentAttendancePattern[]
+  performanceMetrics   StudentPerformanceMetrics[]
+  parentCommunications ParentCommunication[]
+  fileUploads         FileUpload[]
+  announcements       Announcement[]
   
   @@map("schools")
 }
@@ -64,11 +72,6 @@ model User {
   passwordHash            String    @map("password_hash") @db.VarChar(255)
   role                    UserRole
   schoolId                String?   @map("school_id") @db.Uuid
-  sentMessages     Message[] @relation("SentMessages")
-  receivedMessages Message[] @relation("ReceivedMessages")
-  notifications    Notification[]
-  auditLogs        AuditLog[]
-  
   
   // Profile
   avatar                  String?   @db.VarChar(500)
@@ -100,31 +103,49 @@ model User {
   sessions                UserSession[]
   passwordResetTokens     PasswordResetToken[]
   
+  // Message relations
+  sentMessages            Message[] @relation("SentMessages")
+  receivedMessages        Message[] @relation("ReceivedMessages")
+  notifications           Notification[]
+  auditLogs               AuditLog[]
+  
   // Invoice relations
-  verifiedInvoices    Invoice[] @relation("InvoiceVerifier")
-  cancelledInvoices   Invoice[] @relation("InvoiceCanceller")
-  processedPayments   Payment[] @relation("PaymentProcessor")
-  createdResourceFolders ResourceFolder[] @relation("UserCreatedFolders")
-  uploadedResources      Resource[]      @relation("UserUploadedResources")
-  taughtLessons    Timetable[] @relation("TimetableTeacher")
-  createdTimetables Timetable[] @relation("TimetableCreator")
-  coordinatorApprovals TimetableApproval[] @relation("CoordinatorApprovals")
-  directorApprovals    TimetableApproval[] @relation("DirectorApprovals")
-  coordinatorReports   CoordinatorReport[] @relation("CoordinatorReports")
+  verifiedInvoices        Invoice[] @relation("InvoiceVerifier")
+  cancelledInvoices       Invoice[] @relation("InvoiceCanceller")
+  processedPayments       Payment[] @relation("PaymentProcessor")
+  
+  // Resource relations
+  createdResourceFolders  ResourceFolder[] @relation("UserCreatedFolders")
+  uploadedResources       Resource[]      @relation("UserUploadedResources")
+  
+  // Timetable relations
+  taughtLessons          Timetable[] @relation("TimetableTeacher")
+  createdTimetables      Timetable[] @relation("TimetableCreator")
+  coordinatorApprovals   TimetableApproval[] @relation("CoordinatorApprovals")
+  directorApprovals      TimetableApproval[] @relation("DirectorApprovals")
+  coordinatorReports     CoordinatorReport[] @relation("CoordinatorReports")
 
   // Assignment & Academic relations
-  createdAssignments    Assignment[] @relation("AssignmentTeacher")
-  submissions           AssignmentSubmission[] @relation("StudentSubmissions")
-  gradedSubmissions     AssignmentSubmission[] @relation("SubmissionGrader")
-  attendance            Attendance[] @relation("StudentAttendance")
-  markedAttendance      Attendance[] @relation("AttendanceMarker")
-  receivedGrades        Grade[] @relation("StudentGrades")
-  givenGrades           Grade[] @relation("TeacherGrades")
-  createdGrades         Grade[] @relation("GradeCreator")
-  studentAlerts         StudentAlert[] @relation("StudentAlerts")
-  createdAlerts         StudentAlert[] @relation("AlertCreator")
-  resolvedAlerts        StudentAlert[] @relation("AlertResolver")
-  createdEvents         CalendarEvent[] @relation("EventCreator")
+  createdAssignments     Assignment[] @relation("AssignmentTeacher")
+  submissions            AssignmentSubmission[] @relation("StudentSubmissions")
+  gradedSubmissions      AssignmentSubmission[] @relation("SubmissionGrader")
+  attendance             Attendance[] @relation("StudentAttendance")
+  markedAttendance       Attendance[] @relation("AttendanceMarker")
+  receivedGrades         Grade[] @relation("StudentGrades")
+  givenGrades            Grade[] @relation("TeacherGrades")
+  createdGrades          Grade[] @relation("GradeCreator")
+  studentAlerts          StudentAlert[] @relation("StudentAlerts")
+  createdAlerts          StudentAlert[] @relation("AlertCreator")
+  resolvedAlerts         StudentAlert[] @relation("AlertResolver")
+  createdEvents          CalendarEvent[] @relation("EventCreator")
+  
+  // New relations for comprehensive functionality
+  attendancePatterns     StudentAttendancePattern[] @relation("StudentAttendancePattern")
+  performanceMetrics     StudentPerformanceMetrics[] @relation("StudentPerformanceMetrics")
+  studentCommunications  ParentCommunication[] @relation("StudentCommunications")
+  initiatedCommunications ParentCommunication[] @relation("InitiatedCommunications")
+  uploads                FileUpload[] @relation("UserUploads")
+  createdAnnouncements   Announcement[] @relation("CreatedAnnouncements")
 
   @@unique([email, schoolId])
   @@unique([username, schoolId])
@@ -172,7 +193,7 @@ model TeacherProfile {
   
   // Relations
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  teacherSubjects TeacherSubject[] // Renamed to avoid confusion
+  teacherSubjects TeacherSubject[]
 
   @@map("teacher_profiles")
 }
@@ -585,8 +606,6 @@ model CoordinatorReport {
   @@map("coordinator_reports")
 }
 
-// NEW MODELS FROM DOCUMENT 4
-
 // Assignments table - Core functionality for Subject Teachers
 model Assignment {
   id               String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
@@ -713,6 +732,7 @@ model Grade {
   subjectId   String      @db.Uuid
   schoolId    String      @db.Uuid
   teacherId   String      @db.Uuid
+  termId      String?     @map("term_id") @db.Uuid
   
   // Assessment details
   assessmentType AssessmentType
@@ -744,6 +764,7 @@ model Grade {
   school      School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   teacher     User        @relation("TeacherGrades", fields: [teacherId], references: [id])
   creator     User        @relation("GradeCreator", fields: [createdBy], references: [id])
+  term        AcademicTerm? @relation(fields: [termId], references: [id])
   
   @@index([studentId])
   @@index([subjectId])
@@ -829,6 +850,237 @@ model CalendarEvent {
   @@index([startDate])
   @@index([eventType])
   @@map("calendar_events")
+}
+
+// Student-specific models from additional functionality
+
+// Student attendance pattern analysis
+model StudentAttendancePattern {
+  id                String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  studentId         String      @db.Uuid
+  schoolId          String      @db.Uuid
+  
+  // Pattern analysis
+  weeklyPattern     Json        // {"monday": 95, "tuesday": 90, ...}
+  monthlyTrend      String      @db.VarChar(20) // improving, stable, declining
+  averageRate       Decimal     @db.Decimal(5,2)
+  
+  // Risk indicators
+  chronicAbsences   Int         @default(0) @map("chronic_absences")
+  consecutiveAbsences Int       @default(0) @map("consecutive_absences")
+  isAtRisk          Boolean     @default(false) @map("is_at_risk")
+  
+  lastUpdated       DateTime    @default(now()) @map("last_updated") @db.Timestamptz
+  
+  // Relations
+  student           User        @relation("StudentAttendancePattern", fields: [studentId], references: [id], onDelete: Cascade)
+  school            School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  
+  @@unique([studentId])
+  @@map("student_attendance_patterns")
+}
+
+// Term/Semester management
+model AcademicTerm {
+  id                String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  schoolId          String      @db.Uuid
+  
+  name              String      @db.VarChar(100) // "First Term 2024/2025"
+  shortName         String      @db.VarChar(20)  // "1st Term"
+  academicYear      String      @db.VarChar(20)  // "2024/2025"
+  
+  startDate         DateTime    @map("start_date") @db.Date
+  endDate           DateTime    @map("end_date") @db.Date
+  
+  isActive          Boolean     @default(false) @map("is_active")
+  isEnrollmentOpen  Boolean     @default(false) @map("is_enrollment_open")
+  
+  // Grade submission deadlines
+  midtermDeadline   DateTime?   @map("midterm_deadline") @db.Date
+  finalGradeDeadline DateTime?  @map("final_grade_deadline") @db.Date
+  
+  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+  
+  // Relations
+  school            School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  grades            Grade[]
+  performanceMetrics StudentPerformanceMetrics[]
+  
+  @@index([schoolId])
+  @@index([isActive])
+  @@map("academic_terms")
+}
+
+// File uploads and resources
+model FileUpload {
+  id                String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  schoolId          String      @db.Uuid
+  uploadedBy        String      @map("uploaded_by") @db.Uuid
+  
+  originalName      String      @map("original_name") @db.VarChar(255)
+  fileName          String      @map("file_name") @db.VarChar(255)
+  filePath          String      @map("file_path") @db.VarChar(500)
+  fileSize          Int         @map("file_size") // bytes
+  mimeType          String      @map("mime_type") @db.VarChar(100)
+  
+  // Context
+  entityType        String      @map("entity_type") @db.VarChar(50) // assignment, resource, profile, etc.
+  entityId          String?     @map("entity_id") @db.Uuid
+  
+  // Security
+  isPublic          Boolean     @default(false) @map("is_public")
+  accessLevel       AccessLevel @default(school) @map("access_level")
+  
+  // Metadata
+  description       String?     @db.Text
+  tags              String[]    // searchable tags
+  
+  downloadCount     Int         @default(0) @map("download_count")
+  
+  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+  
+  // Relations
+  school            School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  uploader          User        @relation("UserUploads", fields: [uploadedBy], references: [id])
+  
+  @@index([schoolId])
+  @@index([entityType, entityId])
+  @@index([uploadedBy])
+  @@map("file_uploads")
+}
+
+// Comprehensive performance tracking
+model StudentPerformanceMetrics {
+  id                String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  studentId         String      @db.Uuid
+  schoolId          String      @db.Uuid
+  termId            String?     @db.Uuid
+  
+  // Academic metrics
+  overallGPA        Decimal?    @map("overall_gpa") @db.Decimal(3,2)
+  termGPA           Decimal?    @map("term_gpa") @db.Decimal(3,2)
+  averageScore      Decimal?    @map("average_score") @db.Decimal(5,2)
+  
+  // Rankings
+  classRank         Int?        @map("class_rank")
+  classSize         Int?        @map("class_size")
+  gradeRank         Int?        @map("grade_rank")
+  gradeSize         Int?        @map("grade_size")
+  
+  // Completion rates
+  assignmentCompletion Decimal  @default(0) @map("assignment_completion") @db.Decimal(5,2)
+  attendanceRate    Decimal     @default(0) @map("attendance_rate") @db.Decimal(5,2)
+  
+  // Behavioral metrics
+  disciplinaryIncidents Int     @default(0) @map("disciplinary_incidents")
+  commendations     Int         @default(0)
+  
+  // Trends
+  performanceTrend  String      @default("stable") @map("performance_trend") // improving, stable, declining
+  attendanceTrend   String      @default("stable") @map("attendance_trend")
+  
+  // Risk assessment
+  isAtRisk          Boolean     @default(false) @map("is_at_risk")
+  riskFactors       String[]    @map("risk_factors") // academic, behavioral, attendance
+  
+  lastCalculated    DateTime    @default(now()) @map("last_calculated") @db.Timestamptz
+  
+  // Relations
+  student           User        @relation("StudentPerformanceMetrics", fields: [studentId], references: [id], onDelete: Cascade)
+  school            School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  term              AcademicTerm? @relation(fields: [termId], references: [id])
+  
+  @@unique([studentId, termId])
+  @@index([studentId])
+  @@index([schoolId])
+  @@map("student_performance_metrics")
+}
+
+// Parent communication tracking
+model ParentCommunication {
+  id                String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  studentId         String      @db.Uuid
+  schoolId          String      @db.Uuid
+  initiatedBy       String      @map("initiated_by") @db.Uuid
+  
+  // Communication details
+  type              CommunicationType
+  method            CommunicationMethod
+  subject           String      @db.VarChar(255)
+  content           String      @db.Text
+  
+  // Participants
+  parentName        String      @map("parent_name") @db.VarChar(255)
+  parentContact     String      @map("parent_contact") @db.VarChar(100)
+  
+  // Status
+  status            CommunicationStatus @default(sent)
+  responseReceived  Boolean     @default(false) @map("response_received")
+  responseContent   String?     @map("response_content") @db.Text
+  responseDate      DateTime?   @map("response_date") @db.Timestamptz
+  
+  // Follow-up
+  requiresFollowUp  Boolean     @default(false) @map("requires_follow_up")
+  followUpDate      DateTime?   @map("follow_up_date") @db.Date
+  followUpNotes     String?     @map("follow_up_notes") @db.Text
+  
+  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+  
+  // Relations
+  student           User        @relation("StudentCommunications", fields: [studentId], references: [id], onDelete: Cascade)
+  school            School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  initiator         User        @relation("InitiatedCommunications", fields: [initiatedBy], references: [id])
+  
+  @@index([studentId])
+  @@index([initiatedBy])
+  @@index([status])
+  @@map("parent_communications")
+}
+
+// System-wide announcements
+model Announcement {
+  id                String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  schoolId          String?     @db.Uuid // null for system-wide announcements
+  createdBy         String      @map("created_by") @db.Uuid
+  
+  title             String      @db.VarChar(255)
+  content           String      @db.Text
+  summary           String?     @db.VarChar(500)
+  
+  // Targeting
+  targetAudience    String[]    @map("target_audience") // students, teachers, parents, all
+  targetClasses     String[]    @map("target_classes") // specific classes
+  targetRoles       String[]    @map("target_roles") // specific roles
+  
+  // Scheduling
+  publishAt         DateTime?   @map("publish_at") @db.Timestamptz
+  expiresAt         DateTime?   @map("expires_at") @db.Timestamptz
+  
+  // Settings
+  isPinned          Boolean     @default(false) @map("is_pinned")
+  isUrgent          Boolean     @default(false) @map("is_urgent")
+  allowComments     Boolean     @default(false) @map("allow_comments")
+  sendNotification  Boolean     @default(true) @map("send_notification")
+  
+  // Engagement
+  viewCount         Int         @default(0) @map("view_count")
+  
+  status            AnnouncementStatus @default(draft)
+  
+  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+  
+  // Relations
+  school            School?     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  creator           User        @relation("CreatedAnnouncements", fields: [createdBy], references: [id])
+  
+  @@index([schoolId])
+  @@index([status])
+  @@index([publishAt])
+  @@map("announcements")
 }
 
 // ALL ENUMS
@@ -969,4 +1221,49 @@ enum EventType {
   deadline
   reminder
   parent_meeting
+}
+
+// New enums from additional functionality
+enum AccessLevel {
+  public
+  school
+  class
+  teacher_only
+  admin_only
+}
+
+enum CommunicationType {
+  academic_concern
+  behavioral_issue
+  attendance_alert
+  positive_feedback
+  meeting_request
+  general_update
+  emergency_contact
+}
+
+enum CommunicationMethod {
+  email
+  sms
+  phone_call
+  in_person
+  video_call
+  letter
+}
+
+enum CommunicationStatus {
+  draft
+  sent
+  delivered
+  read
+  responded
+  failed
+}
+
+enum AnnouncementStatus {
+  draft
+  published
+  scheduled
+  expired
+  archived
 }
