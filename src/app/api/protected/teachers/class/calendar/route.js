@@ -35,7 +35,7 @@ async function verifyClassTeacherAccess(token) {
   return user;
 }
 
-// GET - Fetch calendar events and schedule
+// GET - Fetch calendar events
 export async function GET(request) {
   try {
     await requireAuth(['class_teacher']);
@@ -47,8 +47,14 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
-    const view = searchParams.get('view') || 'month';
-    const eventType = searchParams.get('type') || 'all';
+    const eventType = searchParams.get('eventType') || 'all';
+    const search = searchParams.get('search') || '';
+
+    if (!startDate || !endDate) {
+      return NextResponse.json({
+        error: 'Start date and end date are required'
+      }, { status: 400 });
+    }
 
     // Get assigned classes
     const assignedClass = classTeacher.teacherProfile?.coordinatorClass;
@@ -63,104 +69,103 @@ export async function GET(request) {
       )];
     }
 
-    // Set date range based on view
-    let start, end;
-    const today = new Date();
-    
-    if (startDate && endDate) {
-      start = new Date(startDate);
-      end = new Date(endDate);
-    } else {
-      switch (view) {
-        case 'week':
-          start = new Date(today);
-          start.setDate(today.getDate() - today.getDay()); // Start of week
-          end = new Date(start);
-          end.setDate(start.getDate() + 6); // End of week
-          break;
-        case 'month':
-          start = new Date(today.getFullYear(), today.getMonth(), 1);
-          end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-          break;
-        case 'day':
-          start = new Date(today);
-          end = new Date(today);
-          break;
-        default:
-          start = new Date(today.getFullYear(), today.getMonth(), 1);
-          end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    // Build where conditions for calendar events
+    let whereConditions = {
+      schoolId: classTeacher.schoolId,
+      OR: [
+        { createdBy: classTeacher.id }, // Events created by this teacher
+        { 
+          classes: {
+            hasSome: classNames // Events for their assigned classes
+          }
+        },
+        { 
+          teacherIds: {
+            has: classTeacher.id // Events where this teacher is involved
+          }
+        }
+      ],
+      startDate: {
+        gte: new Date(startDate)
+      },
+      endDate: {
+        lte: new Date(endDate)
       }
+    };
+
+    // Add event type filter
+    if (eventType !== 'all') {
+      whereConditions.eventType = eventType;
     }
 
-    // Get timetable for the period (if exists)
-    const timetable = await prisma.timetable.findMany({
-      where: {
-        schoolId: classTeacher.schoolId,
-        className: {
-          in: classNames
+    // Add search filter
+    if (search) {
+      whereConditions.AND = [
+        {
+          OR: [
+            { title: { contains: search, mode: 'insensitive' } },
+            { description: { contains: search, mode: 'insensitive' } },
+            { location: { contains: search, mode: 'insensitive' } }
+          ]
         }
-      },
+      ];
+    }
+
+    // Fetch calendar events
+    const events = await prisma.calendarEvent.findMany({
+      where: whereConditions,
       include: {
-        teacher: {
+        creator: {
           select: {
             firstName: true,
             lastName: true
           }
         }
+      },
+      orderBy: {
+        startDate: 'asc'
       }
     });
 
-    // Generate calendar events (in production, this would come from actual events table)
-    const calendarEvents = generateCalendarEvents(classTeacher, classNames, start, end, timetable);
+    // Format events data
+    const formattedEvents = events.map(event => ({
+      id: event.id,
+      title: event.title,
+      description: event.description,
+      eventType: event.eventType,
+      startDate: event.startDate,
+      endDate: event.endDate,
+      isAllDay: event.isAllDay,
+      isRecurring: event.isRecurring,
+      recurrenceRule: event.recurrenceRule,
+      classes: event.classes,
+      studentIds: event.studentIds,
+      teacherIds: event.teacherIds,
+      priority: event.priority,
+      location: event.location,
+      creator: event.creator ? `${event.creator.firstName} ${event.creator.lastName}` : 'System',
+      createdAt: event.createdAt,
+      updatedAt: event.updatedAt
+    }));
 
-    // Filter by event type if specified
-    let filteredEvents = calendarEvents;
-    if (eventType !== 'all') {
-      filteredEvents = calendarEvents.filter(event => event.type === eventType);
-    }
-
-    // Get upcoming events (next 7 days)
-    const upcomingEvents = calendarEvents
-      .filter(event => {
-        const eventDate = new Date(event.date);
-        const nextWeek = new Date();
-        nextWeek.setDate(nextWeek.getDate() + 7);
-        return eventDate >= today && eventDate <= nextWeek;
-      })
-      .sort((a, b) => new Date(a.date) - new Date(b.date))
-      .slice(0, 10);
+    // Get upcoming deadlines and important dates
+    const upcomingDeadlines = await getUpcomingDeadlines(classTeacher.schoolId, classNames);
+    
+    // Get class schedule for the period
+    const classSchedule = await getClassSchedule(classTeacher.schoolId, classNames, new Date(startDate), new Date(endDate));
 
     return NextResponse.json({
       success: true,
       data: {
-        events: filteredEvents,
-        upcomingEvents: upcomingEvents,
-        timetable: timetable.map(entry => ({
-          id: entry.id,
-          dayOfWeek: entry.dayOfWeek,
-          period: entry.period,
-          subject: entry.subject,
-          className: entry.className,
-          teacher: `${entry.teacher.firstName} ${entry.teacher.lastName}`,
-          startTime: entry.startTime,
-          endTime: entry.endTime
-        })),
-        period: {
-          startDate: start.toISOString().split('T')[0],
-          endDate: end.toISOString().split('T')[0],
-          view: view
-        },
-        assignedClasses: classNames,
+        events: formattedEvents,
+        upcomingDeadlines: upcomingDeadlines,
+        classSchedule: classSchedule,
         summary: {
-          totalEvents: filteredEvents.length,
-          upcomingCount: upcomingEvents.length,
-          eventsByType: {
-            class: filteredEvents.filter(e => e.type === 'class').length,
-            assignment: filteredEvents.filter(e => e.type === 'assignment').length,
-            meeting: filteredEvents.filter(e => e.type === 'meeting').length,
-            exam: filteredEvents.filter(e => e.type === 'exam').length,
-            reminder: filteredEvents.filter(e => e.type === 'reminder').length,
-            school: filteredEvents.filter(e => e.type === 'school').length
+          totalEvents: formattedEvents.length,
+          eventsByType: getEventTypeBreakdown(formattedEvents),
+          dateRange: {
+            start: startDate,
+            end: endDate
           }
         },
         teacherInfo: {
@@ -181,87 +186,10 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
     
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
-
-// POST - Create new calendar event or reminder
-export async function POST(request) {
-  try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get('auth_token')?.value;
-    
-    const classTeacher = await verifyClassTeacherAccess(token);
-    const body = await request.json();
-    const { title, description, date, time, type, duration, studentIds, recurrence, priority = 'normal' } = body;
-
-    if (!title || !date || !type) {
-      return NextResponse.json({
-        error: 'Title, date, and type are required'
-      }, { status: 400 });
-    }
-
-    const validTypes = ['class', 'assignment', 'meeting', 'exam', 'reminder', 'parent_meeting'];
-    if (!validTypes.includes(type)) {
-      return NextResponse.json({
-        error: `Invalid event type. Must be one of: ${validTypes.join(', ')}`
-      }, { status: 400 });
-    }
-
-    // TODO: In production, save to actual calendar/events table
-    const eventData = {
-      id: `event_${Date.now()}`,
-      title: title,
-      description: description || '',
-      date: date,
-      time: time || '09:00',
-      type: type,
-      duration: duration || 60, // minutes
-      priority: priority,
-      createdBy: classTeacher.id,
-      createdAt: new Date(),
-      recurrence: recurrence || null,
-      studentIds: studentIds || [],
-      status: 'scheduled'
-    };
-
-    // Create notifications for students if specified
-    if (studentIds && studentIds.length > 0) {
-      for (const studentId of studentIds) {
-        await prisma.notification.create({
-          data: {
-            userId: studentId,
-            schoolId: classTeacher.schoolId,
-            title: `New Event: ${title}`,
-            content: `You have a new ${type} scheduled for ${date} at ${time}. ${description}`,
-            type: 'info',
-            priority: priority,
-            isRead: false
-          }
-        });
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
       }
     }
-
-    return NextResponse.json({
-      success: true,
-      message: 'Calendar event created successfully',
-      data: eventData
-    }, { status: 201 });
-
-  } catch (error) {
-    console.error('Create calendar event error:', error);
-    
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (error.message === 'Access denied') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-    
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
-
+ 
 // PUT - Update existing calendar event
 export async function PUT(request) {
   try {
@@ -270,7 +198,7 @@ export async function PUT(request) {
     
     const classTeacher = await verifyClassTeacherAccess(token);
     const body = await request.json();
-    const { eventId, title, description, date, time, type, duration, studentIds, status } = body;
+    const { eventId, ...updateData } = body;
 
     if (!eventId) {
       return NextResponse.json({
@@ -278,25 +206,37 @@ export async function PUT(request) {
       }, { status: 400 });
     }
 
-    // TODO: In production, update actual calendar/events table
-    const updatedEvent = {
-      id: eventId,
-      title: title,
-      description: description,
-      date: date,
-      time: time,
-      type: type,
-      duration: duration,
-      studentIds: studentIds,
-      status: status,
-      updatedBy: classTeacher.id,
-      updatedAt: new Date()
-    };
+    // Verify event belongs to this teacher
+    const event = await prisma.calendarEvent.findFirst({
+      where: {
+        id: eventId,
+        schoolId: classTeacher.schoolId,
+        createdBy: classTeacher.id
+      }
+    });
+
+    if (!event) {
+      return NextResponse.json({
+        error: 'Event not found or access denied'
+      }, { status: 404 });
+    }
+
+    // Update the event
+    const updatedEvent = await prisma.calendarEvent.update({
+      where: { id: eventId },
+      data: {
+        ...updateData,
+        updatedAt: new Date()
+      }
+    });
 
     return NextResponse.json({
       success: true,
       message: 'Calendar event updated successfully',
-      data: updatedEvent
+      data: {
+        eventId: eventId,
+        updatedAt: updatedEvent.updatedAt
+      }
     });
 
   } catch (error) {
@@ -329,8 +269,25 @@ export async function DELETE(request) {
       }, { status: 400 });
     }
 
-    // TODO: In production, delete from actual calendar/events table
-    // Also handle cascading deletions (notifications, reminders, etc.)
+    // Verify event belongs to this teacher
+    const event = await prisma.calendarEvent.findFirst({
+      where: {
+        id: eventId,
+        schoolId: classTeacher.schoolId,
+        createdBy: classTeacher.id
+      }
+    });
+
+    if (!event) {
+      return NextResponse.json({
+        error: 'Event not found or access denied'
+      }, { status: 404 });
+    }
+
+    // Delete the event
+    await prisma.calendarEvent.delete({
+      where: { id: eventId }
+    });
 
     return NextResponse.json({
       success: true,
@@ -355,62 +312,271 @@ export async function DELETE(request) {
   }
 }
 
-// Helper function to generate calendar events
-function generateCalendarEvents(teacher, classNames, startDate, endDate, timetable) {
-  const events = [];
+// Helper function to get upcoming deadlines
+async function getUpcomingDeadlines(schoolId, classNames) {
+  const thirtyDaysFromNow = new Date();
+  thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+
+  // Get assignment deadlines
+  const assignments = await prisma.assignment.findMany({
+    where: {
+      schoolId: schoolId,
+      classes: {
+        hasSome: classNames
+      },
+      dueDate: {
+        gte: new Date(),
+        lte: thirtyDaysFromNow
+      },
+      status: 'active'
+    },
+    include: {
+      subject: true
+    },
+    orderBy: {
+      dueDate: 'asc'
+    },
+    take: 10
+  });
+
+  return assignments.map(assignment => ({
+    id: assignment.id,
+    title: `${assignment.title} Due`,
+    type: 'assignment_deadline',
+    dueDate: assignment.dueDate,
+    subject: assignment.subject.name,
+    classes: assignment.classes
+  }));
+}
+
+// Helper function to get class schedule
+async function getClassSchedule(schoolId, classNames, startDate, endDate) {
+  const timetables = await prisma.timetable.findMany({
+    where: {
+      schoolId: schoolId,
+      className: {
+        in: classNames
+      }
+    },
+    orderBy: [
+      { dayOfWeek: 'asc' },
+      { period: 'asc' }
+    ]
+  });
+
+  // Convert timetables to calendar events for the date range
+  const scheduleEvents = [];
   const currentDate = new Date(startDate);
   
-  // Generate regular timetable events
   while (currentDate <= endDate) {
     const dayName = currentDate.toLocaleDateString('en-US', { weekday: 'long' });
+    const dayTimetables = timetables.filter(tt => tt.dayOfWeek === dayName);
     
-    // Skip weekends
-    if (currentDate.getDay() !== 0 && currentDate.getDay() !== 6) {
-      const dayTimetable = timetable.filter(entry => entry.dayOfWeek === dayName);
+    dayTimetables.forEach(timetable => {
+      const eventStart = new Date(currentDate);
+      const eventEnd = new Date(currentDate);
       
-      dayTimetable.forEach(entry => {
-        events.push({
-          id: `timetable_${entry.id}_${currentDate.toISOString().split('T')[0]}`,
-          title: `${entry.subject} - ${entry.className}`,
-          description: `Regular class session`,
-          date: currentDate.toISOString().split('T')[0],
-          time: entry.startTime,
-          endTime: entry.endTime,
-          type: 'class',
-          className: entry.className,
-          subject: entry.subject,
-          isRecurring: true,
-          status: 'scheduled',
-          priority: 'normal'
-        });
+      // Parse time strings (assuming format like "08:00")
+      const [startHour, startMinute] = timetable.startTime.split(':').map(Number);
+      const [endHour, endMinute] = timetable.endTime.split(':').map(Number);
+      
+      eventStart.setHours(startHour, startMinute, 0, 0);
+      eventEnd.setHours(endHour, endMinute, 0, 0);
+      
+      scheduleEvents.push({
+        id: `timetable_${timetable.id}_${currentDate.toISOString().split('T')[0]}`,
+        title: `${timetable.subject} - ${timetable.className}`,
+        type: 'class_schedule',
+        startDate: eventStart,
+        endDate: eventEnd,
+        className: timetable.className,
+        subject: timetable.subject,
+        period: timetable.period
       });
-
-      // Generate some random events for demonstration
-      if (Math.random() > 0.8) {
-        const eventTypes = [
-          { type: 'assignment', title: 'Assignment Due', description: 'Mathematics homework due' },
-          { type: 'exam', title: 'Quiz', description: 'Physics quiz scheduled' },
-          { type: 'meeting', title: 'Parent Meeting', description: 'Meeting with student parent' },
-          { type: 'reminder', title: 'Reminder', description: 'Follow up on student performance' }
-        ];
-        
-        const randomEvent = eventTypes[Math.floor(Math.random() * eventTypes.length)];
-        events.push({
-          id: `event_${currentDate.getTime()}_${Math.random().toString(36).substr(2, 9)}`,
-          title: randomEvent.title,
-          description: randomEvent.description,
-          date: currentDate.toISOString().split('T')[0],
-          time: '10:00',
-          type: randomEvent.type,
-          duration: 60,
-          priority: Math.random() > 0.7 ? 'high' : 'normal',
-          status: 'scheduled'
-        });
-      }
-    }
+    });
     
     currentDate.setDate(currentDate.getDate() + 1);
   }
 
-  return events.sort((a, b) => new Date(a.date + ' ' + a.time) - new Date(b.date + ' ' + b.time));
+  return scheduleEvents;
 }
+
+// Helper function to get event type breakdown
+function getEventTypeBreakdown(events) {
+  const breakdown = {};
+  
+  events.forEach(event => {
+    if (!breakdown[event.eventType]) {
+      breakdown[event.eventType] = 0;
+    }
+    breakdown[event.eventType]++;
+  });
+  
+  return breakdown;
+}
+  
+// POST - Create new calendar event
+export async function POST(request) {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('auth_token')?.value;
+    
+    const classTeacher = await verifyClassTeacherAccess(token);
+    const body = await request.json();
+    const {
+      title,
+      description,
+      eventType,
+      startDate,
+      endDate,
+      isAllDay = false,
+      isRecurring = false,
+      recurrenceRule,
+      classes = [],
+      studentIds = [],
+      teacherIds = [],
+      priority = 'normal',
+      location
+    } = body;
+
+    if (!title || !eventType || !startDate || !endDate) {
+      return NextResponse.json({
+        error: 'Title, event type, start date, and end date are required'
+      }, { status: 400 });
+    }
+
+    // Validate dates
+    const startDateTime = new Date(startDate);
+    const endDateTime = new Date(endDate);
+
+    if (isNaN(startDateTime.getTime()) || isNaN(endDateTime.getTime())) {
+      return NextResponse.json({
+        error: 'Invalid date format'
+      }, { status: 400 });
+    }
+
+    if (startDateTime >= endDateTime) {
+      return NextResponse.json({
+        error: 'End date must be after start date'
+      }, { status: 400 });
+    }
+
+    // Validate event type
+    const validEventTypes = ['class', 'exam', 'meeting', 'event', 'deadline', 'reminder', 'parent_meeting'];
+    if (!validEventTypes.includes(eventType)) {
+      return NextResponse.json({
+        error: 'Invalid event type'
+      }, { status: 400 });
+    }
+
+    // Validate priority
+    const validPriorities = ['low', 'normal', 'high', 'urgent'];
+    if (!validPriorities.includes(priority)) {
+      return NextResponse.json({
+        error: 'Invalid priority level'
+      }, { status: 400 });
+    }
+
+    // Get assigned classes for validation
+    const assignedClass = classTeacher.teacherProfile?.coordinatorClass;
+    let assignedClasses = [];
+    
+    if (assignedClass) {
+      assignedClasses = [assignedClass];
+    } else {
+      const teacherSubjects = classTeacher.teacherProfile?.teacherSubjects || [];
+      assignedClasses = [...new Set(
+        teacherSubjects.flatMap(ts => ts.classes)
+      )];
+    }
+
+    // Validate that classes are from teacher's assigned classes
+    if (classes.length > 0) {
+      const invalidClasses = classes.filter(className => !assignedClasses.includes(className));
+      if (invalidClasses.length > 0) {
+        return NextResponse.json({
+          error: `You are not assigned to classes: ${invalidClasses.join(', ')}`
+        }, { status: 403 });
+      }
+    }
+
+    // Create the calendar event
+    const event = await prisma.calendarEvent.create({
+      data: {
+        schoolId: classTeacher.schoolId,
+        createdBy: classTeacher.id,
+        title: title,
+        description: description || null,
+        eventType: eventType,
+        startDate: startDateTime,
+        endDate: endDateTime,
+        isAllDay: isAllDay,
+        isRecurring: isRecurring,
+        recurrenceRule: recurrenceRule || null,
+        classes: classes,
+        studentIds: studentIds,
+        teacherIds: [...new Set([...teacherIds, classTeacher.id])], // Include creator
+        priority: priority,
+        location: location || null
+      }
+    });
+
+    // Create notifications for relevant users
+    if (eventType === 'parent_meeting' || priority === 'high' || priority === 'urgent') {
+      // Get students in the affected classes
+      if (classes.length > 0) {
+        const students = await prisma.user.findMany({
+          where: {
+            schoolId: classTeacher.schoolId,
+            role: 'student',
+            isActive: true,
+            studentProfile: {
+              className: {
+                in: classes
+              }
+            }
+          }
+        });
+
+        // Create notifications for students
+        const notifications = students.map(student => ({
+          userId: student.id,
+          schoolId: classTeacher.schoolId,
+          title: `New ${eventType.replace('_', ' ')}: ${title}`,
+          content: `${classTeacher.firstName} ${classTeacher.lastName} has scheduled: ${title}. Date: ${startDateTime.toLocaleDateString()}`,
+          type: priority === 'urgent' ? 'warning' : 'info',
+          priority: priority,
+          isRead: false
+        }));
+
+        await prisma.notification.createMany({
+          data: notifications
+        });
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Calendar event created successfully',
+      data: {
+        eventId: event.id,
+        title: title,
+        eventType: eventType,
+        startDate: startDateTime,
+        endDate: endDateTime,
+        createdAt: event.createdAt
+      }
+    }, { status: 201 });
+
+  } catch (error) {
+    console.error('Create calendar event error:', error);
+    
+    if (error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (error.message === 'Access denied') {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+    
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 }
+    )};
