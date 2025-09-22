@@ -15,6 +15,8 @@ import {
   Activity
 } from 'lucide-react';
 
+
+
 const CoordinatorReports = () => {
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -515,7 +517,7 @@ const CoordinatorReports = () => {
   };
 
   return (
-    <CoordinatorLayout>
+    
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -640,7 +642,7 @@ const CoordinatorReports = () => {
           </div>
         </div>
       </div>
-    </CoordinatorLayout>
+    
   );
 };
 

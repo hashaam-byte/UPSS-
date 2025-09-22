@@ -593,7 +593,7 @@ const CoordinatorLayout = ({ children }) => {
         <footer className="bg-white border-t px-6 py-4">
           <div className="flex items-center justify-between text-sm text-gray-600">
             <div className="flex items-center space-x-4">
-              <span>© 2024 U PLUS Education Platform</span>
+              <span>© 2025 U PLUS Education Platform</span>
               <span>•</span>
               <span>Coordinator Portal v2.0</span>
             </div>
