@@ -26,7 +26,8 @@ const AdminAnalyticsPage = () => {
     },
     userGrowth: [],
     activityData: [],
-    performanceMetrics: {}
+    performanceMetrics: {},
+    recentActivity: []
   });
   const [isLoading, setIsLoading] = useState(true);
   const [selectedTimeRange, setSelectedTimeRange] = useState('30d');
@@ -42,6 +43,7 @@ const AdminAnalyticsPage = () => {
 
   useEffect(() => {
     fetchAnalytics();
+    fetchRecentActivity();
   }, [selectedTimeRange]);
 
   const fetchAnalytics = async () => {
@@ -51,7 +53,10 @@ const AdminAnalyticsPage = () => {
       const data = await response.json();
 
       if (response.ok) {
-        setAnalytics(data.analytics || analytics);
+        setAnalytics(prev => ({
+          ...prev,
+          ...data.analytics
+        }));
       } else {
         setError(data.error || 'Failed to fetch analytics');
       }
@@ -60,6 +65,22 @@ const AdminAnalyticsPage = () => {
       setError('Network error occurred');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchRecentActivity = async () => {
+    try {
+      const response = await fetch('/api/protected/admin/activity');
+      const data = await response.json();
+
+      if (response.ok) {
+        setAnalytics(prev => ({
+          ...prev,
+          recentActivity: data.activities || []
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching recent activity:', error);
     }
   };
 
@@ -82,44 +103,15 @@ const AdminAnalyticsPage = () => {
     }
   };
 
-  const overviewCards = [
-    {
-      title: 'Total Users',
-      value: analytics.overview.totalUsers,
-      icon: Users,
-      gradient: 'from-blue-500 to-blue-600',
-      bgGradient: 'from-blue-500/10 to-blue-600/10',
-      change: '+12%',
-      changeType: 'increase'
-    },
-    {
-      title: 'Active Users',
-      value: analytics.overview.activeUsers,
-      icon: Activity,
-      gradient: 'from-emerald-500 to-emerald-600',
-      bgGradient: 'from-emerald-500/10 to-emerald-600/10',
-      change: '+8%',
-      changeType: 'increase'
-    },
-    {
-      title: 'New This Month',
-      value: analytics.overview.newUsersThisMonth,
-      icon: TrendingUp,
-      gradient: 'from-purple-500 to-purple-600',
-      bgGradient: 'from-purple-500/10 to-purple-600/10',
-      change: '+25%',
-      changeType: 'increase'
-    },
-    {
-      title: 'Login Rate',
-      value: `${analytics.overview.loginRate}%`,
-      icon: Clock,
-      gradient: 'from-orange-500 to-orange-600',
-      bgGradient: 'from-orange-500/10 to-orange-600/10',
-      change: '+5%',
-      changeType: 'increase'
-    }
-  ];
+  const formatNumber = (num) => {
+    if (typeof num !== 'number') return '0';
+    return num.toLocaleString();
+  };
+
+  const formatPercentage = (num) => {
+    if (typeof num !== 'number') return '0%';
+    return `${num.toFixed(1)}%`;
+  };
 
   return (
     <div className="space-y-6">
@@ -149,7 +141,10 @@ const AdminAnalyticsPage = () => {
             Export
           </button>
           <button
-            onClick={fetchAnalytics}
+            onClick={() => {
+              fetchAnalytics();
+              fetchRecentActivity();
+            }}
             disabled={isLoading}
             className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white border border-white/20 rounded-lg transition-all disabled:opacity-50"
           >
@@ -169,34 +164,61 @@ const AdminAnalyticsPage = () => {
 
       {/* Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        {overviewCards.map((card, index) => {
-          const Icon = card.icon;
-          return (
-            <div
-              key={index}
-              className={`bg-gradient-to-br ${card.bgGradient} backdrop-blur-xl rounded-2xl border border-white/20 p-6 hover:scale-105 transition-all duration-300`}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className={`w-12 h-12 bg-gradient-to-r ${card.gradient} rounded-xl flex items-center justify-center shadow-lg`}>
-                  <Icon className="w-6 h-6 text-white" />
-                </div>
-                <div className={`text-sm px-2 py-1 rounded-full ${
-                  card.changeType === 'increase' 
-                    ? 'bg-emerald-500/20 text-emerald-400' 
-                    : 'bg-red-500/20 text-red-400'
-                }`}>
-                  {card.change}
-                </div>
-              </div>
-              <div>
-                <h3 className="text-2xl font-bold text-white mb-1">
-                  {typeof card.value === 'number' ? card.value.toLocaleString() : card.value}
-                </h3>
-                <p className="text-gray-400 text-sm">{card.title}</p>
-              </div>
+        <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/10 backdrop-blur-xl rounded-2xl border border-white/20 p-6 hover:scale-105 transition-all duration-300">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+              <Users className="w-6 h-6 text-white" />
             </div>
-          );
-        })}
+          </div>
+          <div>
+            <h3 className="text-2xl font-bold text-white mb-1">
+              {formatNumber(analytics.overview.totalUsers)}
+            </h3>
+            <p className="text-gray-400 text-sm">Total Users</p>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/10 backdrop-blur-xl rounded-2xl border border-white/20 p-6 hover:scale-105 transition-all duration-300">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
+              <Activity className="w-6 h-6 text-white" />
+            </div>
+          </div>
+          <div>
+            <h3 className="text-2xl font-bold text-white mb-1">
+              {formatNumber(analytics.overview.activeUsers)}
+            </h3>
+            <p className="text-gray-400 text-sm">Active Users</p>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-purple-500/10 to-purple-600/10 backdrop-blur-xl rounded-2xl border border-white/20 p-6 hover:scale-105 transition-all duration-300">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+              <TrendingUp className="w-6 h-6 text-white" />
+            </div>
+          </div>
+          <div>
+            <h3 className="text-2xl font-bold text-white mb-1">
+              {formatNumber(analytics.overview.newUsersThisMonth)}
+            </h3>
+            <p className="text-gray-400 text-sm">New This Month</p>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-orange-500/10 to-orange-600/10 backdrop-blur-xl rounded-2xl border border-white/20 p-6 hover:scale-105 transition-all duration-300">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg">
+              <Clock className="w-6 h-6 text-white" />
+            </div>
+          </div>
+          <div>
+            <h3 className="text-2xl font-bold text-white mb-1">
+              {formatPercentage(analytics.overview.loginRate)}
+            </h3>
+            <p className="text-gray-400 text-sm">Login Rate</p>
+          </div>
+        </div>
       </div>
 
       {/* Charts Section */}
@@ -208,29 +230,46 @@ const AdminAnalyticsPage = () => {
             User Growth Trends
           </h2>
           
-          <div className="h-64 flex items-center justify-center border-2 border-dashed border-white/20 rounded-xl">
-            <div className="text-center">
-              <BarChart3 className="w-12 h-12 text-gray-500 mx-auto mb-3" />
-              <p className="text-gray-400">Chart visualization would be implemented here</p>
-              <p className="text-gray-500 text-sm">Using libraries like Chart.js or Recharts</p>
+          {analytics.userGrowth && analytics.userGrowth.length > 0 ? (
+            <div className="space-y-4">
+              {analytics.userGrowth.map((data, index) => (
+                <div key={index} className="flex justify-between items-center p-3 bg-white/5 rounded-lg">
+                  <span className="text-gray-400">{data.date}</span>
+                  <span className="text-white font-medium">{data.count}</span>
+                </div>
+              ))}
             </div>
-          </div>
+          ) : (
+            <div className="h-64 flex items-center justify-center text-gray-500">
+              {isLoading ? 'Loading chart data...' : 'No growth data available'}
+            </div>
+          )}
         </div>
 
         {/* Activity Heatmap */}
         <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl border border-white/20 p-6">
           <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
             <Activity className="w-5 h-5 text-emerald-400" />
-            User Activity Heatmap
+            User Activity
           </h2>
           
-          <div className="h-64 flex items-center justify-center border-2 border-dashed border-white/20 rounded-xl">
-            <div className="text-center">
-              <Activity className="w-12 h-12 text-gray-500 mx-auto mb-3" />
-              <p className="text-gray-400">Activity heatmap would be displayed here</p>
-              <p className="text-gray-500 text-sm">Showing daily login patterns and peak usage times</p>
+          {analytics.activityData && analytics.activityData.length > 0 ? (
+            <div className="space-y-4">
+              {analytics.activityData.map((activity, index) => (
+                <div key={index} className="flex justify-between items-center p-3 bg-white/5 rounded-lg">
+                  <div>
+                    <span className="text-white font-medium">{activity.hour}:00</span>
+                    <p className="text-gray-400 text-sm">{activity.day}</p>
+                  </div>
+                  <span className="text-emerald-400 font-medium">{activity.users} users</span>
+                </div>
+              ))}
             </div>
-          </div>
+          ) : (
+            <div className="h-64 flex items-center justify-center text-gray-500">
+              {isLoading ? 'Loading activity data...' : 'No activity data available'}
+            </div>
+          )}
         </div>
       </div>
 
@@ -254,23 +293,21 @@ const AdminAnalyticsPage = () => {
               <div className="flex justify-between items-center">
                 <span className="text-gray-400">Daily active users:</span>
                 <span className="text-white font-medium">
-                  {analytics.performanceMetrics.dailyActiveUsers ?? '-'}
+                  {formatNumber(analytics.performanceMetrics.dailyActiveUsers || 0)}
                 </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-400">Session duration:</span>
                 <span className="text-white font-medium">
-                  {analytics.performanceMetrics.averageSessionDuration
-                    ? `${analytics.performanceMetrics.averageSessionDuration} min avg`
-                    : '-'}
+                  {analytics.performanceMetrics.averageSessionDuration 
+                    ? `${analytics.performanceMetrics.averageSessionDuration} min` 
+                    : '0 min'}
                 </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-400">Return rate:</span>
                 <span className="text-white font-medium">
-                  {analytics.performanceMetrics.userRetentionRate
-                    ? `${analytics.performanceMetrics.userRetentionRate}%`
-                    : '-'}
+                  {formatPercentage(analytics.performanceMetrics.userRetentionRate || 0)}
                 </span>
               </div>
             </div>
@@ -287,15 +324,23 @@ const AdminAnalyticsPage = () => {
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-gray-400">Average grade:</span>
-                <span className="text-white font-medium">-</span>
+                <span className="text-white font-medium">
+                  {analytics.performanceMetrics.averageGrade 
+                    ? `${analytics.performanceMetrics.averageGrade}%`
+                    : '0%'}
+                </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-400">Assignment completion:</span>
-                <span className="text-white font-medium">-</span>
+                <span className="text-white font-medium">
+                  {formatPercentage(analytics.performanceMetrics.assignmentCompletionRate || 0)}
+                </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-400">Attendance rate:</span>
-                <span className="text-white font-medium">-</span>
+                <span className="text-white font-medium">
+                  {formatPercentage(analytics.performanceMetrics.attendanceRate || 0)}
+                </span>
               </div>
             </div>
           </div>
@@ -311,15 +356,21 @@ const AdminAnalyticsPage = () => {
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-gray-400">Active teachers:</span>
-                <span className="text-white font-medium">-</span>
+                <span className="text-white font-medium">
+                  {formatNumber(analytics.performanceMetrics.activeTeachers || 0)}
+                </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-400">Grading timeliness:</span>
-                <span className="text-white font-medium">-</span>
+                <span className="text-white font-medium">
+                  {formatPercentage(analytics.performanceMetrics.gradingTimeliness || 0)}
+                </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-400">Resource uploads:</span>
-                <span className="text-white font-medium">-</span>
+                <span className="text-white font-medium">
+                  {formatNumber(analytics.performanceMetrics.resourceUploads || 0)}
+                </span>
               </div>
             </div>
           </div>
@@ -333,13 +384,30 @@ const AdminAnalyticsPage = () => {
           Recent Activity
         </h2>
         
-        {/* Replace mock data with real API call */}
-        {/* You can fetch from /api/protected/admin/activity and map the results here */}
-        {/* Example: */}
-        {/* {activityData.map((activity, index) => ( ... ))} */}
-        <div className="space-y-3">
-          {/* Render real activity data here */}
-        </div>
+        {analytics.recentActivity && analytics.recentActivity.length > 0 ? (
+          <div className="space-y-3">
+            {analytics.recentActivity.map((activity, index) => (
+              <div key={index} className="flex items-center justify-between p-4 bg-white/5 rounded-lg hover:bg-white/10 transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center text-xs font-medium text-white">
+                    {activity.userInitials || activity.user?.charAt(0) || 'U'}
+                  </div>
+                  <div>
+                    <p className="text-white font-medium">{activity.description}</p>
+                    <p className="text-gray-400 text-sm">{activity.user}</p>
+                  </div>
+                </div>
+                <span className="text-gray-400 text-sm">
+                  {new Date(activity.timestamp).toLocaleDateString()}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            {isLoading ? 'Loading recent activity...' : 'No recent activity found'}
+          </div>
+        )}
       </div>
     </div>
   );
