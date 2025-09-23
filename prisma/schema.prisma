@@ -745,7 +745,7 @@ model Grade {
   grade       String?     @db.VarChar(5) // A, B, C, etc.
   
   // Timing
-  term        String      @db.VarChar(20)
+  termName    String      @map("term_name") @db.VarChar(20) // Renamed from 'term' to avoid conflict
   academicYear String    @map("academic_year") @db.VarChar(10)
   assessmentDate DateTime @map("assessment_date") @db.Date
   
@@ -764,11 +764,11 @@ model Grade {
   school      School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   teacher     User        @relation("TeacherGrades", fields: [teacherId], references: [id])
   creator     User        @relation("GradeCreator", fields: [createdBy], references: [id])
-  term        AcademicTerm? @relation(fields: [termId], references: [id])
+  academicTerm AcademicTerm? @relation(fields: [termId], references: [id]) // Renamed relation
   
   @@index([studentId])
   @@index([subjectId])
-  @@index([term, academicYear])
+  @@index([termId, academicYear]) // Fixed to use scalar field termId instead of relation field
   @@index([assessmentDate])
   @@map("grades")
 }
