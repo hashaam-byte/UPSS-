@@ -6,15 +6,6 @@ import { NextResponse } from 'next/server';
 export async function GET(request) {
   try {
     const user = await requireAuth(['admin']);
-    
-    // Ensure user has a school association
-    if (!user.schoolId) {
-      return NextResponse.json(
-        { error: 'User not associated with any school' },
-        { status: 400 }
-      );
-    }
-
     const { searchParams } = new URL(request.url);
     const range = searchParams.get('range') || '30d';
 
@@ -42,53 +33,43 @@ export async function GET(request) {
         startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     }
 
-    // Fetch analytics data - ALL queries properly filtered by schoolId
+    // Fetch analytics data
     const [
       totalUsers,
       activeUsers,
       newUsersThisMonth,
       userGrowthData,
-      loginRateData,
-      studentPerformanceData,
-      teacherActivityData,
-      assignmentStats,
-      attendanceStats
+      loginRateData
     ] = await Promise.all([
-      // Total users in this school only
+      // Total users
       prisma.user.count({
-        where: { 
-          schoolId: user.schoolId,
-          isActive: true
-        }
+        where: { schoolId: user.schoolId }
       }),
       
-      // Active users (logged in within the time range) in this school only
+      // Active users (logged in within the time range)
       prisma.user.count({
         where: {
           schoolId: user.schoolId,
-          isActive: true,
           lastLogin: {
             gte: startDate
           }
         }
       }),
       
-      // New users this month in this school only
+      // New users this month
       prisma.user.count({
         where: {
           schoolId: user.schoolId,
-          isActive: true,
           createdAt: {
             gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
           }
         }
       }),
       
-      // User growth over time in this school only
+      // User growth over time (simplified - you'd want more sophisticated grouping)
       prisma.user.findMany({
         where: {
           schoolId: user.schoolId,
-          isActive: true,
           createdAt: {
             gte: startDate
           }
@@ -102,67 +83,13 @@ export async function GET(request) {
         }
       }),
       
-      // Login rate calculation for this school only
+      // Login rate calculation
       prisma.user.count({
         where: {
           schoolId: user.schoolId,
-          isActive: true,
           lastLogin: {
             not: null
           }
-        }
-      }),
-
-      // Student performance metrics for this school only
-      prisma.studentPerformanceMetrics.aggregate({
-        where: {
-          schoolId: user.schoolId
-        },
-        _avg: {
-          overallGPA: true,
-          attendanceRate: true,
-          assignmentCompletion: true
-        },
-        _count: {
-          id: true
-        }
-      }),
-
-      // Teacher activity for this school only
-      prisma.user.count({
-        where: {
-          schoolId: user.schoolId,
-          role: 'teacher',
-          isActive: true,
-          lastLogin: {
-            gte: startDate
-          }
-        }
-      }),
-
-      // Assignment statistics for this school only
-      prisma.assignment.aggregate({
-        where: {
-          schoolId: user.schoolId,
-          createdAt: {
-            gte: startDate
-          }
-        },
-        _count: {
-          id: true
-        }
-      }),
-
-      // Attendance statistics for this school only
-      prisma.attendance.aggregate({
-        where: {
-          schoolId: user.schoolId,
-          date: {
-            gte: startDate
-          }
-        },
-        _count: {
-          id: true
         }
       })
     ]);
@@ -173,26 +100,16 @@ export async function GET(request) {
     // Process user growth data (group by day/week based on range)
     const userGrowth = processUserGrowthData(userGrowthData, range);
 
-    // Activity data (filtered by school)
+    // Activity data (simplified)
     const activityData = await generateActivityData(user.schoolId, startDate, endDate);
 
-    // Performance metrics with real data from this school
+    // Performance metrics
     const performanceMetrics = {
+      averageSessionDuration: 24, // minutes - you'd calculate this from actual session data
+      userRetentionRate: 92, // percentage
       dailyActiveUsers: Math.round(activeUsers * 0.85),
-      averageSessionDuration: 24, // This would need session tracking implementation
-      userRetentionRate: loginRate > 0 ? Math.min(95, loginRate + 10) : 0,
-      
-      // Academic performance metrics
-      averageGrade: studentPerformanceData._avg.overallGPA 
-        ? Math.round(studentPerformanceData._avg.overallGPA * 20) // Convert GPA to percentage
-        : 0,
-      assignmentCompletionRate: studentPerformanceData._avg.assignmentCompletion || 0,
-      attendanceRate: studentPerformanceData._avg.attendanceRate || 0,
-      
-      // Teacher metrics
-      activeTeachers: teacherActivityData,
-      gradingTimeliness: 85, // This would need implementation based on grading patterns
-      resourceUploads: assignmentStats._count.id || 0
+      weeklyActiveUsers: activeUsers,
+      monthlyActiveUsers: Math.round(activeUsers * 1.2)
     };
 
     return NextResponse.json({
@@ -269,11 +186,11 @@ function processUserGrowthData(userData, range) {
 }
 
 async function generateActivityData(schoolId, startDate, endDate) {
-  // Get activity data only for this specific school
+  // This would ideally come from actual user activity logs
+  // For now, we'll generate based on login data
   const loginData = await prisma.user.findMany({
     where: {
-      schoolId: schoolId, // Explicit school filtering
-      isActive: true,
+      schoolId,
       lastLogin: {
         gte: startDate,
         lte: endDate
@@ -285,39 +202,22 @@ async function generateActivityData(schoolId, startDate, endDate) {
     }
   });
 
-  // Process into activity patterns by hour
-  const activityByHour = [];
+  // Process into activity patterns
+  const activityByHour = Array.from({ length: 24 }, (_, i) => ({
+    hour: i,
+    students: 0,
+    teachers: 0,
+    total: 0
+  }));
 
-  // Group by day and hour for more detailed activity
-  const dailyActivity = {};
-  
   loginData.forEach(user => {
     if (user.lastLogin) {
-      const date = user.lastLogin.toISOString().split('T')[0];
-      const hour = user.lastLogin.getHours();
-      const key = `${date}-${hour}`;
-      
-      if (!dailyActivity[key]) {
-        dailyActivity[key] = {
-          date,
-          hour,
-          users: 0,
-          students: 0,
-          teachers: 0,
-          day: user.lastLogin.toLocaleDateString('en-US', { weekday: 'long' })
-        };
-      }
-      
-      dailyActivity[key].users++;
-      if (user.role === 'student') {
-        dailyActivity[key].students++;
-      } else if (user.role === 'teacher') {
-        dailyActivity[key].teachers++;
-      }
+      const hour = new Date(user.lastLogin).getHours();
+      const role = user.role === 'student' ? 'students' : 'teachers';
+      activityByHour[hour][role]++;
+      activityByHour[hour].total++;
     }
   });
 
-  return Object.values(dailyActivity)
-    .sort((a, b) => `${a.date}-${a.hour}`.localeCompare(`${b.date}-${b.hour}`))
-    .slice(0, 24); // Return top 24 most active periods
+  return activityByHour;
 }
