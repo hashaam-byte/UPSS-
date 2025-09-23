@@ -10,7 +10,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
-  Print,
+  Printer,
   AlertTriangle,
   Loader2
 } from 'lucide-react';
@@ -185,7 +185,7 @@ const StudentTimetable = () => {
                 onClick={() => window.print()}
                 className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center space-x-2"
               >
-                <Print className="w-4 h-4" />
+                <Printer className="w-4 h-4" />
                 <span>Print</span>
               </button>
             </div>
