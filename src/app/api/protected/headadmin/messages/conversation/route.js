@@ -1,103 +1,80 @@
-// pages/api/protected/headadmin/messages/conversations.js
-import { PrismaClient } from '@prisma/client';
+// /app/api/protected/headadmin/messages/conversations/route.js
 import { NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import { verifyJWT } from '@/lib/auth';
 
-const prisma = new PrismaClient();
-
-export async function GET() {
+export async function GET(request) {
   try {
-    const user = await getCurrentUser();
-    if (!user || user.role !== 'headadmin') {
-      return NextResponse.json(
-        { error: 'Access denied' },
-        { status: 403 }
-      );
+    const token = request.headers.get('authorization')?.replace('Bearer ', '');
+    const decoded = await verifyJWT(token);
+    
+    if (decoded.role !== 'headadmin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    // Get all schools with their admin users and last message
-    const schools = await prisma.school.findMany({
+    // Get all conversations with school admins
+    const conversations = await prisma.message.groupBy({
+      by: ['schoolId', 'toUserId'],
       where: {
-        isActive: true
+        OR: [
+          { fromUserId: null }, // Messages from head admin
+          { toUserId: null }     // Messages to head admin
+        ]
       },
-      include: {
-        users: {
-          where: {
-            role: 'admin',
-            isActive: true
-          },
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true
-          },
-          take: 1
-        }
+      _max: {
+        createdAt: true,
+        id: true
       }
     });
 
-    // Get conversations with last messages and unread counts
-    const conversations = await Promise.all(
-      schools
-        .filter(school => school.users.length > 0)
-        .map(async (school) => {
-          const adminUser = school.users[0];
-          
-          // Get last message in conversation
-          const lastMessage = await prisma.message.findFirst({
+    // Enrich with school and user data
+    const enrichedConversations = await Promise.all(
+      conversations.map(async (conv) => {
+        const [school, user, lastMessage, unreadCount] = await Promise.all([
+          prisma.school.findUnique({
+            where: { id: conv.schoolId },
+            select: { id: true, name: true }
+          }),
+          prisma.user.findUnique({
+            where: { id: conv.toUserId },
+            select: { id: true, firstName: true, lastName: true, email: true }
+          }),
+          prisma.message.findFirst({
             where: {
+              schoolId: conv.schoolId,
               OR: [
-                { fromUserId: user.id, toUserId: adminUser.id },
-                { fromUserId: adminUser.id, toUserId: user.id }
+                { fromUserId: null, toUserId: conv.toUserId },
+                { fromUserId: conv.toUserId, toUserId: null }
               ]
             },
-            orderBy: { createdAt: 'desc' }
-          });
-
-          // Count unread messages from this user to head admin
-          const unreadCount = await prisma.message.count({
+            orderBy: { createdAt: 'desc' },
+            select: { id: true, content: true, createdAt: true, fromUserId: true }
+          }),
+          prisma.message.count({
             where: {
-              fromUserId: adminUser.id,
-              toUserId: user.id,
+              schoolId: conv.schoolId,
+              fromUserId: conv.toUserId,
+              toUserId: null,
               isRead: false
             }
-          });
+          })
+        ]);
 
-          return {
-            id: `${school.id}-${adminUser.id}`,
-            schoolId: school.id,
-            userId: adminUser.id,
-            school: {
-              id: school.id,
-              name: school.name,
-              email: school.email
-            },
-            user: adminUser,
-            lastMessage,
-            unreadCount
-          };
-        })
+        return {
+          id: `${conv.schoolId}-${conv.toUserId}`,
+          schoolId: conv.schoolId,
+          userId: conv.toUserId,
+          school,
+          user,
+          lastMessage,
+          unreadCount
+        };
+      })
     );
 
-    // Sort by last message date
-    conversations.sort((a, b) => {
-      const dateA = a.lastMessage ? new Date(a.lastMessage.createdAt) : new Date(0);
-      const dateB = b.lastMessage ? new Date(b.lastMessage.createdAt) : new Date(0);
-      return dateB - dateA;
-    });
-
-    return NextResponse.json({
-      success: true,
-      conversations
-    });
-
+    return NextResponse.json({ conversations: enrichedConversations });
   } catch (error) {
-    console.error('Failed to fetch conversations:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('Error fetching conversations:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
- 

@@ -1,26 +1,21 @@
-// pages/api/protected/headadmin/messages/conversations/[id]/read.js
-import { prisma } from '@/lib/prisma';
-import { NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth';
 
+// /app/api/protected/headadmin/messages/conversations/[id]/read/route.js
 export async function POST(request, { params }) {
   try {
-    const user = await getCurrentUser();
-    if (!user || user.role !== 'headadmin') {
-      return NextResponse.json(
-        { error: 'Access denied' },
-        { status: 403 }
-      );
+    const token = request.headers.get('authorization')?.replace('Bearer ', '');
+    const decoded = await verifyJWT(token);
+    
+    if (decoded.role !== 'headadmin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    const { id } = params;
-    const [schoolId, userId] = id.split('-');
-
-    // Mark all messages from this user as read
+    const [schoolId, userId] = params.id.split('-');
+    
     await prisma.message.updateMany({
       where: {
+        schoolId,
         fromUserId: userId,
-        toUserId: user.id,
+        toUserId: null,
         isRead: false
       },
       data: {
@@ -29,17 +24,9 @@ export async function POST(request, { params }) {
       }
     });
 
-    return NextResponse.json({
-      success: true
-    });
-
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Failed to mark messages as read:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('Error marking messages as read:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    

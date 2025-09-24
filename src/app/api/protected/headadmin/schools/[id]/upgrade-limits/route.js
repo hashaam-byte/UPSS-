@@ -4,8 +4,10 @@ import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 
 export async function POST(request, { params }) {
+  let user = null; // Declare at top level for error handling
+  
   try {
-    const user = await getCurrentUser();
+    user = await getCurrentUser();
     
     if (!user || user.role !== 'headadmin') {
       return NextResponse.json(
@@ -41,17 +43,7 @@ export async function POST(request, { params }) {
         name: true,
         slug: true,
         maxStudents: true,
-        maxTeachers: true,
-        _count: {
-          select: {
-            users: {
-              where: { 
-                isActive: true,
-                role: { in: ['student', 'teacher'] }
-              }
-            }
-          }
-        }
+        maxTeachers: true
       }
     });
 
@@ -116,8 +108,19 @@ export async function POST(request, { params }) {
       );
     }
 
-    // Update school limits
+    // Get school admins before transaction to reduce transaction time
+    const schoolAdmins = await prisma.user.findMany({
+      where: {
+        schoolId: schoolId,
+        role: 'admin',
+        isActive: true
+      },
+      select: { id: true }
+    });
+
+    // Update school limits with increased timeout
     const result = await prisma.$transaction(async (tx) => {
+      // Update school
       const updatedSchool = await tx.school.update({
         where: { id: schoolId },
         data: {
@@ -160,31 +163,24 @@ export async function POST(request, { params }) {
         }
       });
 
-      // Notify school admins
-      const schoolAdmins = await tx.user.findMany({
-        where: {
-          schoolId: schoolId,
-          role: 'admin',
-          isActive: true
-        },
-        select: { id: true }
-      });
+      // Create notifications for school admins (batch create for efficiency)
+      if (schoolAdmins.length > 0) {
+        const notificationData = schoolAdmins.map(admin => ({
+          userId: admin.id,
+          title: 'School Limits Upgraded',
+          content: `Your school limits have been upgraded! You can now have up to ${newStudentLimit} students (previously ${school.maxStudents}) and ${newTeacherLimit} teachers (previously ${school.maxTeachers}). This upgrade allows you to accommodate more users as your school grows.`,
+          type: 'success',
+          priority: 'normal'
+        }));
 
-      const notificationPromises = schoolAdmins.map(admin =>
-        tx.notification.create({
-          data: {
-            userId: admin.id,
-            title: 'School Limits Upgraded',
-            content: `Your school limits have been upgraded! You can now have up to ${newStudentLimit} students (previously ${school.maxStudents}) and ${newTeacherLimit} teachers (previously ${school.maxTeachers}). This upgrade allows you to accommodate more users as your school grows.`,
-            type: 'success',
-            priority: 'normal'
-          }
-        })
-      );
-
-      await Promise.all(notificationPromises);
+        await tx.notification.createMany({
+          data: notificationData
+        });
+      }
 
       return updatedSchool;
+    }, {
+      timeout: 10000 // Increase timeout to 10 seconds
     });
 
     return NextResponse.json({
@@ -223,21 +219,23 @@ export async function POST(request, { params }) {
   } catch (error) {
     console.error('Error upgrading school limits:', error);
     
-    // Create error audit log
+    // Create error audit log with proper error handling
     try {
-      await prisma.auditLog.create({
-        data: {
-          userId: user?.id || null,
-          action: 'UPGRADE_SCHOOL_LIMITS_FAILED',
-          resource: 'school',
-          resourceId: params.id,
-          description: `Failed to upgrade school limits: ${error.message}`,
-          metadata: {
-            error: error.message,
-            timestamp: new Date().toISOString()
+      if (user?.id) {
+        await prisma.auditLog.create({
+          data: {
+            userId: user.id,
+            action: 'UPGRADE_SCHOOL_LIMITS_FAILED',
+            resource: 'school',
+            resourceId: params.id,
+            description: `Failed to upgrade school limits: ${error.message}`,
+            metadata: {
+              error: error.message,
+              timestamp: new Date().toISOString()
+            }
           }
-        }
-      });
+        });
+      }
     } catch (auditError) {
       console.error('Failed to create error audit log:', auditError);
     }

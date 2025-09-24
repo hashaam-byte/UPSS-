@@ -4,8 +4,10 @@ import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 
 export async function POST(request, { params }) {
+  let user = null; // Declare at top level for error handling
+  
   try {
-    const user = await getCurrentUser();
+    user = await getCurrentUser();
     
     if (!user || user.role !== 'headadmin') {
       return NextResponse.json(
@@ -63,8 +65,19 @@ export async function POST(request, { params }) {
     const newExpirationDate = new Date(baseDate);
     newExpirationDate.setDate(newExpirationDate.getDate() + extensionDays);
 
-    // Update school subscription
+    // Get school admins before transaction to reduce transaction time
+    const schoolAdmins = await prisma.user.findMany({
+      where: {
+        schoolId: schoolId,
+        role: 'admin',
+        isActive: true
+      },
+      select: { id: true }
+    });
+
+    // Update school subscription with increased timeout
     const result = await prisma.$transaction(async (tx) => {
+      // Update school
       const updatedSchool = await tx.school.update({
         where: { id: schoolId },
         data: {
@@ -95,31 +108,24 @@ export async function POST(request, { params }) {
         }
       });
 
-      // Notify school admins
-      const schoolAdmins = await tx.user.findMany({
-        where: {
-          schoolId: schoolId,
-          role: 'admin',
-          isActive: true
-        },
-        select: { id: true }
-      });
+      // Create notifications for school admins (batch create for efficiency)
+      if (schoolAdmins.length > 0) {
+        const notificationData = schoolAdmins.map(admin => ({
+          userId: admin.id,
+          title: 'Trial Period Extended',
+          content: `Great news! Your trial period has been extended by ${extensionDays} days. Your new expiration date is ${newExpirationDate.toLocaleDateString()}. You can continue using all premium features until then.`,
+          type: 'success',
+          priority: 'high'
+        }));
 
-      const notificationPromises = schoolAdmins.map(admin =>
-        tx.notification.create({
-          data: {
-            userId: admin.id,
-            title: 'Trial Period Extended',
-            content: `Great news! Your trial period has been extended by ${extensionDays} days. Your new expiration date is ${newExpirationDate.toLocaleDateString()}. You can continue using all premium features until then.`,
-            type: 'success',
-            priority: 'high'
-          }
-        })
-      );
-
-      await Promise.all(notificationPromises);
+        await tx.notification.createMany({
+          data: notificationData
+        });
+      }
 
       return updatedSchool;
+    }, {
+      timeout: 10000 // Increase timeout to 10 seconds
     });
 
     return NextResponse.json({
@@ -142,21 +148,23 @@ export async function POST(request, { params }) {
   } catch (error) {
     console.error('Error extending trial period:', error);
     
-    // Create error audit log
+    // Create error audit log with proper error handling
     try {
-      await prisma.auditLog.create({
-        data: {
-          userId: user?.id || null,
-          action: 'EXTEND_SCHOOL_TRIAL_FAILED',
-          resource: 'school',
-          resourceId: params.id,
-          description: `Failed to extend trial period: ${error.message}`,
-          metadata: {
-            error: error.message,
-            timestamp: new Date().toISOString()
+      if (user?.id) {
+        await prisma.auditLog.create({
+          data: {
+            userId: user.id,
+            action: 'EXTEND_SCHOOL_TRIAL_FAILED',
+            resource: 'school',
+            resourceId: params.id,
+            description: `Failed to extend trial period: ${error.message}`,
+            metadata: {
+              error: error.message,
+              timestamp: new Date().toISOString()
+            }
           }
-        }
-      });
+        });
+      }
     } catch (auditError) {
       console.error('Failed to create error audit log:', auditError);
     }
