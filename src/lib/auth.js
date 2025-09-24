@@ -1,4 +1,4 @@
-// /lib/auth.js - Updated for Teacher Subdivisions Support
+// /lib/auth.js - Fixed for School Data Return
 import jwt from 'jsonwebtoken';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
@@ -42,7 +42,8 @@ export async function getCurrentUser() {
           role: true,
           avatar: true,
           isEmailVerified: true,
-          isActive: true
+          isActive: true,
+          schoolId: true
         }
       });
 
@@ -53,9 +54,9 @@ export async function getCurrentUser() {
       return user;
     }
 
-    // Regular users (admin, teacher, student) - determine includes based on user role
+    // Regular users (admin, teacher, student) - ALWAYS include school data
     const includeOptions = {
-      school: true,
+      school: true, // Always include school for non-head admins
       studentProfile: false,
       teacherProfile: false,
       adminProfile: false
@@ -82,6 +83,12 @@ export async function getCurrentUser() {
       return null;
     }
 
+    // IMPORTANT: Ensure school data is always returned for non-head admins
+    if (!user.school && decoded.role !== 'headadmin') {
+      console.error(`User ${user.id} has no school association but is not head admin`);
+      return null;
+    }
+
     // Add coordinatorClass if coordinator
     const coordinatorClass =
       user.teacherProfile?.department === 'coordinator'
@@ -95,11 +102,12 @@ export async function getCurrentUser() {
       email: user.email,
       username: user.username,
       role: user.role,
+      schoolId: user.schoolId, // Explicit schoolId
       department: user.teacherProfile?.department || null,
-      coordinatorClass, // <-- add this
+      coordinatorClass,
       avatar: user.avatar,
       isEmailVerified: user.isEmailVerified,
-      school: user.school,
+      school: user.school, // School object with all details
       profile: user.studentProfile || user.teacherProfile || user.adminProfile
     };
   } catch (error) {
@@ -113,6 +121,11 @@ export async function requireAuth(allowedRoles = []) {
 
   if (!user) {
     throw new Error('Authentication required');
+  }
+
+  // For non-head admin users, ensure they have a school association
+  if (user.role !== 'headadmin' && !user.schoolId) {
+    throw new Error('User not associated with any school');
   }
 
   if (allowedRoles.length > 0) {

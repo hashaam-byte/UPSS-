@@ -5,56 +5,15 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request) {
   try {
-    // Require school admin authentication with proper verification
+    // Require school admin authentication
     const user = await requireAuth(['admin']);
     
-    // Triple verification for school admin access
-    if (!user.schoolId || !user.school) {
+    // The requireAuth function now handles the school verification
+    // Just double-check we have the school data
+    if (!user.school || !user.school.isActive) {
       return NextResponse.json(
-        { error: 'User not associated with any school' },
+        { error: 'School not found or inactive' },
         { status: 400 }
-      );
-    }
-
-    // Verify the school is active
-    if (!user.school.isActive) {
-      return NextResponse.json(
-        { error: 'School is not active' },
-        { status: 403 }
-      );
-    }
-
-    // Verify user is actually an admin of this specific school
-    if (user.role !== 'admin') {
-      return NextResponse.json(
-        { error: 'Access denied - admin role required' },
-        { status: 403 }
-      );
-    }
-
-    // Additional security: Double-check user exists in this school as admin
-    const verifyAdmin = await prisma.user.findFirst({
-      where: {
-        id: user.id,
-        schoolId: user.schoolId,
-        role: 'admin',
-        isActive: true
-      },
-      include: {
-        school: {
-          select: {
-            id: true,
-            name: true,
-            isActive: true
-          }
-        }
-      }
-    });
-
-    if (!verifyAdmin) {
-      return NextResponse.json(
-        { error: 'Authentication verification failed' },
-        { status: 401 }
       );
     }
 
@@ -253,8 +212,8 @@ export async function GET(request) {
         activityData,
         performanceMetrics,
         school: {
-          id: verifyAdmin.school.id,
-          name: verifyAdmin.school.name
+          id: user.school.id,
+          name: user.school.name
         }
       }
     });

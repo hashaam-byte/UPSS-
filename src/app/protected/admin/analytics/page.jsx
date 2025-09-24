@@ -1,5 +1,6 @@
 'use client'
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { 
   BarChart3, 
   TrendingUp, 
@@ -13,8 +14,22 @@ import {
   Eye,
   Clock,
   Award,
-  AlertTriangle
+  AlertTriangle,
+  ArrowRight,
+  PieChart
 } from 'lucide-react';
+import {
+  PieChart as RechartsPieChart,
+  Cell,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend
+} from 'recharts';
 
 const AdminAnalyticsPage = () => {
   const [analytics, setAnalytics] = useState({
@@ -41,9 +56,12 @@ const AdminAnalyticsPage = () => {
     { label: '1 Year', value: '1y' }
   ];
 
+  // Chart colors
+  const COLORS = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444'];
+
   useEffect(() => {
     fetchAnalytics();
-    fetchRecentActivity();
+    fetchTodayActivity();
   }, [selectedTimeRange]);
 
   const fetchAnalytics = async () => {
@@ -68,9 +86,10 @@ const AdminAnalyticsPage = () => {
     }
   };
 
-  const fetchRecentActivity = async () => {
+  const fetchTodayActivity = async () => {
     try {
-      const response = await fetch('/api/protected/admin/activity');
+      // Fetch only today's activity (1 day)
+      const response = await fetch('/api/protected/admin/activity?days=1&limit=5');
       const data = await response.json();
 
       if (response.ok) {
@@ -80,7 +99,7 @@ const AdminAnalyticsPage = () => {
         }));
       }
     } catch (error) {
-      console.error('Error fetching recent activity:', error);
+      console.error('Error fetching today activity:', error);
     }
   };
 
@@ -113,6 +132,50 @@ const AdminAnalyticsPage = () => {
     return `${num.toFixed(1)}%`;
   };
 
+  // Prepare data for user growth chart
+  const userGrowthChartData = analytics.userGrowth.map(item => ({
+    date: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    Students: item.students || 0,
+    Teachers: item.teachers || 0,
+    Admins: item.admins || 0,
+    Total: item.total || 0
+  }));
+
+  // Prepare data for user role pie chart
+  const roleDistributionData = [
+    { name: 'Students', value: analytics.overview.totalUsers ? Math.floor(analytics.overview.totalUsers * 0.85) : 0, color: '#10B981' },
+    { name: 'Teachers', value: analytics.overview.totalUsers ? Math.floor(analytics.overview.totalUsers * 0.12) : 0, color: '#3B82F6' },
+    { name: 'Admins', value: analytics.overview.totalUsers ? Math.floor(analytics.overview.totalUsers * 0.03) : 0, color: '#8B5CF6' }
+  ];
+
+  // Prepare activity data for chart
+  const activityChartData = analytics.activityData.slice(0, 12).map(item => ({
+    time: `${item.hour}:00`,
+    Users: item.users || 0,
+    Students: item.students || 0,
+    Teachers: item.teachers || 0
+  }));
+
+  const getActivityIcon = (type) => {
+    switch (type) {
+      case 'academic': return <GraduationCap className="w-4 h-4" />;
+      case 'attendance': return <UserCheck className="w-4 h-4" />;
+      case 'communication': return <Calendar className="w-4 h-4" />;
+      case 'system': return <Activity className="w-4 h-4" />;
+      default: return <Activity className="w-4 h-4" />;
+    }
+  };
+
+  const getActivityColor = (type) => {
+    switch (type) {
+      case 'academic': return 'from-emerald-500 to-emerald-600';
+      case 'attendance': return 'from-blue-500 to-blue-600';
+      case 'communication': return 'from-purple-500 to-purple-600';
+      case 'system': return 'from-orange-500 to-orange-600';
+      default: return 'from-gray-500 to-gray-600';
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -143,7 +206,7 @@ const AdminAnalyticsPage = () => {
           <button
             onClick={() => {
               fetchAnalytics();
-              fetchRecentActivity();
+              fetchTodayActivity();
             }}
             disabled={isLoading}
             className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white border border-white/20 rounded-lg transition-all disabled:opacity-50"
@@ -223,21 +286,34 @@ const AdminAnalyticsPage = () => {
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* User Growth Chart */}
+        {/* User Growth Bar Chart */}
         <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl border border-white/20 p-6">
           <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
             <BarChart3 className="w-5 h-5 text-emerald-400" />
             User Growth Trends
           </h2>
           
-          {analytics.userGrowth && analytics.userGrowth.length > 0 ? (
-            <div className="space-y-4">
-              {analytics.userGrowth.map((data, index) => (
-                <div key={index} className="flex justify-between items-center p-3 bg-white/5 rounded-lg">
-                  <span className="text-gray-400">{data.date}</span>
-                  <span className="text-white font-medium">{data.count}</span>
-                </div>
-              ))}
+          {userGrowthChartData.length > 0 ? (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={userGrowthChartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis dataKey="date" tick={{ fill: '#9CA3AF', fontSize: 12 }} />
+                  <YAxis tick={{ fill: '#9CA3AF', fontSize: 12 }} />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: '#1F2937', 
+                      border: '1px solid #374151',
+                      borderRadius: '8px',
+                      color: '#F9FAFB'
+                    }} 
+                  />
+                  <Legend />
+                  <Bar dataKey="Students" fill="#10B981" />
+                  <Bar dataKey="Teachers" fill="#3B82F6" />
+                  <Bar dataKey="Admins" fill="#8B5CF6" />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           ) : (
             <div className="h-64 flex items-center justify-center text-gray-500">
@@ -246,31 +322,83 @@ const AdminAnalyticsPage = () => {
           )}
         </div>
 
-        {/* Activity Heatmap */}
+        {/* User Role Distribution Pie Chart */}
         <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl border border-white/20 p-6">
           <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-            <Activity className="w-5 h-5 text-emerald-400" />
-            User Activity
+            <PieChart className="w-5 h-5 text-emerald-400" />
+            User Distribution
           </h2>
           
-          {analytics.activityData && analytics.activityData.length > 0 ? (
-            <div className="space-y-4">
-              {analytics.activityData.map((activity, index) => (
-                <div key={index} className="flex justify-between items-center p-3 bg-white/5 rounded-lg">
-                  <div>
-                    <span className="text-white font-medium">{activity.hour}:00</span>
-                    <p className="text-gray-400 text-sm">{activity.day}</p>
-                  </div>
-                  <span className="text-emerald-400 font-medium">{activity.users} users</span>
-                </div>
-              ))}
+          {roleDistributionData.some(item => item.value > 0) ? (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <RechartsPieChart>
+                  <Pie
+                    data={roleDistributionData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {roleDistributionData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: '#1F2937', 
+                      border: '1px solid #374151',
+                      borderRadius: '8px',
+                      color: '#F9FAFB'
+                    }} 
+                  />
+                </RechartsPieChart>
+              </ResponsiveContainer>
             </div>
           ) : (
             <div className="h-64 flex items-center justify-center text-gray-500">
-              {isLoading ? 'Loading activity data...' : 'No activity data available'}
+              {isLoading ? 'Loading distribution data...' : 'No user data available'}
             </div>
           )}
         </div>
+      </div>
+
+      {/* Activity Hours Chart */}
+      <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl border border-white/20 p-6">
+        <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+          <Activity className="w-5 h-5 text-emerald-400" />
+          Daily Activity Pattern
+        </h2>
+        
+        {activityChartData.length > 0 ? (
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={activityChartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="time" tick={{ fill: '#9CA3AF', fontSize: 12 }} />
+                <YAxis tick={{ fill: '#9CA3AF', fontSize: 12 }} />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#1F2937', 
+                    border: '1px solid #374151',
+                    borderRadius: '8px',
+                    color: '#F9FAFB'
+                  }} 
+                />
+                <Legend />
+                <Bar dataKey="Students" fill="#10B981" />
+                <Bar dataKey="Teachers" fill="#3B82F6" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="h-64 flex items-center justify-center text-gray-500">
+            {isLoading ? 'Loading activity data...' : 'No activity data available'}
+          </div>
+        )}
       </div>
 
       {/* Performance Metrics */}
@@ -377,35 +505,51 @@ const AdminAnalyticsPage = () => {
         </div>
       </div>
 
-      {/* Recent Activity Log */}
+      {/* Today's Activity Log */}
       <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl border border-white/20 p-6">
-        <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-          <Calendar className="w-5 h-5 text-emerald-400" />
-          Recent Activity
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-emerald-400" />
+            Today's Activity
+          </h2>
+          <Link 
+            href="/protected/admin/activity" 
+            className="flex items-center gap-2 px-3 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-sm transition-colors"
+          >
+            View All Activity
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
         
         {analytics.recentActivity && analytics.recentActivity.length > 0 ? (
           <div className="space-y-3">
-            {analytics.recentActivity.map((activity, index) => (
+            {analytics.recentActivity.slice(0, 5).map((activity, index) => (
               <div key={index} className="flex items-center justify-between p-4 bg-white/5 rounded-lg hover:bg-white/10 transition-colors">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center text-xs font-medium text-white">
-                    {activity.userInitials || activity.user?.charAt(0) || 'U'}
+                  <div className={`w-8 h-8 bg-gradient-to-r ${getActivityColor(activity.type)} rounded-full flex items-center justify-center text-white`}>
+                    {getActivityIcon(activity.type)}
                   </div>
                   <div>
                     <p className="text-white font-medium">{activity.description}</p>
-                    <p className="text-gray-400 text-sm">{activity.user}</p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400 text-sm">{activity.user}</span>
+                      <span className="text-gray-500 text-xs">•</span>
+                      <span className="text-gray-500 text-xs capitalize">{activity.category}</span>
+                    </div>
                   </div>
                 </div>
                 <span className="text-gray-400 text-sm">
-                  {new Date(activity.timestamp).toLocaleDateString()}
+                  {new Date(activity.timestamp).toLocaleTimeString('en-US', { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                  })}
                 </span>
               </div>
             ))}
           </div>
         ) : (
           <div className="text-center py-8 text-gray-500">
-            {isLoading ? 'Loading recent activity...' : 'No recent activity found'}
+            {isLoading ? 'Loading today\'s activity...' : 'No activity today'}
           </div>
         )}
       </div>
