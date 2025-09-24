@@ -1,12 +1,14 @@
 // /app/api/protected/headadmin/messages/conversations/route.js
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyJWT } from '@/lib/auth';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function GET(request) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    const decoded = await verifyJWT(token);
+    const user = await getCurrentUser(request);
+    if (!user || user.role !== 'headadmin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
     
     if (decoded.role !== 'headadmin') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });

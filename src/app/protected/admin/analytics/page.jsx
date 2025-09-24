@@ -16,8 +16,7 @@ import {
   Award,
   AlertTriangle,
   ArrowRight,
-  PieChart,
-  Pie
+  PieChart
 } from 'lucide-react';
 import {
   PieChart as RechartsPieChart,
@@ -334,7 +333,7 @@ const AdminAnalyticsPage = () => {
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <RechartsPieChart>
-                  <Pie
+                  <PieChart
                     data={roleDistributionData}
                     cx="50%"
                     cy="50%"
@@ -347,7 +346,7 @@ const AdminAnalyticsPage = () => {
                     {roleDistributionData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
-                  </Pie>
+                  </PieChart>
                   <Tooltip 
                     contentStyle={{ 
                       backgroundColor: '#1F2937', 

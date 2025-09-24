@@ -1,29 +1,21 @@
-// /app/api/protected/teachers/messages/conversations/route.js
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth';
 
+// /app/api/protected/students/messages/conversations/route.js
 export async function GET(request) {
   try {
-    const user = await requireAuth(request);
-    if (!user || user.role !== 'teacher') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
-    }
-
-    const userId = user.id;
+    const token = request.headers.get('authorization')?.replace('Bearer ', '');
+    const decoded = await verifyJWT(token);
     
-    const teacherRoles = ['teacher', 'director', 'coordinator', 'class_teacher', 'subject_teacher'];
-    if (!teacherRoles.includes(decoded.role)) {
+    if (decoded.role !== 'student') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
     const userId = decoded.userId;
-    const userSchool = await prisma.user.findUnique({
+    const userInfo = await prisma.user.findUnique({
       where: { id: userId },
-      select: { schoolId: true, role: true }
+      select: { schoolId: true }
     });
 
-    // Get all conversations this teacher is part of
+    // Get conversations - group messages by other participant
     const conversations = await prisma.message.groupBy({
       by: ['fromUserId', 'toUserId'],
       where: {
@@ -31,7 +23,7 @@ export async function GET(request) {
           { fromUserId: userId },
           { toUserId: userId }
         ],
-        schoolId: userSchool.schoolId
+        schoolId: userInfo.schoolId
       },
       _max: {
         createdAt: true,
@@ -53,17 +45,17 @@ export async function GET(request) {
       let participant;
       
       if (participantId === null) {
-        // Head admin conversation
+        // System/admin message
         participant = {
-          id: 'headadmin',
-          firstName: 'Head',
-          lastName: 'Administrator',
-          role: 'headadmin'
+          id: 'system',
+          firstName: 'School',
+          lastName: 'Administration',
+          role: 'admin'
         };
       } else {
         participant = await prisma.user.findUnique({
           where: { id: participantId },
-          select: { id: true, firstName: true, lastName: true, role: true, email: true }
+          select: { id: true, firstName: true, lastName: true, role: true }
         });
       }
 
@@ -74,7 +66,7 @@ export async function GET(request) {
               { fromUserId: userId, toUserId: participantId },
               { fromUserId: participantId, toUserId: userId }
             ],
-            schoolId: userSchool.schoolId
+            schoolId: userInfo.schoolId
           },
           orderBy: { createdAt: 'desc' }
         });
@@ -84,12 +76,12 @@ export async function GET(request) {
             fromUserId: participantId,
             toUserId: userId,
             isRead: false,
-            schoolId: userSchool.schoolId
+            schoolId: userInfo.schoolId
           }
         });
 
         enrichedConversations.push({
-          id: participantId || 'headadmin',
+          id: participantId || 'system',
           participant,
           lastMessage,
           unreadCount
@@ -99,7 +91,7 @@ export async function GET(request) {
 
     return NextResponse.json({ conversations: enrichedConversations });
   } catch (error) {
-    console.error('Error fetching teacher conversations:', error);
+    console.error('Error fetching student conversations:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
