@@ -1,4 +1,3 @@
-
 // /app/api/protected/students/messages/conversations/route.js
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -9,15 +8,33 @@ export async function GET(request) {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
     const decoded = await requireAuth(token);
     
+    // Debug: log the decoded object to see its structure
+    console.log('Decoded token:', decoded);
+    
     if (decoded.role !== 'student') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    const userId = decoded.userId;
+    // Try different possible property names for the user ID
+    const userId = decoded.userId || decoded.id || decoded.user?.id || decoded.sub;
+    
+    if (!userId) {
+      console.error('No user ID found in decoded token:', decoded);
+      return NextResponse.json({ error: 'Invalid token: missing user ID' }, { status: 401 });
+    }
+
+    console.log('Using userId:', userId);
+
     const userInfo = await prisma.user.findUnique({
       where: { id: userId },
-      select: { schoolId: true }
+      select: { schoolId: true, role: true, firstName: true, lastName: true }
     });
+
+    if (!userInfo) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    console.log('User info:', userInfo);
 
     // Get conversations - group messages by other participant
     const conversations = await prisma.message.groupBy({
@@ -96,6 +113,16 @@ export async function GET(request) {
     return NextResponse.json({ conversations: enrichedConversations });
   } catch (error) {
     console.error('Error fetching student conversations:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    
+    // More detailed error logging
+    if (error.name === 'PrismaClientKnownRequestError') {
+      console.error('Prisma error code:', error.code);
+      console.error('Prisma error meta:', error.meta);
+    }
+    
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      details: error.message // Remove this in production
+    }, { status: 500 });
   }
 }
