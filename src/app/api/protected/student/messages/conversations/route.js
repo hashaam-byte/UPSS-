@@ -8,22 +8,16 @@ export async function GET(request) {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
     const decoded = await requireAuth(token);
     
-    // Debug: log the decoded object to see its structure
-    console.log('Decoded token:', decoded);
-    
     if (decoded.role !== 'student') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    // Try different possible property names for the user ID
-    const userId = decoded.userId || decoded.id || decoded.user?.id || decoded.sub;
+    // Extract user ID from decoded token
+    const userId = decoded.id; // Based on your token structure
     
     if (!userId) {
-      console.error('No user ID found in decoded token:', decoded);
       return NextResponse.json({ error: 'Invalid token: missing user ID' }, { status: 401 });
     }
-
-    console.log('Using userId:', userId);
 
     const userInfo = await prisma.user.findUnique({
       where: { id: userId },
@@ -33,8 +27,6 @@ export async function GET(request) {
     if (!userInfo) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
-
-    console.log('User info:', userInfo);
 
     // Get conversations - group messages by other participant
     const conversations = await prisma.message.groupBy({
@@ -47,8 +39,8 @@ export async function GET(request) {
         schoolId: userInfo.schoolId
       },
       _max: {
-        createdAt: true,
-        id: true
+        createdAt: true
+        // Removed id from _max since PostgreSQL can't use MAX() on UUID fields
       }
     });
 
