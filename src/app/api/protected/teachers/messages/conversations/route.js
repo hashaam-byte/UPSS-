@@ -17,7 +17,6 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    const userId = decoded.userId;
     const userSchool = await prisma.user.findUnique({
       where: { id: userId },
       select: { schoolId: true, role: true }
