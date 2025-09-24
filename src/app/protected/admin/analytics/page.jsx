@@ -16,7 +16,8 @@ import {
   Award,
   AlertTriangle,
   ArrowRight,
-  PieChart
+  PieChart,
+  Pie
 } from 'lucide-react';
 import {
   PieChart as RechartsPieChart,
