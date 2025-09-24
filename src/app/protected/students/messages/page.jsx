@@ -44,7 +44,7 @@ const StudentMessagesPage = () => {
   const fetchConversations = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/protected/students/messages/conversations');
+      const response = await fetch('/api/protected/student/messages/conversations');
       const data = await response.json();
 
       if (response.ok) {
@@ -65,7 +65,7 @@ const StudentMessagesPage = () => {
 
   const fetchMessages = async (conversationId) => {
     try {
-      const response = await fetch(`/api/protected/students/messages/${conversationId}`);
+      const response = await fetch(`/api/protected/student/messages/${conversationId}`);
       const data = await response.json();
 
       if (response.ok) {
@@ -85,7 +85,7 @@ const StudentMessagesPage = () => {
 
     setSendingMessage(true);
     try {
-      const response = await fetch('/api/protected/students/messages/send', {
+      const response = await fetch('/api/protected/student/messages/send', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
