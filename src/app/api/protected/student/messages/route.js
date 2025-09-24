@@ -1,12 +1,11 @@
 // /app/api/protected/students/messages/route.js
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyJWT } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth';
 
 export async function GET(request) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    const decoded = await verifyJWT(token);
+    const user = await requireAuth(request);
     
     if (decoded.role !== 'student') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
