@@ -80,8 +80,7 @@ export async function GET(request) {
             department: true
           }
         }
-      },
-      distinct: ['teacherProfile.department']
+      }
     });
 
     const departments = [...new Set(availableDepartments
