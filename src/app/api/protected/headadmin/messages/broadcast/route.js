@@ -17,7 +17,7 @@ export async function POST(request) {
 
     // Get all school admins
     const schoolAdmins = await prisma.user.findMany({
-      where: { role: 'admin' },
+      where: { role: 'admin', isActive: true },
       select: { id: true, schoolId: true }
     });
 

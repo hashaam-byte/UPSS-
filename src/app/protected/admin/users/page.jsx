@@ -87,11 +87,11 @@ const AdminUsersPage = () => {
         setAvailableArms(data.arms || []);
       } else {
         console.error('Failed to fetch arms:', data.error);
-        setAvailableArms(['A', 'B', 'C']); // Fallback to default arms
+        setAvailableArms(['Silver', 'Diamond', 'Gold']); // Fallback to default arms
       }
     } catch (error) {
       console.error('Error fetching arms:', error);
-      setAvailableArms(['A', 'B', 'C']); // Fallback to default arms
+      setAvailableArms(['Silver', 'Diamond', 'Gold']); // Fallback to default arms
     } finally {
       setLoadingArms(false);
     }

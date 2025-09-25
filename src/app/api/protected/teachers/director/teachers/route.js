@@ -44,7 +44,7 @@ export async function GET(request) {
       include: {
         teacherProfile: {
           include: {
-            teachers: {
+            teacherSubjects: { // Fixed: was 'teachers', now 'teacherSubjects'
               include: {
                 subject: true
               }
@@ -108,7 +108,7 @@ export async function GET(request) {
           qualification: teacher.teacherProfile?.qualification,
           experienceYears: teacher.teacherProfile?.experienceYears || 0,
           joiningDate: teacher.teacherProfile?.joiningDate,
-          subjects: teacher.teacherProfile?.teachers?.map(ts => ({
+          subjects: teacher.teacherProfile?.teacherSubjects?.map(ts => ({ // Fixed: was 'teachers', now 'teacherSubjects'
             name: ts.subject.name,
             code: ts.subject.code,
             category: ts.subject.category,

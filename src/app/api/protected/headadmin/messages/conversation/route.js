@@ -1,52 +1,48 @@
 // /app/api/protected/headadmin/messages/conversations/route.js
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getCurrentUser } from '@/lib/auth';
+import { verifyJWT } from '@/lib/auth';
 
 export async function GET(request) {
   try {
-    const user = await getCurrentUser(request);
-    if (!user || user.role !== 'headadmin') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
-    }
+    const token = request.headers.get('authorization')?.replace('Bearer ', '');
+    const decoded = await verifyJWT(token);
     
     if (decoded.role !== 'headadmin') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    // Get all conversations with school admins
-    const conversations = await prisma.message.groupBy({
-      by: ['schoolId', 'toUserId'],
+    // Get all school admins for conversations
+    const schoolAdmins = await prisma.user.findMany({
       where: {
-        OR: [
-          { fromUserId: null }, // Messages from head admin
-          { toUserId: null }     // Messages to head admin
-        ]
+        role: 'admin',
+        isActive: true
       },
-      _max: {
-        createdAt: true,
-        id: true
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        schoolId: true,
+        school: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
       }
     });
 
-    // Enrich with school and user data
-    const enrichedConversations = await Promise.all(
-      conversations.map(async (conv) => {
-        const [school, user, lastMessage, unreadCount] = await Promise.all([
-          prisma.school.findUnique({
-            where: { id: conv.schoolId },
-            select: { id: true, name: true }
-          }),
-          prisma.user.findUnique({
-            where: { id: conv.toUserId },
-            select: { id: true, firstName: true, lastName: true, email: true }
-          }),
+    // Get conversation data for each admin
+    const conversations = await Promise.all(
+      schoolAdmins.map(async (admin) => {
+        const [lastMessage, unreadCount] = await Promise.all([
           prisma.message.findFirst({
             where: {
-              schoolId: conv.schoolId,
+              schoolId: admin.schoolId,
               OR: [
-                { fromUserId: null, toUserId: conv.toUserId },
-                { fromUserId: conv.toUserId, toUserId: null }
+                { fromUserId: null, toUserId: admin.id }, // From head admin
+                { fromUserId: admin.id, toUserId: null }  // To head admin
               ]
             },
             orderBy: { createdAt: 'desc' },
@@ -54,8 +50,8 @@ export async function GET(request) {
           }),
           prisma.message.count({
             where: {
-              schoolId: conv.schoolId,
-              fromUserId: conv.toUserId,
+              schoolId: admin.schoolId,
+              fromUserId: admin.id,
               toUserId: null,
               isRead: false
             }
@@ -63,18 +59,23 @@ export async function GET(request) {
         ]);
 
         return {
-          id: `${conv.schoolId}-${conv.toUserId}`,
-          schoolId: conv.schoolId,
-          userId: conv.toUserId,
-          school,
-          user,
+          id: `${admin.schoolId}-${admin.id}`,
+          schoolId: admin.schoolId,
+          userId: admin.id,
+          school: admin.school,
+          user: {
+            id: admin.id,
+            firstName: admin.firstName,
+            lastName: admin.lastName,
+            email: admin.email
+          },
           lastMessage,
           unreadCount
         };
       })
     );
 
-    return NextResponse.json({ conversations: enrichedConversations });
+    return NextResponse.json({ conversations });
   } catch (error) {
     console.error('Error fetching conversations:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

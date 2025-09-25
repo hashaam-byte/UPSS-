@@ -1,70 +1,34 @@
-// pages/api/protected/headadmin/messages/send.js
-import { prisma } from '@/lib/prisma';
-import { NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth';
 
+// /app/api/protected/headadmin/messages/send/route.js
 export async function POST(request) {
   try {
-    const user = await getCurrentUser();
-    if (!user || user.role !== 'headadmin') {
-      return NextResponse.json(
-        { error: 'Access denied' },
-        { status: 403 }
-      );
+    const token = request.headers.get('authorization')?.replace('Bearer ', '');
+    const decoded = await verifyJWT(token);
+    
+    if (decoded.role !== 'headadmin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    const body = await request.json();
-    const { toUserId, schoolId, content, messageType = 'direct' } = body;
+    const { toUserId, schoolId, content, messageType = 'direct' } = await request.json();
 
-    if (!content || !content.trim()) {
+    if (!content?.trim()) {
       return NextResponse.json({ error: 'Message content is required' }, { status: 400 });
     }
 
-    if (!toUserId) {
-      return NextResponse.json({ error: 'Recipient is required' }, { status: 400 });
-    }
-
-    // Verify recipient exists
-    const recipient = await prisma.user.findUnique({
-      where: { id: toUserId }
-    });
-
-    if (!recipient) {
-      return NextResponse.json({ error: 'Recipient not found' }, { status: 404 });
-    }
-
-    // Create message
     const message = await prisma.message.create({
       data: {
-        fromUserId: user.id,
+        fromUserId: null, // Head admin messages have null fromUserId
         toUserId,
         schoolId,
         content: content.trim(),
         messageType,
         priority: 'normal'
-      },
-      include: {
-        fromUser: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true
-          }
-        }
       }
     });
 
-    return NextResponse.json({
-      success: true,
-      message
-    });
-
+    return NextResponse.json({ message, success: true });
   } catch (error) {
-    console.error('Failed to send message:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('Error sending message:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
-   

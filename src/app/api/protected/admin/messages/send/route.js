@@ -1,89 +1,57 @@
 
 // /app/api/protected/admin/messages/send/route.js
-import { requireAuth } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
-import { NextResponse } from 'next/server';
-
 export async function POST(request) {
   try {
-    const user = await requireAuth(['admin']);
+    const token = request.headers.get('authorization')?.replace('Bearer ', '');
+    const decoded = await verifyJWT(token);
+    
+    if (decoded.role !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
     const { conversationId, content } = await request.json();
+    const userId = decoded.userId;
 
-    if (!conversationId || !content?.trim()) {
-      return NextResponse.json(
-        { error: 'Conversation ID and content are required' },
-        { status: 400 }
-      );
+    if (!content?.trim()) {
+      return NextResponse.json({ error: 'Message content is required' }, { status: 400 });
     }
 
-    // Verify the other user exists
-    const otherUser = await prisma.user.findUnique({
-      where: { id: conversationId },
-      select: { id: true, firstName: true, lastName: true, role: true }
+    const userInfo = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { schoolId: true }
     });
 
-    if (!otherUser) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+    let message;
+
+    if (conversationId === 'headadmin') {
+      // Message to head admin
+      message = await prisma.message.create({
+        data: {
+          fromUserId: userId,
+          toUserId: null, // null represents head admin
+          schoolId: userInfo.schoolId,
+          content: content.trim(),
+          messageType: 'direct',
+          priority: 'normal'
+        }
+      });
+    } else {
+      // Message to another user
+      message = await prisma.message.create({
+        data: {
+          fromUserId: userId,
+          toUserId: conversationId,
+          schoolId: userInfo.schoolId,
+          content: content.trim(),
+          messageType: 'direct',
+          priority: 'normal'
+        }
+      });
     }
 
-    // Create the message
-    const message = await prisma.message.create({
-      data: {
-        content: content.trim(),
-        fromUserId: user.id,
-        toUserId: conversationId,
-        isRead: false
-      },
-      include: {
-        fromUser: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            role: true
-          }
-        }
-      }
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: {
-        id: message.id,
-        content: message.content,
-        createdAt: message.createdAt,
-        isRead: message.isRead,
-        fromCurrentUser: true,
-        sender: {
-          id: message.fromUser.id,
-          name: `${message.fromUser.firstName} ${message.fromUser.lastName}`,
-          role: message.fromUser.role
-        }
-      }
-    });
-
+    return NextResponse.json({ message, success: true });
   } catch (error) {
-    if (error.message === 'Authentication required') {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-
-    if (error.message === 'Access denied') {
-      return NextResponse.json(
-        { error: 'Access denied' },
-        { status: 403 }
-      );
-    }
-
-    console.error('Send message error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('Error sending admin message:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

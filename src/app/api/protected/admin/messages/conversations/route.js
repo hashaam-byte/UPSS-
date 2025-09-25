@@ -1,124 +1,120 @@
 // /app/api/protected/admin/messages/conversations/route.js
-import { requireAuth } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { verifyJWT } from '@/lib/auth';
 
 export async function GET(request) {
   try {
-    const user = await requireAuth(['admin', 'headadmin']);
-    const userId = user.id;
+    const token = request.headers.get('authorization')?.replace('Bearer ', '');
+    const decoded = await verifyJWT(token);
+    
+    if (decoded.role !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
 
-    // Find headadmin user
-    const headAdmin = await prisma.user.findFirst({
-      where: { role: 'headadmin' }
+    const userId = decoded.userId;
+    const userInfo = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { schoolId: true }
     });
 
-    // For admin: show conversation with headadmin
-    // For headadmin: show all admin conversations
-    let conversations = [];
+    // Get all potential conversation participants in the same school
+    const potentialContacts = await prisma.user.findMany({
+      where: {
+        schoolId: userInfo.schoolId,
+        isActive: true,
+        id: { not: userId }, // Exclude self
+        OR: [
+          { role: 'teacher' },
+          { role: 'director' }, 
+          { role: 'coordinator' },
+          { role: 'class_teacher' },
+          { role: 'subject_teacher' },
+          { role: 'student' }
+        ]
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        role: true
+      }
+    });
 
-    if (user.role === 'admin' && headAdmin) {
-      // Only one conversation: admin <-> headadmin
-      const lastMessage = await prisma.message.findFirst({
-        where: {
-          OR: [
-            { fromUserId: userId, toUserId: headAdmin.id },
-            { fromUserId: headAdmin.id, toUserId: userId }
-          ]
-        },
-        orderBy: { createdAt: 'desc' }
-      });
+    // Check for messages with each contact and head admin
+    const conversations = [];
 
+    // Add head admin conversation
+    const headAdminMessages = await prisma.message.findFirst({
+      where: {
+        schoolId: userInfo.schoolId,
+        OR: [
+          { fromUserId: null, toUserId: userId },
+          { fromUserId: userId, toUserId: null }
+        ]
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    if (headAdminMessages) {
       const unreadCount = await prisma.message.count({
         where: {
-          fromUserId: headAdmin.id,
+          schoolId: userInfo.schoolId,
+          fromUserId: null,
           toUserId: userId,
           isRead: false
         }
       });
 
-      conversations = [{
-        id: headAdmin.id,
+      conversations.push({
+        id: 'headadmin',
         participant: {
-          id: headAdmin.id,
-          firstName: headAdmin.firstName,
-          lastName: headAdmin.lastName,
-          email: headAdmin.email,
-          role: headAdmin.role
+          id: 'headadmin',
+          firstName: 'Head',
+          lastName: 'Administrator',
+          role: 'headadmin'
         },
-        lastMessage: lastMessage
-          ? { content: lastMessage.content, createdAt: lastMessage.createdAt }
-          : null,
+        lastMessage: headAdminMessages,
         unreadCount
-      }];
-    } else if (user.role === 'headadmin') {
-      // Show all admins
-      const admins = await prisma.user.findMany({
-        where: { role: 'admin' }
+      });
+    }
+
+    // Add other user conversations
+    for (const contact of potentialContacts) {
+      const lastMessage = await prisma.message.findFirst({
+        where: {
+          OR: [
+            { fromUserId: userId, toUserId: contact.id },
+            { fromUserId: contact.id, toUserId: userId }
+          ],
+          schoolId: userInfo.schoolId
+        },
+        orderBy: { createdAt: 'desc' }
       });
 
-      conversations = await Promise.all(
-        admins.map(async (admin) => {
-          const lastMessage = await prisma.message.findFirst({
-            where: {
-              OR: [
-                { fromUserId: userId, toUserId: admin.id },
-                { fromUserId: admin.id, toUserId: userId }
-              ]
-            },
-            orderBy: { createdAt: 'desc' }
-          });
+      if (lastMessage) {
+        const unreadCount = await prisma.message.count({
+          where: {
+            fromUserId: contact.id,
+            toUserId: userId,
+            isRead: false,
+            schoolId: userInfo.schoolId
+          }
+        });
 
-          const unreadCount = await prisma.message.count({
-            where: {
-              fromUserId: admin.id,
-              toUserId: userId,
-              isRead: false
-            }
-          });
-
-          return {
-            id: admin.id,
-            participant: {
-              id: admin.id,
-              firstName: admin.firstName,
-              lastName: admin.lastName,
-              email: admin.email,
-              role: admin.role
-            },
-            lastMessage: lastMessage
-              ? { content: lastMessage.content, createdAt: lastMessage.createdAt }
-              : null,
-            unreadCount
-          };
-        })
-      );
+        conversations.push({
+          id: contact.id,
+          participant: contact,
+          lastMessage,
+          unreadCount
+        });
+      }
     }
 
-    return NextResponse.json({
-      success: true,
-      conversations
-    });
-
+    return NextResponse.json({ conversations });
   } catch (error) {
-    if (error.message === 'Authentication required') {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-
-    if (error.message === 'Access denied') {
-      return NextResponse.json(
-        { error: 'Access denied' },
-        { status: 403 }
-      );
-    }
-
-    console.error('Get conversations error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-     );
+    console.error('Error fetching admin conversations:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

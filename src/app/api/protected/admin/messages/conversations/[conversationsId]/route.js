@@ -1,41 +1,63 @@
-// /app/api/protected/admin/messages/[conversationId]/route.js
-import { requireAuth } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
-import { NextResponse } from 'next/server';
 
+// /app/api/protected/admin/messages/[conversationId]/route.js
 export async function GET(request, { params }) {
   try {
-    const user = await requireAuth(['admin', 'headadmin']);
-    const { conversationsId } = params;
-    const otherUserId = conversationsId;
+    const token = request.headers.get('authorization')?.replace('Bearer ', '');
+    const decoded = await verifyJWT(token);
+    
+    if (decoded.role !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
 
-    // Get messages for the conversation (admin <-> headadmin)
-    const messages = await prisma.message.findMany({
-      where: {
-        OR: [
-          { fromUserId: user.id, toUserId: otherUserId },
-          { fromUserId: otherUserId, toUserId: user.id }
-        ]
-      },
-      include: {
-        fromUser: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            role: true
+    const userId = decoded.userId;
+    const conversationId = params.conversationId;
+
+    const userInfo = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { schoolId: true }
+    });
+
+    let messages = [];
+
+    if (conversationId === 'headadmin') {
+      // Messages with head admin
+      messages = await prisma.message.findMany({
+        where: {
+          schoolId: userInfo.schoolId,
+          OR: [
+            { fromUserId: null, toUserId: userId },
+            { fromUserId: userId, toUserId: null }
+          ]
+        },
+        orderBy: { createdAt: 'asc' }
+      });
+    } else {
+      // Messages with other users
+      messages = await prisma.message.findMany({
+        where: {
+          OR: [
+            { fromUserId: userId, toUserId: conversationId },
+            { fromUserId: conversationId, toUserId: userId }
+          ],
+          schoolId: userInfo.schoolId
+        },
+        orderBy: { createdAt: 'asc' },
+        include: {
+          fromUser: {
+            select: { id: true, firstName: true, lastName: true }
           }
         }
-      },
-      orderBy: { createdAt: 'asc' }
-    });
+      });
+    }
 
     // Mark messages as read
     await prisma.message.updateMany({
       where: {
-        fromUserId: otherUserId,
-        toUserId: user.id,
-        isRead: false
+        OR: [
+          { fromUserId: null, toUserId: userId, isRead: false },
+          { fromUserId: conversationId, toUserId: userId, isRead: false }
+        ],
+        schoolId: userInfo.schoolId
       },
       data: {
         isRead: true,
@@ -43,43 +65,15 @@ export async function GET(request, { params }) {
       }
     });
 
-    const formattedMessages = messages.map(message => ({
-      id: message.id,
-      content: message.content,
-      createdAt: message.createdAt,
-      isRead: message.isRead,
-      fromCurrentUser: message.fromUserId === user.id,
-      sender: {
-        id: message.fromUser.id,
-        name: `${message.fromUser.firstName} ${message.fromUser.lastName}`,
-        role: message.fromUser.role
-      }
+    // Add fromCurrentUser flag
+    const processedMessages = messages.map(message => ({
+      ...message,
+      fromCurrentUser: message.fromUserId === userId
     }));
 
-    return NextResponse.json({
-      success: true,
-      messages: formattedMessages
-    });
-
+    return NextResponse.json({ messages: processedMessages });
   } catch (error) {
-    if (error.message === 'Authentication required') {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-
-    if (error.message === 'Access denied') {
-      return NextResponse.json(
-        { error: 'Access denied' },
-        { status: 403 }
-      );
-    }
-
-    console.error('Get messages error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('Error fetching admin messages:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
