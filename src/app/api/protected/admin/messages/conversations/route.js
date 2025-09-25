@@ -1,15 +1,15 @@
 // /app/api/protected/admin/messages/conversations/route.js
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyJWT } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth';
 
 export async function GET(request) {
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    const decoded = await verifyJWT(token);
+    const decoded = await requireAuth(token);
     
     if (decoded.role !== 'admin') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+      return NextResponse.json({ error: 'Unsauthorized' }, { status: 403 });
     }
 
     const userId = decoded.userId;
