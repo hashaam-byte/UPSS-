@@ -45,7 +45,7 @@ const StudentMessagesPage = () => {
   const fetchConversations = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/protected/students/messages/conversations');
+      const response = await fetch('/api/protected/student/messages/conversations');
       const data = await response.json();
 
       if (response.ok) {
@@ -66,7 +66,7 @@ const StudentMessagesPage = () => {
 
   const fetchMessages = async (conversationId) => {
     try {
-      const response = await fetch(`/api/protected/students/messages/${conversationId}`);
+      const response = await fetch(`/api/protected/student/messages/${conversationId}`);
       const data = await response.json();
 
       if (response.ok) {
@@ -86,7 +86,7 @@ const StudentMessagesPage = () => {
 
     setSendingMessage(true);
     try {
-      const response = await fetch('/api/protected/students/messages/send', {
+      const response = await fetch('/api/protected/student/messages/send', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -354,7 +354,9 @@ const StudentMessagesPage = () => {
                   <div ref={messagesEndRef} />
                 </div>
 
--center gap-3">
+                {/* Message Input */}
+                <div className="bg-gradient-to-r from-white/80 to-indigo-50/80 backdrop-blur-sm p-4 border-t border-gray-200/50">
+                  <form onSubmit={sendMessage} className="flex items-center gap-3">
                     <div className="flex-1 relative">
                       <input
                         type="text"
