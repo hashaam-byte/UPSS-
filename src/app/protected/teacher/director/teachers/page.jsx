@@ -226,14 +226,14 @@ export default function DirectorTeachers() {
                         </div>
                       </div>
 
-                      {/* Subjects */}
+                      {/* Subjects - FIXED */}
                       {teacher.subjects?.length > 0 && (
                         <div className="mb-4">
                           <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">Subjects Teaching</p>
                           <div className="flex flex-wrap gap-2">
                             {teacher.subjects.slice(0, 3).map((subject, index) => (
                               <span key={index} className="px-2 py-1 text-xs font-medium rounded-lg bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                                {subject}
+                                {subject.name}
                               </span>
                             ))}
                             {teacher.subjects.length > 3 && (
