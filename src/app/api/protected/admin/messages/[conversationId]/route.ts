@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { conversationId: string } }
+  context: { params: Promise<{ conversationId: string }> }
 ) {
   try {
     const user = await requireAuth(request, ['admin']);
@@ -12,13 +12,13 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const participantId = params.conversationId;
+    const { conversationId } = await context.params;
 
     const messages = await prisma.message.findMany({
       where: {
         OR: [
-          { fromUserId: user.id, toUserId: participantId },
-          { fromUserId: participantId, toUserId: user.id }
+          { fromUserId: user.id, toUserId: conversationId },
+          { fromUserId: conversationId, toUserId: user.id }
         ]
       },
       orderBy: { createdAt: 'asc' },
@@ -34,7 +34,7 @@ export async function GET(
 
     await prisma.message.updateMany({
       where: {
-        fromUserId: participantId,
+        fromUserId: conversationId,
         toUserId: user.id,
         isRead: false
       },
