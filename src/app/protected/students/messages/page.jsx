@@ -4,28 +4,24 @@ import {
   MessageSquare, 
   Send, 
   Search,
-  Users,
-  GraduationCap,
-  BookOpen,
   User,
-  Clock,
-  CheckCircle,
-  AlertCircle,
-  Smile,
   Paperclip,
-  Phone,
-  Video
+  MoreVertical,
+  CheckCheck,
+  X,
+  BookOpen
 } from 'lucide-react';
 
 const StudentMessagesPage = () => {
   const [conversations, setConversations] = useState([]);
+  const [allTeachers, setAllTeachers] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState('');
-  const [sendingMessage, setSendingMessage] = useState(false);
+  const [showNewChat, setShowNewChat] = useState(false);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -42,14 +38,19 @@ const StudentMessagesPage = () => {
     scrollToBottom();
   }, [messages]);
 
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   const fetchConversations = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/protected/student/messages/conversations');
+      const response = await fetch('/api/protected/students/messages/conversations');
       const data = await response.json();
 
       if (response.ok) {
         setConversations(data.conversations || []);
+        setAllTeachers(data.allTeachers || []);
         if (data.conversations && data.conversations.length > 0) {
           setSelectedConversation(data.conversations[0]);
         }
@@ -66,31 +67,24 @@ const StudentMessagesPage = () => {
 
   const fetchMessages = async (conversationId) => {
     try {
-      const response = await fetch(`/api/protected/student/messages/${conversationId}`);
+      const response = await fetch(`/api/protected/students/messages/${conversationId}`);
       const data = await response.json();
 
       if (response.ok) {
         setMessages(data.messages || []);
-      } else {
-        setError(data.error || 'Failed to fetch messages');
       }
     } catch (error) {
       console.error('Error fetching messages:', error);
-      setError('Network error occurred');
     }
   };
 
-  const sendMessage = async (e) => {
-    e.preventDefault();
-    if (!newMessage.trim() || !selectedConversation || sendingMessage) return;
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !selectedConversation) return;
 
-    setSendingMessage(true);
     try {
-      const response = await fetch('/api/protected/student/messages/send', {
+      const response = await fetch('/api/protected/students/messages/send', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           conversationId: selectedConversation.id,
           content: newMessage.trim()
@@ -100,22 +94,32 @@ const StudentMessagesPage = () => {
       const data = await response.json();
 
       if (response.ok) {
-        setMessages(prev => [...prev, { ...data.message, fromCurrentUser: true }]);
+        setMessages(prev => [...prev, data.message]);
         setNewMessage('');
-        fetchConversations(); // Update conversation list
+        fetchConversations();
       } else {
         setError(data.error || 'Failed to send message');
       }
     } catch (error) {
       console.error('Error sending message:', error);
       setError('Network error occurred');
-    } finally {
-      setSendingMessage(false);
     }
   };
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  const startNewConversation = (teacher) => {
+    setSelectedConversation({
+      id: teacher.id,
+      participant: teacher
+    });
+    setMessages([]);
+    setShowNewChat(false);
   };
 
   const formatMessageTime = (dateString) => {
@@ -132,30 +136,12 @@ const StudentMessagesPage = () => {
     }
   };
 
-  const getRoleIcon = (role) => {
-    switch (role) {
-      case 'admin': return <Users className="w-4 h-4 text-purple-500" />;
-      case 'director': return <GraduationCap className="w-4 h-4 text-blue-500" />;
-      case 'coordinator': return <BookOpen className="w-4 h-4 text-green-500" />;
-      case 'class_teacher': 
-      case 'subject_teacher':
-      case 'teacher': return <User className="w-4 h-4 text-orange-500" />;
-      case 'student': return <GraduationCap className="w-4 h-4 text-indigo-500" />;
-      default: return <MessageSquare className="w-4 h-4 text-gray-500" />;
+  const getTeacherRole = (teacher) => {
+    if (teacher.teacherProfile?.coordinatorClass) {
+      return `Class Teacher - ${teacher.teacherProfile.coordinatorClass}`;
     }
-  };
-
-  const getRoleColor = (role) => {
-    switch (role) {
-      case 'admin': return 'from-purple-500 to-pink-500';
-      case 'director': return 'from-blue-500 to-cyan-500';
-      case 'coordinator': return 'from-green-500 to-emerald-500';
-      case 'class_teacher':
-      case 'subject_teacher':
-      case 'teacher': return 'from-orange-500 to-red-500';
-      case 'student': return 'from-indigo-500 to-purple-500';
-      default: return 'from-gray-500 to-gray-600';
-    }
+    const subjects = teacher.teacherProfile?.teacherSubjects?.map(ts => ts.subject?.name).filter(Boolean).join(', ');
+    return subjects ? `Subject Teacher - ${subjects}` : 'Teacher';
   };
 
   const filteredConversations = conversations.filter(conv =>
@@ -163,14 +149,16 @@ const StudentMessagesPage = () => {
     conv.participant?.lastName?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const filteredTeachers = allTeachers.filter(teacher =>
+    teacher.firstName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    teacher.lastName?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="relative">
-            <div className="w-16 h-16 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl animate-pulse"></div>
-            <div className="absolute inset-0 bg-gradient-to-r from-indigo-400 to-purple-400 rounded-2xl animate-ping"></div>
-          </div>
+          <div className="w-16 h-16 bg-gradient-to-r from-green-600 to-blue-600 rounded-2xl animate-pulse mx-auto"></div>
           <p className="text-gray-600 mt-4 font-medium">Loading messages...</p>
         </div>
       </div>
@@ -180,64 +168,56 @@ const StudentMessagesPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       <div className="h-screen flex flex-col">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-white/70 to-indigo-50/70 backdrop-blur-sm shadow-lg border-b border-white/50 p-6">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-800 via-indigo-800 to-purple-800 bg-clip-text text-transparent">
+        <div className="bg-gradient-to-r from-white/70 to-green-50/70 backdrop-blur-sm shadow-lg border-b border-white/50 p-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-800 via-green-800 to-blue-800 bg-clip-text text-transparent">
                 Messages
               </h1>
-              <p className="text-gray-600">
-                Connect with your teachers and classmates
-              </p>
+              <p className="text-gray-600">Chat with your teachers</p>
             </div>
-            <div className="flex items-center gap-2">
-              <MessageSquare className="w-8 h-8 text-indigo-500" />
-            </div>
+            <button
+              onClick={() => setShowNewChat(true)}
+              className="px-6 py-3 bg-gradient-to-r from-green-500 to-blue-500 text-white rounded-xl font-semibold hover:scale-105 transition-all shadow-lg"
+            >
+              New Chat
+            </button>
           </div>
         </div>
 
         {error && (
-          <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-xl">
+          <div className="mx-6 mt-4 bg-red-50 border border-red-300 rounded-xl p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+              <div className="w-5 h-5 text-red-600">⚠</div>
               <p className="text-red-700 font-medium">{error}</p>
-              <button 
-                onClick={() => setError('')}
-                className="ml-auto text-red-500 hover:text-red-700"
-              >
-                ×
-              </button>
             </div>
+            <button onClick={() => setError('')} className="text-red-600 hover:text-red-800">
+              <X className="w-5 h-5" />
+            </button>
           </div>
         )}
 
         <div className="flex-1 flex overflow-hidden">
-          {/* Conversations Sidebar */}
           <div className="w-80 bg-gradient-to-br from-white/70 to-gray-50/70 backdrop-blur-sm border-r border-gray-200/50 flex flex-col">
-            {/* Search */}
             <div className="p-4 border-b border-gray-200/50">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search conversations..."
+                  placeholder="Search teachers..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-4 py-2 w-full border border-gray-300/50 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white/50 backdrop-blur-sm text-sm"
+                  className="pl-10 pr-4 py-2 w-full border border-gray-300/50 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white/50 backdrop-blur-sm text-sm"
                 />
               </div>
             </div>
 
-            {/* Conversations List */}
             <div className="flex-1 overflow-y-auto">
               {filteredConversations.length === 0 ? (
                 <div className="text-center py-12 px-4">
-                  <div className="w-16 h-16 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <MessageSquare className="w-8 h-8 text-gray-400" />
-                  </div>
+                  <MessageSquare className="w-12 h-12 text-gray-400 mx-auto mb-3" />
                   <p className="text-gray-500 font-medium">No conversations yet</p>
-                  <p className="text-gray-400 text-sm mt-1">Messages from teachers will appear here</p>
+                  <p className="text-gray-400 text-sm mt-1">Start chatting with your teachers</p>
                 </div>
               ) : (
                 <div className="divide-y divide-gray-200/50">
@@ -245,22 +225,20 @@ const StudentMessagesPage = () => {
                     <button
                       key={conversation.id}
                       onClick={() => setSelectedConversation(conversation)}
-                      className={`w-full p-4 text-left hover:bg-indigo-50/50 transition-colors duration-200 ${
+                      className={`w-full p-4 text-left hover:bg-green-50/50 transition-colors ${
                         selectedConversation?.id === conversation.id 
-                          ? 'bg-gradient-to-r from-indigo-50 to-purple-50 border-r-4 border-indigo-500' 
+                          ? 'bg-gradient-to-r from-green-50 to-blue-50 border-r-4 border-green-500' 
                           : ''
                       }`}
                     >
                       <div className="flex items-center gap-3">
                         <div className="relative">
-                          <div className={`w-12 h-12 bg-gradient-to-br ${getRoleColor(conversation.participant?.role)} rounded-full flex items-center justify-center shadow-lg`}>
-                            {getRoleIcon(conversation.participant?.role)}
+                          <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-blue-500 rounded-full flex items-center justify-center text-white shadow-lg">
+                            <User className="w-6 h-6" />
                           </div>
                           {conversation.unreadCount > 0 && (
-                            <div className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-r from-red-500 to-pink-500 rounded-full flex items-center justify-center">
-                              <span className="text-xs font-bold text-white">
-                                {conversation.unreadCount > 9 ? '9+' : conversation.unreadCount}
-                              </span>
+                            <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-xs font-bold text-white">
+                              {conversation.unreadCount}
                             </div>
                           )}
                         </div>
@@ -268,16 +246,18 @@ const StudentMessagesPage = () => {
                           <p className="font-semibold text-gray-900 truncate">
                             {conversation.participant?.firstName} {conversation.participant?.lastName}
                           </p>
-                          <p className="text-sm text-gray-600 truncate capitalize">
-                            {conversation.participant?.role?.replace('_', ' ')}
+                          <p className="text-sm text-gray-600 truncate">
+                            {getTeacherRole(conversation.participant)}
                           </p>
                           <p className="text-xs text-gray-500 truncate mt-1">
                             {conversation.lastMessage?.content || 'No messages yet'}
                           </p>
                         </div>
-                        <div className="text-xs text-gray-400">
-                          {conversation.lastMessage && formatMessageTime(conversation.lastMessage.createdAt)}
-                        </div>
+                        {conversation.lastMessage && (
+                          <div className="text-xs text-gray-400">
+                            {formatMessageTime(conversation.lastMessage.createdAt)}
+                          </div>
+                        )}
                       </div>
                     </button>
                   ))}
@@ -286,66 +266,50 @@ const StudentMessagesPage = () => {
             </div>
           </div>
 
-          {/* Chat Area */}
-          <div className="flex-1 flex flex-col bg-gradient-to-br from-white/50 to-indigo-50/30">
+          <div className="flex-1 flex flex-col bg-gradient-to-br from-white/50 to-green-50/30">
             {selectedConversation ? (
               <>
-                {/* Chat Header */}
-                <div className="bg-gradient-to-r from-white/80 to-indigo-50/80 backdrop-blur-sm p-4 border-b border-gray-200/50 shadow-sm">
+                <div className="bg-gradient-to-r from-white/80 to-green-50/80 backdrop-blur-sm p-4 border-b border-gray-200/50 shadow-sm">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 bg-gradient-to-br ${getRoleColor(selectedConversation.participant?.role)} rounded-full flex items-center justify-center shadow-lg`}>
-                        {getRoleIcon(selectedConversation.participant?.role)}
+                      <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-blue-500 rounded-full flex items-center justify-center text-white shadow-lg">
+                        <User className="w-5 h-5" />
                       </div>
                       <div>
                         <h3 className="font-semibold text-gray-900">
                           {selectedConversation.participant?.firstName} {selectedConversation.participant?.lastName}
                         </h3>
-                        <p className="text-sm text-gray-600 capitalize">
-                          {selectedConversation.participant?.role?.replace('_', ' ')}
+                        <p className="text-sm text-gray-600">
+                          {getTeacherRole(selectedConversation.participant)}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100/50 rounded-lg transition-colors">
-                        <Phone className="w-5 h-5" />
-                      </button>
-                      <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100/50 rounded-lg transition-colors">
-                        <Video className="w-5 h-5" />
-                      </button>
-                    </div>
+                    <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100/50 rounded-lg transition-colors">
+                      <MoreVertical className="w-5 h-5" />
+                    </button>
                   </div>
                 </div>
 
-                {/* Messages */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
                   {messages.map((message) => (
                     <div
                       key={message.id}
-                      className={`flex ${
-                        message.fromCurrentUser ? 'justify-end' : 'justify-start'
-                      }`}
+                      className={`flex ${message.fromCurrentUser ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
                         className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl shadow-lg ${
                           message.fromCurrentUser
-                            ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white'
+                            ? 'bg-gradient-to-r from-green-500 to-blue-500 text-white'
                             : 'bg-white border border-gray-200/50'
                         }`}
                       >
                         <p className="text-sm">{message.content}</p>
-                        <div className="flex items-center justify-between mt-2">
-                          <p
-                            className={`text-xs ${
-                              message.fromCurrentUser
-                                ? 'text-indigo-100'
-                                : 'text-gray-500'
-                            }`}
-                          >
-                            {formatMessageTime(message.createdAt)}
-                          </p>
+                        <div className={`flex items-center gap-2 mt-2 text-xs ${
+                          message.fromCurrentUser ? 'text-green-100' : 'text-gray-500'
+                        }`}>
+                          <span>{formatMessageTime(message.createdAt)}</span>
                           {message.fromCurrentUser && (
-                            <CheckCircle className="w-3 h-3 text-indigo-200" />
+                            <CheckCheck className={`w-4 h-4 ${message.isRead ? 'text-white' : 'text-green-200'}`} />
                           )}
                         </div>
                       </div>
@@ -354,17 +318,16 @@ const StudentMessagesPage = () => {
                   <div ref={messagesEndRef} />
                 </div>
 
-                {/* Message Input */}
-                <div className="bg-gradient-to-r from-white/80 to-indigo-50/80 backdrop-blur-sm p-4 border-t border-gray-200/50">
-                  <form onSubmit={sendMessage} className="flex items-center gap-3">
+                <div className="bg-gradient-to-r from-white/80 to-green-50/80 backdrop-blur-sm p-4 border-t border-gray-200/50">
+                  <div className="flex items-center gap-3">
                     <div className="flex-1 relative">
                       <input
                         type="text"
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
+                        onKeyPress={handleKeyPress}
                         placeholder="Type your message..."
-                        className="w-full px-4 py-3 pr-12 border border-gray-300/50 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white/70 backdrop-blur-sm"
-                        disabled={sendingMessage}
+                        className="w-full px-4 py-3 pr-12 border border-gray-300/50 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white/70 backdrop-blur-sm"
                       />
                       <button
                         type="button"
@@ -374,32 +337,67 @@ const StudentMessagesPage = () => {
                       </button>
                     </div>
                     <button
-                      type="submit"
-                      disabled={!newMessage.trim() || sendingMessage}
-                      className="p-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl hover:from-purple-500 hover:to-pink-500 transition-all duration-300 hover:scale-105 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                      onClick={sendMessage}
+                      disabled={!newMessage.trim()}
+                      className="p-3 bg-gradient-to-r from-green-500 to-blue-500 text-white rounded-xl hover:from-blue-500 hover:to-purple-500 transition-all hover:scale-105 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                     >
-                      {sendingMessage ? (
-                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      ) : (
-                        <Send className="w-5 h-5" />
-                      )}
+                      <Send className="w-5 h-5" />
                     </button>
-                  </form>
+                  </div>
                 </div>
               </>
             ) : (
               <div className="flex-1 flex items-center justify-center">
                 <div className="text-center">
-                  <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <MessageSquare className="w-10 h-10 text-gray-400" />
-                  </div>
-                  <p className="text-gray-500 font-medium text-lg">Select a conversation</p>
-                  <p className="text-gray-400 text-sm mt-1">Choose someone to start messaging</p>
+                  <MessageSquare className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500 font-medium text-lg">Select a teacher</p>
+                  <p className="text-gray-400 text-sm mt-1">Choose a teacher to start messaging</p>
                 </div>
               </div>
             )}
           </div>
         </div>
+
+        {showNewChat && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden">
+              <div className="bg-gradient-to-r from-green-500 to-blue-500 p-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-bold text-white">Message a Teacher</h3>
+                  <button
+                    onClick={() => setShowNewChat(false)}
+                    className="text-white/80 hover:text-white p-1 rounded transition-colors"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+              </div>
+              <div className="p-6 overflow-y-auto max-h-96">
+                <div className="space-y-2">
+                  {filteredTeachers.map((teacher) => (
+                    <button
+                      key={teacher.id}
+                      onClick={() => startNewConversation(teacher)}
+                      className="w-full flex items-center gap-3 p-3 hover:bg-green-50 rounded-xl transition-colors"
+                    >
+                      <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-blue-500 rounded-full flex items-center justify-center text-white">
+                        <User className="w-5 h-5" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-semibold text-gray-900">
+                          {teacher.firstName} {teacher.lastName}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {getTeacherRole(teacher)}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
