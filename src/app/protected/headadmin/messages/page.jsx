@@ -35,10 +35,14 @@ const MessagesPage = () => {
     content: '',
     priority: 'normal'
   });
+  const [schoolAdmins, setSchoolAdmins] = useState([]);
+  const [loadingAdmins, setLoadingAdmins] = useState(true);
+  const [error, setError] = useState('');
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
     fetchConversations();
+    fetchSchoolAdmins();
   }, []);
 
   useEffect(() => {
@@ -152,6 +156,25 @@ const MessagesPage = () => {
       console.error('Failed to send broadcast:', error);
     } finally {
       setSendingMessage(false);
+    }
+  };
+
+  const fetchSchoolAdmins = async () => {
+    try {
+      setLoadingAdmins(true);
+      const response = await fetch('/api/protected/headadmin/messages/school-admins');
+      if (response.ok) {
+        const data = await response.json();
+        setSchoolAdmins(data.admins || []);
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to fetch school admins');
+      }
+    } catch (err) {
+      console.error('Error fetching school admins:', err);
+      setError('Network error occurred');
+    } finally {
+      setLoadingAdmins(false);
     }
   };
 
@@ -498,6 +521,57 @@ const MessagesPage = () => {
               </form>
             </div>
           </div>
+        )}
+      </div>
+
+      {/* School Admins Section */}
+      <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl border border-white/20 p-6 mt-6">
+        <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+          <User className="w-5 h-5 text-emerald-400" />
+          School Admins
+        </h2>
+        {loadingAdmins ? (
+          <p className="text-gray-400">Loading school admins...</p>
+        ) : error ? (
+          <p className="text-red-400">{error}</p>
+        ) : schoolAdmins.length === 0 ? (
+          <p className="text-gray-400">No school admins found.</p>
+        ) : (
+          <ul className="space-y-4">
+            {schoolAdmins.map((admin) => (
+              <li
+                key={admin.id}
+                className="flex items-center justify-between p-4 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center shadow-lg">
+                    <User className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-white font-medium">{admin.firstName} {admin.lastName}</p>
+                    <p className="text-gray-400 text-sm">{admin.email}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() =>
+                    setActiveConversation({
+                      id: `admin-${admin.id}`,   // temporary unique key
+                      userId: admin.id,          // required for sendMessage
+                      schoolId: admin.schoolId || null, 
+                      user: admin,
+                      school: admin.school || null,
+                      lastMessage: null,
+                      unreadCount: 0
+                    })
+                  }
+                  className="px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-sm transition-colors"
+                >
+                  <MessageSquare className="w-4 h-4 inline-block mr-2" />
+                  Message
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </div>
