@@ -15,8 +15,8 @@ export async function GET(request: NextRequest) {
         s.name as school_name,
         s.id as school_id,
         u.id as user_id,
-        u."firstName" as user_first_name,
-        u."lastName" as user_last_name,
+        u.first_name as user_first_name,
+        u.last_name as user_last_name,
         u.email as user_email,
         m.content as last_message_content,
         m."createdAt" as last_message_time,
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
       JOIN schools s ON m.school_id = s.id
       LEFT JOIN users u ON u.school_id = s.id AND u.role = 'admin'
       WHERE m."fromUserId" = ${user.id} OR m."toUserId" = ${user.id}
-      GROUP BY m.school_id, s.name, s.id, u.id, u."firstName", u."lastName", u.email, m.content, m."createdAt", m."isRead"
+      GROUP BY m.school_id, s.name, s.id, u.id, u.first_name, u.last_name, u.email, m.content, m."createdAt", m."isRead"
       ORDER BY m.school_id, m."createdAt" DESC
     `;
 
