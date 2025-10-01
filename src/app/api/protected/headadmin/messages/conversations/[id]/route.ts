@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await requireAuth(request, ['headadmin']);
@@ -12,11 +12,11 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const schoolId = params.id;
+    const { id } = await context.params;
 
     const messages = await prisma.message.findMany({
       where: {
-        schoolId,
+        schoolId: id,
         OR: [
           { fromUserId: user.id },
           { toUserId: user.id }

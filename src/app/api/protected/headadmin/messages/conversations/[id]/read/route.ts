@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await requireAuth(request, ['headadmin']);
@@ -12,9 +12,12 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Await params to get the id
+    const { id } = await params;
+
     await prisma.message.updateMany({
       where: {
-        schoolId: params.id,
+        schoolId: id,
         toUserId: user.id,
         isRead: false
       },
