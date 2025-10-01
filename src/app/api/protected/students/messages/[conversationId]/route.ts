@@ -7,7 +7,7 @@ export async function GET(
   { params }: { params: Promise<{ conversationId: string }> }
 ) {
   try {
-    const user = await requireAuth(request, ['student']);
+    const user = await requireAuth( ['student']);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -46,7 +46,20 @@ export async function GET(
       }
     });
 
-    const messagesWithFlag = messages.map(msg => ({
+    interface Message {
+      id: string;
+      content: string;
+      fromUserId: string;
+      toUserId: string;
+      createdAt: Date;
+      isRead: boolean;
+    }
+
+    interface MessageWithFlag extends Message {
+      fromCurrentUser: boolean;
+    }
+
+    const messagesWithFlag: MessageWithFlag[] = messages.map((msg: Message): MessageWithFlag => ({
       ...msg,
       fromCurrentUser: msg.fromUserId === user.id
     }));

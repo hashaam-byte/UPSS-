@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await requireAuth(request, ['student']);
+    const user = await requireAuth(['student']);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -47,9 +47,47 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    const conversationsWithMessages = await Promise.all(
-      teachers.map(async (teacher) => {
-        const lastMessage = await prisma.message.findFirst({
+    interface TeacherSubject {
+      subject: {
+        name: string;
+        code: string;
+      };
+    }
+
+    interface TeacherProfile {
+      coordinatorClass: string | null;
+      department: string | null;
+      teacherSubjects: TeacherSubject[];
+    }
+
+    interface Teacher {
+      id: string;
+      firstName: string;
+      lastName: string;
+      email: string;
+      teacherProfile: TeacherProfile | null;
+    }
+
+    interface Message {
+      id: string;
+      fromUserId: string;
+      toUserId: string;
+      content: string;
+      createdAt: Date;
+      isRead: boolean;
+      // add other fields as needed
+    }
+
+    interface ConversationWithMessages {
+      id: string;
+      participant: Teacher;
+      lastMessage: Message | null;
+      unreadCount: number;
+    }
+
+    const conversationsWithMessages: ConversationWithMessages[] = await Promise.all(
+      teachers.map(async (teacher: Teacher): Promise<ConversationWithMessages> => {
+        const lastMessage: Message | null = await prisma.message.findFirst({
           where: {
             OR: [
               { fromUserId: user.id, toUserId: teacher.id },
@@ -59,7 +97,7 @@ export async function GET(request: NextRequest) {
           orderBy: { createdAt: 'desc' }
         });
 
-        const unreadCount = await prisma.message.count({
+        const unreadCount: number = await prisma.message.count({
           where: {
             fromUserId: teacher.id,
             toUserId: user.id,

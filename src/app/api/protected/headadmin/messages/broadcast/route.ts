@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuth(request, ['headadmin']);
+    const user = await requireAuth( ['headadmin']);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -20,11 +20,25 @@ export async function POST(request: NextRequest) {
       select: { id: true }
     });
 
+    interface School {
+      id: string;
+    }
+
+    interface BroadcastMessageInput {
+      subject: string;
+      content: string;
+      priority?: string;
+    }
+
+    interface User {
+      id: string;
+    }
+
     const messages = await Promise.all(
-      schools.map(school =>
+      schools.map((school: School) =>
         prisma.message.create({
           data: {
-            fromUserId: user.id,
+            fromUserId: (user as User).id,
             schoolId: school.id,
             subject,
             content: content.trim(),
