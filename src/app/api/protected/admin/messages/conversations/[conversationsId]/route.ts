@@ -5,11 +5,11 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(
   request: NextRequest,
-  context: { params: Promise<{ conversationId: string }> }
+  context: { params: Promise<{ conversationId: string }> } // Fix parameter name
 ) {
   try {
     const user = await requireAuth(['admin']);
-    const { conversationId } = await context.params;
+    const { conversationId } = await context.params; // Fix parameter name
 
     let messages;
 
@@ -38,7 +38,7 @@ export async function GET(
     } else {
       // Validate that conversationId is a valid UUID before querying
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      
+
       if (!uuidRegex.test(conversationId)) {
         return NextResponse.json(
           { error: 'Invalid conversation ID format' },
@@ -99,22 +99,7 @@ export async function GET(
     }
 
     // Add fromCurrentUser flag
-    interface Message {
-      id: string;
-      content: string;
-      fromUserId: string | null;
-      toUserId: string | null;
-      createdAt: Date;
-      isRead: boolean;
-      subject: string | null;
-      priority: string | null;
-    }
-
-    interface ProcessedMessage extends Message {
-      fromCurrentUser: boolean;
-    }
-
-    const processedMessages: ProcessedMessage[] = (messages as Message[]).map((msg: Message) => ({
+    const processedMessages = messages.map((msg) => ({
       ...msg,
       fromCurrentUser: msg.fromUserId === user.id
     }));
@@ -127,9 +112,9 @@ export async function GET(
       typeof error === 'object' &&
       error !== null &&
       'message' in error &&
-      typeof (error as { message: unknown }).message === 'string'
+      typeof error.message === 'string'
     ) {
-      const message = (error as { message: string }).message;
+      const message = error.message;
       if (message === 'Authentication required') {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
       }
