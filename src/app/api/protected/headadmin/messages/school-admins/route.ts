@@ -1,11 +1,11 @@
 // app/api/protected/headadmin/messages/school-admins/route.ts
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { requireAuth } from '@/lib/auth';
 
 const prisma = new PrismaClient();
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const authResult = await requireAuth(['headadmin']);
     
