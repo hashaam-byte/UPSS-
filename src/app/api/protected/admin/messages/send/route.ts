@@ -71,11 +71,11 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error sending message:', error);
     
-    if (typeof error === 'object' && error !== null && 'message' in error && typeof (error as any).message === 'string') {
-      if ((error as any).message === 'Authentication required') {
+    if (typeof error === 'object' && error !== null && 'message' in error && typeof (error as { message: string }).message === 'string') {
+      if ((error as { message: string }).message === 'Authentication required') {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
       }
-      if ((error as any).message === 'Access denied') {
+      if ((error as { message: string }).message === 'Access denied') {
         return NextResponse.json({ error: 'Access denied' }, { status: 403 });
       }
     }
