@@ -1,4 +1,4 @@
-// app/api/protected/admin/messages/conversations/route.ts
+// app/api/protected/admin/messages/conversations/route.js
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
@@ -45,44 +45,13 @@ export async function GET() {
     // Group messages by conversation
     const conversationMap = new Map();
 
-    interface ConversationParticipant {
-      id: string;
-      firstName: string;
-      lastName: string;
-      email: string;
-      avatar: string | null;
-      role: string;
-    }
-
-    interface Message {
-      id: string;
-      fromUserId: string | null;
-      toUserId: string | null;
-      schoolId: string;
-      messageType: string;
-      createdAt: string | Date;
-      isRead: boolean;
-      fromUser: ConversationParticipant | null;
-      toUser: ConversationParticipant | null;
-      [key: string]: any;
-    }
-
-    interface Conversation {
-      id: string;
-      participant: ConversationParticipant;
-      lastMessage: Message;
-      unreadCount: number;
-    }
-
-    const messagesTyped: Message[] = messages;
-
-    messagesTyped.forEach((message: Message) => {
-      let otherUser: ConversationParticipant | undefined;
-      let conversationId: string | undefined;
+    messages.forEach((message) => {
+      let otherUser;
+      let conversationId;
 
       if (message.fromUserId === user.id) {
         // Message sent by admin
-        otherUser = message.toUser as ConversationParticipant;
+        otherUser = message.toUser;
         conversationId = message.toUserId ?? undefined;
       } else if (message.toUserId === user.id) {
         // Message received by admin
@@ -98,7 +67,7 @@ export async function GET() {
             avatar: null
           };
         } else {
-          otherUser = message.fromUser as ConversationParticipant;
+          otherUser = message.fromUser;
           conversationId = message.fromUserId ?? undefined;
         }
       }
@@ -111,11 +80,11 @@ export async function GET() {
           participant: otherUser,
           lastMessage: message,
           unreadCount: 0
-        } as Conversation);
+        });
       }
 
       // Update to latest message if newer
-      const existing = conversationMap.get(conversationId) as Conversation;
+      const existing = conversationMap.get(conversationId);
       if (new Date(message.createdAt) > new Date(existing.lastMessage.createdAt)) {
         existing.lastMessage = message;
       }
@@ -126,12 +95,11 @@ export async function GET() {
       }
     });
 
-    const conversations = Array.from(conversationMap.values()).sort((a, b) => 
-      new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime()
+    const conversations = Array.from(conversationMap.values()).sort(
+      (a, b) => new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime()
     );
 
     return NextResponse.json({ success: true, conversations });
-
   } catch (error) {
     console.error('Error fetching conversations:', error);
 
@@ -145,9 +113,6 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json(
-      { error: 'Failed to fetch conversations' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to fetch conversations' }, { status: 500 });
   }
 }
