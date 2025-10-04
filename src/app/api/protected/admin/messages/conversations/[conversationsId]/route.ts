@@ -5,11 +5,11 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(
   request: NextRequest,
-  context: { params: Promise<{ conversationId: string }> }
+  context: { params: Promise<{ conversationsId: string }> }
 ) {
   try {
     const user = await requireAuth(['admin']);
-    const { conversationId } = await context.params;
+    const { conversationsId: conversationId } = await context.params;
 
     let messages;
 
@@ -114,7 +114,7 @@ export async function GET(
       fromCurrentUser: boolean;
     }
 
-    const processedMessages: ProcessedMessage[] = (messages as Message[]).map((msg: Message) => ({
+    const processedMessages: ProcessedMessage[] = messages.map((msg: Message) => ({
       ...msg,
       fromCurrentUser: msg.fromUserId === user.id
     }));
@@ -123,17 +123,12 @@ export async function GET(
   } catch (error) {
     console.error('Error fetching messages:', error);
 
-    if (
-      typeof error === 'object' &&
-      error !== null &&
-      'message' in error &&
-      typeof (error as { message: unknown }).message === 'string'
-    ) {
-      const message = (error as { message: string }).message;
-      if (message === 'Authentication required') {
+    if (typeof error === 'object' && error !== null && 'message' in error && typeof (error as any).message === 'string') {
+      if ((error as any).message === 'Authentication required') {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
       }
-      if (message === 'Access denied') {
+
+      if ((error as any).message === 'Access denied') {
         return NextResponse.json({ error: 'Access denied' }, { status: 403 });
       }
     }

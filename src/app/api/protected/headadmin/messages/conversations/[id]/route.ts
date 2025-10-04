@@ -1,4 +1,4 @@
-// app/api/protected/headadmin/messages/conversations/[conversationId]/route.ts
+// app/api/protected/headadmin/messages/conversations/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { requireAuth } from '@/lib/auth';
@@ -7,10 +7,13 @@ const prisma = new PrismaClient();
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-     const user = await requireAuth(['headadmin']);
+    // Await params in Next.js 15+
+    const { id } = await params;
+    
+    const user = await requireAuth(['headadmin']);
     
     if (!user || user.role !== 'headadmin') {
       return NextResponse.json(
@@ -20,7 +23,7 @@ export async function GET(
     }
 
     // Extract schoolId from conversationId (format: conv-{schoolId})
-    const schoolId = params.id.replace('conv-', '');
+    const schoolId = id.replace('conv-', '');
 
     // Fetch all messages for this school
     const messages = await prisma.message.findMany({

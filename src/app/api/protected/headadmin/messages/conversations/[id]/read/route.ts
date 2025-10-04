@@ -1,15 +1,18 @@
-// app/api/protected/headadmin/messages/conversations/[conversationId]/read/route.ts
+// app/api/protected/headadmin/messages/conversations/[id]/read/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { requireAuth } from '@/lib/auth';
 
 const prisma = new PrismaClient();
-// Create: app/api/protected/headadmin/messages/conversations/[conversationId]/read/route.ts
+
 export async function POST(
   request: NextRequest,
-  { params }: { params: { conversationId: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Await params in Next.js 15+
+    const { id } = await params;
+    
     const authResult = await requireAuth(['headadmin']);
     
     if (!authResult.authenticated || authResult.user?.role !== 'headadmin') {
@@ -20,7 +23,7 @@ export async function POST(
     }
 
     // Extract schoolId from conversationId (format: conv-{schoolId})
-    const schoolId = params.conversationId.replace('conv-', '');
+    const schoolId = id.replace('conv-', '');
 
     // Validate that we have a valid UUID
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
