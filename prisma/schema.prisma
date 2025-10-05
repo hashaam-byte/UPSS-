@@ -146,7 +146,7 @@ model User {
   initiatedCommunications ParentCommunication[] @relation("InitiatedCommunications")
   uploads                FileUpload[] @relation("UserUploads")
   createdAnnouncements   Announcement[] @relation("CreatedAnnouncements")
-  settings              UserSettings? @relation(fields: [id], references: [userId], onDelete: Cascade)
+  settings              UserSettings? @relation("UserToUserSettings")
 
   @@unique([email, schoolId])
   @@unique([username, schoolId])
@@ -1289,5 +1289,8 @@ model UserSettings {
   createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz
   
+  // Relations
+  user                  User        @relation("UserToUserSettings", fields: [userId], references: [id], onDelete: Cascade)
+
   @@map("user_settings")
 }
