@@ -41,7 +41,7 @@ const StudentGrades = () => {
       if (selectedTerm !== 'current') params.append('term', selectedTerm);
       if (selectedSubject !== 'all') params.append('subject', selectedSubject);
 
-      const response = await fetch(`/api/protected/student/grades?${params.toString()}`);
+      const response = await fetch(`/api/protected/students/grades?${params.toString()}`);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch grades: ${response.status}`);

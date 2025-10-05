@@ -34,7 +34,7 @@ const StudentSubjects = () => {
       setLoading(true);
       setError(null);
 
-      const response = await fetch('/api/protected/student/subjects');
+      const response = await fetch('/api/protected/students/subjects');
       
       if (!response.ok) {
         throw new Error(`Failed to fetch subjects: ${response.status}`);
@@ -118,7 +118,7 @@ const StudentSubjects = () => {
             </div>
             <div className="flex items-center space-x-4">
               <button
-                onClick={() => window.location.href = '/protected/student/performance'}
+                onClick={() => window.location.href = '/protected/students/performance'}
                 className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center space-x-2"
               >
                 <BarChart3 className="w-4 h-4" />

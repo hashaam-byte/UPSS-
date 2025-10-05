@@ -47,7 +47,7 @@ const StudentAssignments = () => {
       if (filterSubject !== 'all') params.append('subject', filterSubject);
       if (searchTerm) params.append('search', searchTerm);
 
-      const response = await fetch(`/api/protected/student/assignments?${params.toString()}`);
+      const response = await fetch(`/api/protected/students/assignments?${params.toString()}`);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch assignments: ${response.status}`);

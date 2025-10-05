@@ -39,7 +39,7 @@ const StudentPerformance = () => {
       const params = new URLSearchParams();
       params.append('period', selectedPeriod);
 
-      const response = await fetch(`/api/protected/student/performance?${params.toString()}`);
+      const response = await fetch(`/api/protected/students/performance?${params.toString()}`);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch performance data: ${response.status}`);

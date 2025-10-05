@@ -1,20 +1,20 @@
-'use client'
-import React, { useEffect, useState } from 'react';
+"use client";
+import React, { useEffect, useState } from "react";
 
 export default function StudentResults() {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch('/api/protected/students/results')
-      .then(res => res.json())
-      .then(data => {
+    fetch("/api/protected/students/results") // Updated API endpoint
+      .then((res) => res.json())
+      .then((data) => {
         setResults(data.results || []);
         setLoading(false);
       })
       .catch(() => {
-        setError('Failed to load results');
+        setError("Failed to load results");
         setLoading(false);
       });
   }, []);

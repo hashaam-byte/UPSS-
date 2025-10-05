@@ -146,6 +146,7 @@ model User {
   initiatedCommunications ParentCommunication[] @relation("InitiatedCommunications")
   uploads                FileUpload[] @relation("UserUploads")
   createdAnnouncements   Announcement[] @relation("CreatedAnnouncements")
+  settings              UserSettings? @relation(fields: [id], references: [userId], onDelete: Cascade)
 
   @@unique([email, schoolId])
   @@unique([username, schoolId])
@@ -1266,4 +1267,27 @@ enum AnnouncementStatus {
   scheduled
   expired
   archived
+}
+
+model UserSettings {
+  id                    String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId                String   @unique @map("user_id") @db.Uuid
+  
+  // Notification preferences
+  emailNotifications    Boolean  @default(true) @map("email_notifications")
+  assignmentReminders   Boolean  @default(true) @map("assignment_reminders")
+  gradeNotifications    Boolean  @default(true) @map("grade_notifications")
+  
+  // Privacy settings
+  profileVisibility     Boolean  @default(true) @map("profile_visibility")
+  showPerformance       Boolean  @default(false) @map("show_performance")
+  
+  // Theme preferences
+  theme                 String   @default("light") @db.VarChar(20)
+  language              String   @default("en") @db.VarChar(10)
+  
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  
+  @@map("user_settings")
 }

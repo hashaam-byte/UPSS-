@@ -1,20 +1,20 @@
-'use client'
-import React, { useEffect, useState } from 'react';
+"use client";
+import React, { useEffect, useState } from "react";
 
 export default function StudentAnalytics() {
   const [analytics, setAnalytics] = useState({});
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch('/api/protected/students/analytics')
-      .then(res => res.json())
-      .then(data => {
+    fetch("/api/protected/students/analytics") // Updated API endpoint
+      .then((res) => res.json())
+      .then((data) => {
         setAnalytics(data.analytics || {});
         setLoading(false);
       })
       .catch(() => {
-        setError('Failed to load analytics');
+        setError("Failed to load analytics");
         setLoading(false);
       });
   }, []);

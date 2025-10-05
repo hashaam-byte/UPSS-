@@ -7,7 +7,7 @@ export default function StudentNotifications() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetch('/api/protected/students/notifications')
+    fetch('/api/protected/students/notifications') // Updated API endpoint
       .then(res => res.json())
       .then(data => {
         setNotifications(data.notifications || []);
