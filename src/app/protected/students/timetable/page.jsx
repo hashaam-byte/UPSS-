@@ -240,15 +240,15 @@ const StudentTimetable = () => {
                   >
                     <div className="flex items-center gap-2 mb-2">
                       <Clock className="w-4 h-4" />
-                      <span className="font-semibold text-sm">{cls.timeSlot}</span>
+                      <span className="font-semibold text-sm text-blue-950">{cls.timeSlot}</span>
                       {isCurrent && (
                         <span className="ml-auto bg-yellow-400 text-yellow-900 text-xs px-2 py-0.5 rounded-full font-bold">
                           NOW
                         </span>
                       )}
                     </div>
-                    <div className="font-bold text-lg mb-1">{cls.subject}</div>
-                    <div className="text-sm opacity-90">{cls.teacherName}</div>
+                    <div className="font-bold text-lg mb-1 text-black">{cls.subject}</div>
+                    <div className="text-sm opacity-90 text-shadow-black">{cls.teacherName}</div>
                     {cls.room && (
                       <div className="text-xs opacity-75 flex items-center gap-1 mt-1">
                         <MapPin className="w-3 h-3" />

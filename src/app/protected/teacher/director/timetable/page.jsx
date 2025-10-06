@@ -1,6 +1,6 @@
 'use client'
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, Plus, Edit, Trash2, Users, BookOpen, Filter, Eye, Save, X, AlertCircle, RefreshCw } from 'lucide-react';
+import { Calendar, Clock, Plus, Edit, Trash2, Users, BookOpen, Filter, Eye, Save, X, AlertCircle, RefreshCw, Sparkles, CheckCircle, XCircle, TrendingUp, AlertTriangle, Grid, List } from 'lucide-react';
 
 const TimetableManagementPage = () => {
   const [timetableData, setTimetableData] = useState({});
@@ -9,11 +9,12 @@ const TimetableManagementPage = () => {
   const [subjects, setSubjects] = useState([]);
   const [allSubjects, setAllSubjects] = useState([]);
   const [periods, setPeriods] = useState({});
-  const [daysOfWeek, setDaysOfWeek] = useState([]);
+  const [daysOfWeek, setDaysOfWeek] = useState(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']);
   const [statistics, setStatistics] = useState({});
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [loadingSubjects, setLoadingSubjects] = useState(false);
   const [loadingClasses, setLoadingClasses] = useState(false);
   const [error, setError] = useState(null);
@@ -29,6 +30,10 @@ const TimetableManagementPage = () => {
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showAutoGenModal, setShowAutoGenModal] = useState(false);
+  const [showGenerationResult, setShowGenerationResult] = useState(false);
+  const [showAddSlotModal, setShowAddSlotModal] = useState(false);
+  const [generationResult, setGenerationResult] = useState(null);
   const [selectedEntry, setSelectedEntry] = useState(null);
   
   // Form state
@@ -40,14 +45,24 @@ const TimetableManagementPage = () => {
     teacherId: ''
   });
 
+  // Auto-generation form
+  const [autoGenForm, setAutoGenForm] = useState({
+    className: '',
+    overwrite: false
+  });
+
+  // New slot form
+  const [newSlotForm, setNewSlotForm] = useState({
+    periodNumber: '',
+    startTime: '',
+    endTime: ''
+  });
+
   const viewOptions = [
-    { value: 'grid', label: 'Grid View', icon: Calendar },
-    { value: 'list', label: 'List View', icon: Clock },
+    { value: 'grid', label: 'Grid View', icon: Grid },
+    { value: 'list', label: 'List View', icon: List },
     { value: 'teacher', label: 'Teacher View', icon: Users }
   ];
-
-  const [selectedClass, setSelectedClass] = useState('');
-  const [subjectsForClass, setSubjectsForClass] = useState([]);
 
   useEffect(() => {
     fetchTimetableData();
@@ -55,12 +70,6 @@ const TimetableManagementPage = () => {
     fetchAvailableClasses();
   }, [filters]);
 
-  // Refresh subjects when needed
-  const refreshSubjects = async () => {
-    await fetchAllSubjects();
-  };
-
-  // Fetch available classes from the students API
   const fetchAvailableClasses = async () => {
     setLoadingClasses(true);
     try {
@@ -68,15 +77,12 @@ const TimetableManagementPage = () => {
         credentials: 'include'
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
       const data = await response.json();
       if (data.success && data.data.filters?.availableClasses) {
         let classOptions = data.data.filters.availableClasses;
         
-        // If no classes exist, provide fallback options
         if (classOptions.length === 0) {
           classOptions = [
             'JS1 silver', 'JS1 diamond', 'JS1 mercury', 'JS1 platinum', 'JS1 copper', 'JS1 gold',
@@ -89,21 +95,9 @@ const TimetableManagementPage = () => {
         }
         
         setAvailableClasses(classOptions);
-      } else {
-        console.error('Failed to fetch classes:', data.error || 'Unknown error');
-        // Use fallback classes
-        setAvailableClasses([
-          'JS1 silver', 'JS1 diamond', 'JS1 mercury', 'JS1 platinum', 'JS1 copper', 'JS1 gold',
-          'JS2 silver', 'JS2 diamond', 'JS2 mercury', 'JS2 platinum', 'JS2 copper', 'JS2 gold',
-          'JS3 silver', 'JS3 diamond', 'JS3 mercury', 'JS3 platinum', 'JS3 copper', 'JS3 gold',
-          'SS1 silver', 'SS1 diamond', 'SS1 mercury', 'SS1 platinum', 'SS1 copper', 'JS1 gold',
-          'SS2 silver', 'SS2 diamond', 'SS2 mercury', 'SS2 platinum', 'SS2 copper', 'SS2 gold',
-          'SS3 silver', 'SS3 diamond', 'SS3 mercury', 'SS3 platinum', 'SS3 copper', 'SS3 gold'
-        ]);
       }
     } catch (error) {
       console.error('Error fetching classes:', error);
-      // Use fallback classes
       setAvailableClasses([
         'JS1 silver', 'JS1 diamond', 'JS1 mercury', 'JS1 platinum', 'JS1 copper', 'JS1 gold',
         'JS2 silver', 'JS2 diamond', 'JS2 mercury', 'JS2 platinum', 'JS2 copper', 'JS2 gold',
@@ -117,7 +111,6 @@ const TimetableManagementPage = () => {
     }
   };
 
-  // Fetch all subjects from the subjects API
   const fetchAllSubjects = async () => {
     setLoadingSubjects(true);
     try {
@@ -125,15 +118,12 @@ const TimetableManagementPage = () => {
         credentials: 'include'
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
       const data = await response.json();
       if (data.success && data.data.subjects) {
         setAllSubjects(data.data.subjects);
       } else {
-        console.error('Failed to fetch subjects:', data.error || 'Unknown error');
         setAllSubjects([]);
       }
     } catch (error) {
@@ -158,21 +148,18 @@ const TimetableManagementPage = () => {
         credentials: 'include'
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
       const data = await response.json();
       if (data.success) {
         setTimetableData(data.data.timetable || {});
-        // Don't overwrite availableClasses if we already have them from the students API
         if (availableClasses.length === 0 && data.data.availableClasses) {
           setAvailableClasses(data.data.availableClasses);
         }
         setAvailableTeachers(data.data.availableTeachers || []);
-        setSubjects(data.data.subjects || []); // Keep this for backward compatibility
+        setSubjects(data.data.subjects || []);
         setPeriods(data.data.periods || {});
-        setDaysOfWeek(data.data.daysOfWeek || []);
+        setDaysOfWeek(data.data.daysOfWeek || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']);
         setStatistics(data.data.statistics || {});
       } else {
         throw new Error(data.error || 'Failed to fetch timetable data');
@@ -185,14 +172,62 @@ const TimetableManagementPage = () => {
     }
   };
 
-  // Get stage prefix from class name (JS1, SS2, etc.)
-  const getClassStageLevel = (className) => {
-    if (!className) return '';
-    const match = className.match(/^(JS|SS)([1-3])/i);
-    return match ? `${match[1]}${match[2]}` : className.substring(0, 3);
+  const handleAutoGenerate = async () => {
+    if (!autoGenForm.className) {
+      alert('Please select a class');
+      return;
+    }
+
+    setGenerating(true);
+    try {
+      const response = await fetch('/api/protected/teachers/director/timetable/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(autoGenForm)
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setGenerationResult(result);
+        setShowGenerationResult(true);
+        setShowAutoGenModal(false);
+        fetchTimetableData();
+      } else {
+        alert(result.error || 'Failed to generate timetable');
+        if (result.recommendation) {
+          console.log('Recommendation:', result.recommendation);
+        }
+      }
+    } catch (error) {
+      console.error('Error generating timetable:', error);
+      alert('Failed to generate timetable. Please try again.');
+    } finally {
+      setGenerating(false);
+    }
   };
 
-  // Get stage from class name (JS or SS)
+  const handleAddSlot = () => {
+    if (!newSlotForm.periodNumber || !newSlotForm.startTime || !newSlotForm.endTime) {
+      alert('Please fill all fields');
+      return;
+    }
+
+    const newPeriods = { ...periods };
+    newPeriods[newSlotForm.periodNumber] = {
+      start: newSlotForm.startTime,
+      end: newSlotForm.endTime
+    };
+    
+    setPeriods(newPeriods);
+    setShowAddSlotModal(false);
+    setNewSlotForm({ periodNumber: '', startTime: '', endTime: '' });
+    alert('New time slot added successfully! You can now schedule classes in this period.');
+  };
+
   const getClassStage = (className) => {
     if (!className) return '';
     if (className.startsWith('JS')) return 'JS';
@@ -200,33 +235,30 @@ const TimetableManagementPage = () => {
     return '';
   };
 
-  // Filter subjects based on selected class - Now shows all subjects since they're available for all classes
+  const getClassStageLevel = (className) => {
+    if (!className) return '';
+    const match = className.match(/^(JS|SS)([1-3])/i);
+    return match ? `${match[1]}${match[2]}` : className.substring(0, 3);
+  };
+
   const getFilteredSubjects = () => {
-    // Since subjects are now available for all classes, we show all subjects
-    // but we can still filter by stage if needed for better organization
-    if (!formData.className) {
-      return allSubjects;
-    }
+    if (!formData.className) return allSubjects;
 
     const classStage = getClassStage(formData.className);
     const classStageLevel = getClassStageLevel(formData.className);
     
-    // Return all subjects but prioritize those specifically assigned to this class/stage
     return allSubjects.filter(subject => {
-      // If subject has no classes defined, show it (it's available for all)
       if (!subject.classes || !Array.isArray(subject.classes) || subject.classes.length === 0) {
         return true;
       }
       
-      // Check if the subject is available for this class, level, or stage
       return subject.classes.some(subjectClass => {
         return subjectClass === formData.className || 
                subjectClass === classStageLevel ||
                subjectClass === classStage ||
-               subjectClass.startsWith(classStage); // Match JS or SS stage
+               subjectClass.startsWith(classStage);
       });
     }).sort((a, b) => {
-      // Sort subjects with exact class match first, then by name
       const aHasExactMatch = a.classes?.includes(formData.className) || a.classes?.includes(classStageLevel);
       const bHasExactMatch = b.classes?.includes(formData.className) || b.classes?.includes(classStageLevel);
       
@@ -245,7 +277,6 @@ const TimetableManagementPage = () => {
       return;
     }
 
-    // Validate that the selected subject is available for this class
     const selectedSubject = availableSubjectsForClass.find(s => s.name === formData.subject);
     if (!selectedSubject && availableSubjectsForClass.length > 0) {
       alert('Please select a valid subject for this class');
@@ -256,9 +287,7 @@ const TimetableManagementPage = () => {
     try {
       const response = await fetch('/api/protected/teachers/director/timetable', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify(formData)
       });
@@ -268,14 +297,14 @@ const TimetableManagementPage = () => {
       if (response.ok && result.success) {
         setShowAddModal(false);
         setFormData({ className: '', dayOfWeek: '', period: '', subject: '', teacherId: '' });
-        fetchTimetableData(); // Refresh data
+        fetchTimetableData();
         alert('Timetable entry created successfully!');
       } else {
         alert(result.error || 'Failed to create timetable entry');
       }
     } catch (error) {
       console.error('Error creating timetable entry:', error);
-      alert('Failed to create timetable entry. Please check your connection and try again.');
+      alert('Failed to create timetable entry.');
     } finally {
       setSaving(false);
     }
@@ -291,7 +320,6 @@ const TimetableManagementPage = () => {
       return;
     }
 
-    // Validate that the selected subject is available for this class
     const selectedSubject = availableSubjectsForClass.find(s => s.name === formData.subject);
     if (!selectedSubject && availableSubjectsForClass.length > 0) {
       alert('Please select a valid subject for this class');
@@ -302,9 +330,7 @@ const TimetableManagementPage = () => {
     try {
       const response = await fetch(`/api/protected/teachers/director/timetable?id=${selectedEntry.id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify(formData)
       });
@@ -315,14 +341,14 @@ const TimetableManagementPage = () => {
         setShowEditModal(false);
         setSelectedEntry(null);
         setFormData({ className: '', dayOfWeek: '', period: '', subject: '', teacherId: '' });
-        fetchTimetableData(); // Refresh data
+        fetchTimetableData();
         alert('Timetable entry updated successfully!');
       } else {
         alert(result.error || 'Failed to update timetable entry');
       }
     } catch (error) {
       console.error('Error updating timetable entry:', error);
-      alert('Failed to update timetable entry. Please check your connection and try again.');
+      alert('Failed to update timetable entry.');
     } finally {
       setSaving(false);
     }
@@ -340,7 +366,7 @@ const TimetableManagementPage = () => {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        fetchTimetableData(); // Refresh data
+        fetchTimetableData();
       } else {
         alert(result.error || 'Failed to delete timetable entry');
       }
@@ -373,7 +399,7 @@ const TimetableManagementPage = () => {
   };
 
   const renderGridView = () => {
-    const periodKeys = Object.keys(periods).filter(p => p !== 'BREAK' && p !== 'LUNCH');
+    const periodKeys = Object.keys(periods).filter(p => p !== 'BREAK' && p !== 'LUNCH').sort((a, b) => parseInt(a) - parseInt(b));
     
     return (
       <div className="bg-white rounded-lg shadow overflow-x-auto">
@@ -472,13 +498,13 @@ const TimetableManagementPage = () => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Day</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Period</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Class</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Teacher</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Day</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Subject</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Class</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Teacher</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -495,9 +521,6 @@ const TimetableManagementPage = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{entry.className}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {entry.teacher.name}
-                    {entry.teacher.department && (
-                      <div className="text-xs text-gray-500">{entry.teacher.department}</div>
-                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex gap-2">
@@ -619,7 +642,6 @@ const TimetableManagementPage = () => {
 
     if (!isVisible) return null;
 
-    // Get filtered subjects based on selected class
     const availableSubjectsForClass = getFilteredSubjects();
 
     return (
@@ -627,39 +649,21 @@ const TimetableManagementPage = () => {
         <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
-            <button
-              onClick={handleClose}
-              className="text-gray-400 hover:text-gray-600"
-            >
+            <button onClick={handleClose} className="text-gray-400 hover:text-gray-600">
               <X className="h-6 w-6" />
             </button>
           </div>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Class *
-                {loadingClasses && (
-                  <span className="ml-2 text-xs text-gray-500">(Loading...)</span>
-                )}
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Class *</label>
               <select
                 value={formData.className}
-                onChange={(e) => {
-                  setFormData(prev => ({ 
-                    ...prev, 
-                    className: e.target.value,
-                    subject: '' // Reset subject when class changes
-                  }));
-                  handleClassSelect(e.target.value); // Fetch subjects for selected class
-                }}
+                onChange={(e) => setFormData(prev => ({ ...prev, className: e.target.value, subject: '' }))}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
-                disabled={loadingClasses}
               >
-                <option value="">
-                  {loadingClasses ? 'Loading classes...' : 'Select Class'}
-                </option>
+                <option value="">Select Class</option>
                 {availableClasses.map(className => (
                   <option key={className} value={className}>{className}</option>
                 ))}
@@ -690,7 +694,7 @@ const TimetableManagementPage = () => {
                 required
               >
                 <option value="">Select Period</option>
-                {Object.keys(periods).filter(p => p !== 'BREAK' && p !== 'LUNCH').map(periodNum => (
+                {Object.keys(periods).filter(p => p !== 'BREAK' && p !== 'LUNCH').sort((a, b) => parseInt(a) - parseInt(b)).map(periodNum => (
                   <option key={periodNum} value={periodNum}>
                     Period {periodNum} ({periods[periodNum]?.start} - {periods[periodNum]?.end})
                   </option>
@@ -699,76 +703,20 @@ const TimetableManagementPage = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Subject *
-                {loadingSubjects && (
-                  <span className="ml-2 text-xs text-gray-500">(Loading...)</span>
-                )}
-                {!loadingSubjects && allSubjects.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={refreshSubjects}
-                    className="ml-2 text-xs text-blue-600 hover:text-blue-800 underline"
-                  >
-                    Refresh
-                  </button>
-                )}
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Subject *</label>
               <select
                 value={formData.subject}
                 onChange={(e) => setFormData(prev => ({ ...prev, subject: e.target.value }))}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
-                disabled={loadingSubjects}
               >
-                <option value="">
-                  {loadingSubjects 
-                    ? 'Loading subjects...' 
-                    : 'Select Subject'}
-                </option>
-                {availableSubjectsForClass.length > 0 ? (
-                  (() => {
-                    // Group subjects by category for better organization
-                    const subjectsByCategory = availableSubjectsForClass.reduce((acc, subject) => {
-                      const category = subject.category || 'GENERAL';
-                      if (!acc[category]) acc[category] = [];
-                      acc[category].push(subject);
-                      return acc;
-                    }, {});
-
-                    return Object.entries(subjectsByCategory).map(([category, subjects]) => (
-                      <optgroup key={category} label={category}>
-                        {subjects.map(subject => (
-                          <option key={subject.id} value={subject.name}>
-                            {subject.name}
-                            {subject.code && ` (${subject.code})`}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ));
-                  })()
-                ) : !loadingSubjects ? (
-                  <option value="" disabled>No subjects available</option>
-                ) : null}
+                <option value="">Select Subject</option>
+                {availableSubjectsForClass.map(subject => (
+                  <option key={subject.id} value={subject.name}>
+                    {subject.name} {subject.code && `(${subject.code})`}
+                  </option>
+                ))}
               </select>
-              {!loadingSubjects && (
-                <div className="mt-1">
-                  {availableSubjectsForClass.length > 0 ? (
-                    <p className="text-xs text-green-600">
-                      {availableSubjectsForClass.length} subject{availableSubjectsForClass.length !== 1 ? 's' : ''} available
-                      {formData.className && ` for ${formData.className}`}
-                    </p>
-                  ) : allSubjects.length === 0 ? (
-                    <p className="text-xs text-amber-600">
-                      No subjects configured yet. Please contact admin to add subjects.
-                    </p>
-                  ) : (
-                    <p className="text-xs text-blue-600">
-                      All subjects are available for this class
-                    </p>
-                  )}
-                </div>
-              )}
             </div>
 
             <div>
@@ -792,7 +740,7 @@ const TimetableManagementPage = () => {
           <div className="flex gap-3 mt-6">
             <button
               onClick={handleAction}
-              disabled={saving || loadingSubjects || loadingClasses}
+              disabled={saving}
               className="flex-1 bg-blue-600 text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {saving ? (
@@ -820,19 +768,367 @@ const TimetableManagementPage = () => {
     );
   };
 
+  const renderAddSlotModal = () => {
+    if (!showAddSlotModal) return null;
+
+    return (
+      <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-6 w-full max-w-md">
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex items-center gap-2">
+              <Clock className="h-6 w-6 text-blue-600" />
+              <h2 className="text-xl font-semibold text-gray-900">Add New Time Slot</h2>
+            </div>
+            <button onClick={() => setShowAddSlotModal(false)} className="text-gray-400 hover:text-gray-600">
+              <X className="h-6 w-6" />
+            </button>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+            <p className="text-sm text-blue-800">
+              Add a new period to expand your timetable schedule. This will be available for all classes.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Period Number *</label>
+              <input
+                type="number"
+                value={newSlotForm.periodNumber}
+                onChange={(e) => setNewSlotForm(prev => ({ ...prev, periodNumber: e.target.value }))}
+                placeholder="e.g., 9"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Start Time *</label>
+              <input
+                type="time"
+                value={newSlotForm.startTime}
+                onChange={(e) => setNewSlotForm(prev => ({ ...prev, startTime: e.target.value }))}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">End Time *</label>
+              <input
+                type="time"
+                value={newSlotForm.endTime}
+                onChange={(e) => setNewSlotForm(prev => ({ ...prev, endTime: e.target.value }))}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-3 mt-6">
+            <button
+              onClick={handleAddSlot}
+              className="flex-1 bg-blue-600 text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-blue-700 flex items-center justify-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add Slot
+            </button>
+            <button
+              onClick={() => {
+                setShowAddSlotModal(false);
+                setNewSlotForm({ periodNumber: '', startTime: '', endTime: '' });
+              }}
+              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderAutoGenModal = () => {
+    if (!showAutoGenModal) return null;
+
+    return (
+      <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-6 w-full max-w-lg">
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-6 w-6 text-purple-600" />
+              <h2 className="text-xl font-semibold text-gray-900">Auto-Generate Timetable</h2>
+            </div>
+            <button
+              onClick={() => setShowAutoGenModal(false)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <X className="h-6 w-6" />
+            </button>
+          </div>
+
+          <div className="mb-6">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <h3 className="font-medium text-blue-900 mb-2">What this does:</h3>
+              <ul className="text-sm text-blue-800 space-y-1">
+                <li>• Automatically distributes subjects across the week</li>
+                <li>• Prioritizes core subjects with more periods</li>
+                <li>• Balances teacher workload intelligently</li>
+                <li>• Avoids scheduling conflicts</li>
+                <li>• Provides teacher staffing recommendations</li>
+              </ul>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Select Class *
+                </label>
+                <select
+                  value={autoGenForm.className}
+                  onChange={(e) => setAutoGenForm(prev => ({ ...prev, className: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">Choose a class</option>
+                  {availableClasses.map(className => (
+                    <option key={className} value={className}>{className}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="overwrite"
+                  checked={autoGenForm.overwrite}
+                  onChange={(e) => setAutoGenForm(prev => ({ ...prev, overwrite: e.target.checked }))}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="overwrite" className="text-sm text-gray-700">
+                  Overwrite existing timetable (if any)
+                </label>
+              </div>
+
+              {autoGenForm.overwrite && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <div className="flex gap-2">
+                    <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0" />
+                    <p className="text-sm text-amber-800">
+                      This will delete all existing entries for this class and create a new timetable.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={handleAutoGenerate}
+              disabled={generating || !autoGenForm.className}
+              className="flex-1 bg-purple-600 text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {generating ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" />
+                  Generate Timetable
+                </>
+              )}
+            </button>
+            <button
+              onClick={() => setShowAutoGenModal(false)}
+              disabled={generating}
+              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderGenerationResult = () => {
+    if (!showGenerationResult || !generationResult) return null;
+
+    const { data, message } = generationResult;
+    const hasWarnings = data.recommendations?.overloadedTeachers?.length > 0;
+
+    return (
+      <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="flex justify-between items-start mb-4">
+            <div className="flex items-center gap-2">
+              {hasWarnings ? (
+                <AlertTriangle className="h-6 w-6 text-amber-600" />
+              ) : (
+                <CheckCircle className="h-6 w-6 text-green-600" />
+              )}
+              <h2 className="text-xl font-semibold text-gray-900">Generation Complete</h2>
+            </div>
+            <button
+              onClick={() => setShowGenerationResult(false)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <X className="h-6 w-6" />
+            </button>
+          </div>
+
+          <div className={`border-l-4 ${hasWarnings ? 'border-amber-400 bg-amber-50' : 'border-green-400 bg-green-50'} p-4 rounded mb-6`}>
+            <p className={`font-medium ${hasWarnings ? 'text-amber-900' : 'text-green-900'}`}>
+              {message}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="bg-blue-50 rounded-lg p-4">
+              <div className="text-2xl font-bold text-blue-900">{data.totalPeriods}</div>
+              <div className="text-sm text-blue-700">Total Periods</div>
+            </div>
+            <div className="bg-purple-50 rounded-lg p-4">
+              <div className="text-2xl font-bold text-purple-900">{data.subjectsIncluded}</div>
+              <div className="text-sm text-purple-700">Subjects</div>
+            </div>
+            <div className="bg-green-50 rounded-lg p-4">
+              <div className="text-2xl font-bold text-green-900">{data.teachersInvolved}</div>
+              <div className="text-sm text-green-700">Teachers</div>
+            </div>
+            <div className="bg-orange-50 rounded-lg p-4">
+              <div className="text-2xl font-bold text-orange-900">{data.utilizationRate}%</div>
+              <div className="text-sm text-orange-700">Utilization</div>
+            </div>
+          </div>
+
+          <div className="bg-gray-50 rounded-lg p-4 mb-6">
+            <h3 className="font-semibold text-gray-900 mb-3">Subject Distribution</h3>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Core Subjects:</span>
+                <span className="font-medium text-gray-900">{data.summary.coreSubjects}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Science Subjects:</span>
+                <span className="font-medium text-gray-900">{data.summary.scienceSubjects}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Arts Subjects:</span>
+                <span className="font-medium text-gray-900">{data.summary.artsSubjects}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Other Subjects:</span>
+                <span className="font-medium text-gray-900">{data.summary.otherSubjects}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <TrendingUp className="h-5 w-5 text-gray-700" />
+              <h3 className="font-semibold text-gray-900">Teacher Load Analysis</h3>
+            </div>
+            
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Current Teachers:</span>
+                <span className="font-medium text-gray-900">{data.recommendations.currentTeachers}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Recommended Teachers:</span>
+                <span className="font-medium text-gray-900">{data.recommendations.recommendedTeachers}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Average Load per Teacher:</span>
+                <span className="font-medium text-gray-900">
+                  {data.recommendations.averageLoadPerTeacher} periods/week
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Max Recommended Load:</span>
+                <span className="font-medium text-gray-900">{data.recommendations.maxRecommendedLoad} periods/week</span>
+              </div>
+            </div>
+
+            {data.recommendations.needMoreTeachers && (
+              <div className="mt-4 bg-amber-50 border border-amber-200 rounded p-3">
+                <div className="flex gap-2">
+                  <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-amber-900">Additional Teachers Recommended</p>
+                    <p className="text-xs text-amber-700 mt-1">
+                      Consider hiring {data.recommendations.recommendedTeachers - data.recommendations.currentTeachers} more teacher(s) 
+                      to maintain optimal workload distribution.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {data.recommendations.overloadedTeachers?.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+              <div className="flex items-center gap-2 mb-3">
+                <XCircle className="h-5 w-5 text-red-600" />
+                <h3 className="font-semibold text-red-900">Overloaded Teachers</h3>
+              </div>
+              <p className="text-sm text-red-700 mb-3">
+                The following teachers exceed the recommended workload:
+              </p>
+              <div className="space-y-2">
+                {data.recommendations.overloadedTeachers.map((teacher, idx) => (
+                  <div key={idx} className="bg-white rounded p-3 border border-red-200">
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium text-gray-900">{teacher.name}</span>
+                      <span className="text-sm text-red-700">
+                        {teacher.currentLoad} periods (recommended: {teacher.recommended})
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <button
+              onClick={() => {
+                setShowGenerationResult(false);
+                setFilters(prev => ({ ...prev, className: data.className }));
+              }}
+              className="flex-1 bg-blue-600 text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-blue-700 flex items-center justify-center gap-2"
+            >
+              <Eye className="h-4 w-4" />
+              View Timetable
+            </button>
+            <button
+              onClick={() => setShowGenerationResult(false)}
+              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
             <Calendar className="h-8 w-8 text-blue-600" />
             Timetable Management
           </h1>
-          <p className="text-gray-600 mt-2">Create, manage, and organize class schedules</p>
+          <p className="text-gray-600 mt-2">Create, manage, and organize class schedules with AI-powered generation</p>
         </div>
 
-        {/* Statistics Cards */}
         {statistics.totalSlots !== undefined && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <div className="bg-white rounded-lg shadow p-6">
@@ -877,11 +1173,9 @@ const TimetableManagementPage = () => {
           </div>
         )}
 
-        {/* Controls */}
         <div className="bg-white rounded-lg shadow mb-8 p-6">
           <div className="flex flex-wrap gap-4 items-center justify-between">
             <div className="flex flex-wrap gap-4">
-              {/* View Toggle */}
               <div className="flex bg-gray-100 rounded-lg p-1">
                 {viewOptions.map((option) => {
                   const IconComponent = option.icon;
@@ -902,7 +1196,6 @@ const TimetableManagementPage = () => {
                 })}
               </div>
 
-              {/* Filters */}
               <select
                 value={filters.className}
                 onChange={(e) => setFilters(prev => ({ ...prev, className: e.target.value }))}
@@ -947,6 +1240,20 @@ const TimetableManagementPage = () => {
                 Refresh
               </button>
               <button
+                onClick={() => setShowAddSlotModal(true)}
+                className="bg-green-600 text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-green-700 flex items-center gap-2"
+              >
+                <Clock className="h-4 w-4" />
+                Add Slot
+              </button>
+              <button
+                onClick={() => setShowAutoGenModal(true)}
+                className="bg-purple-600 text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-purple-700 flex items-center gap-2"
+              >
+                <Sparkles className="h-4 w-4" />
+                Auto-Generate
+              </button>
+              <button
                 onClick={() => setShowAddModal(true)}
                 className="bg-blue-600 text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-blue-700 flex items-center gap-2"
               >
@@ -957,12 +1264,13 @@ const TimetableManagementPage = () => {
           </div>
         </div>
 
-        {/* Timetable Content */}
         {renderContent()}
 
-        {/* Modals */}
-        {renderModal(false)} {/* Add Modal */}
-        {renderModal(true)}  {/* Edit Modal */}
+        {renderModal(false)}
+        {renderModal(true)}
+        {renderAddSlotModal()}
+        {renderAutoGenModal()}
+        {renderGenerationResult()}
       </div>
     </div>
   );
