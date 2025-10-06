@@ -22,7 +22,8 @@ import {
   AlertCircle,
   CheckCircle,
   User,
-  HelpCircle
+  HelpCircle,
+  MessageSquare
 } from 'lucide-react';
 
 const CoordinatorLayout = ({ children }) => {
@@ -168,6 +169,13 @@ const CoordinatorLayout = ({ children }) => {
       icon: FileText,
       label: 'Reports & Analytics',
       description: 'Generate coordination reports',
+      badge: null
+    },
+    {
+      href: '/protected/teacher/coordinator/messages',
+      icon: MessageSquare,
+      label: 'Messages',
+      description: 'Communicate with teachers and admins',
       badge: null
     }
   ];

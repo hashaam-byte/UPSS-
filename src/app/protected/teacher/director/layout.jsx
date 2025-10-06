@@ -15,7 +15,7 @@ const sidebarItems = [
   { id: 'subjects', label: 'Subjects', icon: BookOpen, path: '/protected/teacher/director/subjects' },
   { id: 'timetable', label: 'Timetable', icon: Calendar, path: '/protected/teacher/director/timetable' },
   { id: 'reports', label: 'Reports', icon: FileText, path: '/protected/teacher/director/reports' },
-  { id: 'messages', label: 'Messages', icon: MessageSquare, path: '/protected/teacher/director/message' },
+  { id: 'messages', label: 'Messages', icon: MessageSquare, path: '/protected/teacher/director/messages' },
   { id: 'settings', label: 'Settings', icon: Settings, path: '/protected/teacher/director/settings' }
 ];
 
