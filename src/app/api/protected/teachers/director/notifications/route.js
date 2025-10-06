@@ -15,35 +15,33 @@ export async function GET(request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const unreadOnly = searchParams.get('unreadOnly') === 'true';
-    const limit = parseInt(searchParams.get('limit') || '20');
+    const limit = parseInt(searchParams.get('limit')) || 50;
+    const type = searchParams.get('type'); // filter by type
+    const priority = searchParams.get('priority'); // filter by priority
 
-    const whereClause = {
+    let whereClause = {
       userId: user.id,
-      ...(unreadOnly && { isRead: false })
+      schoolId: user.schoolId
     };
+
+    if (type) {
+      whereClause.type = type;
+    }
+
+    if (priority) {
+      whereClause.priority = priority;
+    }
 
     const notifications = await prisma.notification.findMany({
       where: whereClause,
       orderBy: { createdAt: 'desc' },
-      take: limit,
-      select: {
-        id: true,
-        title: true,
-        content: true,
-        type: true,
-        priority: true,
-        isRead: true,
-        readAt: true,
-        actionUrl: true,
-        actionText: true,
-        createdAt: true
-      }
+      take: limit
     });
 
     const unreadCount = await prisma.notification.count({
       where: {
         userId: user.id,
+        schoolId: user.schoolId,
         isRead: false
       }
     });
@@ -52,8 +50,7 @@ export async function GET(request) {
       success: true,
       data: {
         notifications,
-        unreadCount,
-        total: notifications.length
+        unreadCount
       }
     });
   } catch (error) {
@@ -76,12 +73,15 @@ export async function PUT(request) {
       );
     }
 
-    const { notificationId, markAllAsRead } = await request.json();
+    const body = await request.json();
+    const { notificationId, markAllAsRead } = body;
 
     if (markAllAsRead) {
+      // Mark all notifications as read
       await prisma.notification.updateMany({
         where: {
           userId: user.id,
+          schoolId: user.schoolId,
           isRead: false
         },
         data: {
@@ -96,30 +96,43 @@ export async function PUT(request) {
       });
     }
 
-    if (!notificationId) {
-      return NextResponse.json(
-        { success: false, error: 'Notification ID required' },
-        { status: 400 }
-      );
+    if (notificationId) {
+      // Mark specific notification as read
+      const notification = await prisma.notification.findFirst({
+        where: {
+          id: notificationId,
+          userId: user.id,
+          schoolId: user.schoolId
+        }
+      });
+
+      if (!notification) {
+        return NextResponse.json(
+          { success: false, error: 'Notification not found' },
+          { status: 404 }
+        );
+      }
+
+      await prisma.notification.update({
+        where: { id: notificationId },
+        data: {
+          isRead: true,
+          readAt: new Date()
+        }
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: 'Notification marked as read'
+      });
     }
 
-    const notification = await prisma.notification.update({
-      where: {
-        id: notificationId,
-        userId: user.id
-      },
-      data: {
-        isRead: true,
-        readAt: new Date()
-      }
-    });
-
-    return NextResponse.json({
-      success: true,
-      data: { notification }
-    });
+    return NextResponse.json(
+      { success: false, error: 'Invalid request' },
+      { status: 400 }
+    );
   } catch (error) {
-    console.error('Mark notification as read error:', error);
+    console.error('Notification update error:', error);
     return NextResponse.json(
       { success: false, error: error.message || 'Failed to update notification' },
       { status: 500 }
@@ -148,11 +161,24 @@ export async function DELETE(request) {
       );
     }
 
-    await prisma.notification.delete({
+    // Verify notification belongs to user
+    const notification = await prisma.notification.findFirst({
       where: {
         id: notificationId,
-        userId: user.id
+        userId: user.id,
+        schoolId: user.schoolId
       }
+    });
+
+    if (!notification) {
+      return NextResponse.json(
+        { success: false, error: 'Notification not found' },
+        { status: 404 }
+      );
+    }
+
+    await prisma.notification.delete({
+      where: { id: notificationId }
     });
 
     return NextResponse.json({
@@ -160,9 +186,76 @@ export async function DELETE(request) {
       message: 'Notification deleted successfully'
     });
   } catch (error) {
-    console.error('Delete notification error:', error);
+    console.error('Notification delete error:', error);
     return NextResponse.json(
       { success: false, error: error.message || 'Failed to delete notification' },
+      { status: 500 }
+    );
+  }
+}
+
+// POST - Create notification (for system-generated notifications)
+export async function POST(request) {
+  try {
+    const user = await requireAuth(['teacher']);
+    
+    if (user.department !== 'director') {
+      return NextResponse.json(
+        { success: false, error: 'Access denied' },
+        { status: 403 }
+      );
+    }
+
+    const body = await request.json();
+    const { targetUserId, title, content, type = 'info', priority = 'normal', actionUrl, actionText } = body;
+
+    // Verify target user exists in same school
+    if (targetUserId) {
+      const targetUser = await prisma.user.findFirst({
+        where: {
+          id: targetUserId,
+          schoolId: user.schoolId,
+          isActive: true
+        }
+      });
+
+      if (!targetUser) {
+        return NextResponse.json(
+          { success: false, error: 'Target user not found' },
+          { status: 404 }
+        );
+      }
+
+      // Create notification
+      const notification = await prisma.notification.create({
+        data: {
+          userId: targetUserId,
+          schoolId: user.schoolId,
+          title,
+          content,
+          type,
+          priority,
+          actionUrl,
+          actionText,
+          isRead: false
+        }
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: { notification },
+        message: 'Notification created successfully'
+      });
+    }
+
+    return NextResponse.json(
+      { success: false, error: 'Target user ID required' },
+      { status: 400 }
+    );
+  } catch (error) {
+    console.error('Notification create error:', error);
+    return NextResponse.json(
+      { success: false, error: error.message || 'Failed to create notification' },
       { status: 500 }
     );
   }

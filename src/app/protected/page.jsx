@@ -15,12 +15,126 @@ import {
   Building2,
   AlertCircle,
   Loader2,
-  CheckCircle
+  CheckCircle,
+  X,
+  Phone,
+  MessageCircle,
+  ExternalLink
 } from 'lucide-react';
+
+// Contact Support Modal Component
+const ContactSupportModal = ({ isOpen, onClose }) => {
+  if (!isOpen) return null;
+
+  const contactOptions = [
+    {
+      id: 'email',
+      title: 'Email Support',
+      subtitle: 'Send us an email',
+      icon: Mail,
+      value: 'hashcody63@gmail.com',
+      gradient: 'from-blue-500 to-blue-600',
+      action: () => {
+        window.location.href = 'mailto:hashcody63@gmail.com?subject=Support Request';
+      }
+    },
+    {
+      id: 'phone',
+      title: 'Phone Call',
+      subtitle: 'Call us directly',
+      icon: Phone,
+      value: '08077291745',
+      gradient: 'from-green-500 to-green-600',
+      action: () => {
+        window.location.href = 'tel:08077291745';
+      }
+    },
+    {
+      id: 'whatsapp',
+      title: 'WhatsApp',
+      subtitle: 'Chat on WhatsApp',
+      icon: MessageCircle,
+      value: '08077291745',
+      gradient: 'from-emerald-500 to-emerald-600',
+      action: () => {
+        const phone = '2348077291745'; // Add country code
+        window.open(`https://wa.me/${phone}`, '_blank');
+      }
+    },
+    {
+      id: 'nexttalk',
+      title: 'NextTalk',
+      subtitle: 'Connect via NextTalk',
+      icon: MessageCircle,
+      value: 'hashaamustafa@gmail.com',
+      gradient: 'from-purple-500 to-purple-600',
+      action: () => {
+        window.open('https://nexttalk-web.vercel.app', '_blank');
+      }
+    }
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+      <div className="relative w-full max-w-2xl bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl shadow-2xl border border-white/10 overflow-hidden">
+        {/* Header */}
+        <div className="p-6 border-b border-white/10 flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-white">Contact Support</h2>
+            <p className="text-gray-400 text-sm mt-1">Choose your preferred method to reach us</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 transition-all duration-200 flex items-center justify-center group"
+          >
+            <X className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
+          </button>
+        </div>
+
+        {/* Contact Options */}
+        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+          {contactOptions.map((option) => (
+            <button
+              key={option.id}
+              onClick={option.action}
+              className="p-6 bg-gradient-to-br from-white/5 to-white/0 border border-white/20 rounded-xl hover:border-white/40 hover:bg-white/10 transition-all duration-300 text-left group"
+            >
+              <div className="flex items-start gap-4">
+                <div className={`w-12 h-12 rounded-xl bg-gradient-to-r ${option.gradient} flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300`}>
+                  <option.icon className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="font-semibold text-white">{option.title}</h3>
+                    <ExternalLink className="w-4 h-4 text-gray-400 group-hover:text-emerald-400 transition-colors" />
+                  </div>
+                  <p className="text-gray-400 text-sm mb-2">{option.subtitle}</p>
+                  <p className="text-emerald-400 text-sm font-mono">{option.value}</p>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className="p-6 bg-gradient-to-r from-emerald-500/10 to-cyan-500/10 border-t border-white/10">
+          <div className="flex items-center gap-2 text-emerald-400 text-sm">
+            <Shield className="h-4 w-4" />
+            <span className="font-medium">We typically respond within 24 hours</span>
+          </div>
+          <p className="text-gray-400 text-xs mt-2">
+            Our support team is available Monday - Friday, 9:00 AM - 5:00 PM WAT
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const LoginPage = () => {
   const [selectedRole, setSelectedRole] = useState('student');
   const [showPassword, setShowPassword] = useState(false);
+  const [showSupportModal, setShowSupportModal] = useState(false);
   const [schools, setSchools] = useState([]);
   const [formData, setFormData] = useState({
     identifier: '',
@@ -265,6 +379,12 @@ const LoginPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-900 to-slate-900 flex items-center justify-center p-4">
+      {/* Contact Support Modal */}
+      <ContactSupportModal 
+        isOpen={showSupportModal} 
+        onClose={() => setShowSupportModal(false)} 
+      />
+
       {/* Enhanced animated background elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-r from-cyan-400/20 to-blue-500/20 rounded-full blur-3xl animate-pulse"></div>
@@ -362,10 +482,10 @@ const LoginPage = () => {
                 <div className="mt-6 pt-6 border-t border-white/10">
                   <p className="text-gray-400 text-sm mb-4">Need help?</p>
                   <button
-                    onClick={() => window.open('mailto:support@upss.edu?subject=Login Support Request', '_blank')}
-                    className="text-emerald-400 hover:text-emerald-300 text-sm transition-colors flex items-center gap-2"
+                    onClick={() => setShowSupportModal(true)}
+                    className="text-emerald-400 hover:text-emerald-300 text-sm transition-colors flex items-center gap-2 group"
                   >
-                    <Mail className="h-4 w-4" />
+                    <Mail className="h-4 w-4 group-hover:scale-110 transition-transform" />
                     Contact Support
                   </button>
                 </div>
