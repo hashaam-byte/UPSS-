@@ -22,7 +22,7 @@ const sidebarItems = [
 export default function DirectorLayout({ children }) {
   const pathname = usePathname();
   const router = useRouter();
-    const [sidebarOpen, setSidebarOpen] = useState(true); 
+  const [sidebarOpen, setSidebarOpen] = useState(true); 
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState([]);
@@ -145,6 +145,10 @@ export default function DirectorLayout({ children }) {
     }
   };
 
+  const toggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen);
+  };
+
   const getNotificationIcon = (type) => {
     switch (type) {
       case 'success': return '✓';
@@ -177,80 +181,135 @@ export default function DirectorLayout({ children }) {
     );
   }
 
-  const Sidebar = ({ isOpen, onClose }) => (
-    <div className={`fixed inset-y-0 left-0 z-50 w-72 bg-gradient-to-b from-white/95 to-gray-50/95 backdrop-blur-xl border-r border-white/20 transform ${
-      isOpen ? 'translate-x-0' : '-translate-x-full'
-    } transition-transform duration-300 lg:translate-x-0 shadow-2xl`}>
-      <div className="flex items-center justify-between p-6 border-b border-gray-200/50 bg-gradient-to-r from-blue-50/50 to-purple-50/50">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
-            <Crown className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="font-bold text-gray-900 text-lg">U PLUS</h1>
-            <p className="text-xs bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent font-semibold">DIRECTOR PANEL</p>
-          </div>
-        </div>
-        <button onClick={onClose} className="lg:hidden p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
-          <X className="w-5 h-5" />
-        </button>
-      </div>
-
-      <div className="p-6 border-b border-gray-200/50 bg-gradient-to-r from-gray-50/50 to-blue-50/30">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center text-white font-bold shadow-lg">
-            {user?.firstName?.[0]}{user?.lastName?.[0]}
-          </div>
-          <div className="flex-1">
-            <p className="font-semibold text-gray-900">{user?.firstName} {user?.lastName}</p>
-            <p className="text-xs text-gray-500 capitalize">Director</p>
-          </div>
-        </div>
-      </div>
-
-      <nav className="flex-1 p-4 space-y-2">
-        {sidebarItems.map(item => {
-          const isActive = pathname === item.path;
-          return (
-            <Link key={item.path} href={item.path}
-              className={`group flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${
-                isActive
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg transform scale-[1.02]'
-                  : 'text-gray-700 hover:text-blue-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 hover:scale-[1.02]'
+  const Sidebar = ({ isOpen }) => (
+    <>
+      {/* Sidebar */}
+      <div className={`fixed inset-y-0 left-0 z-50 bg-gradient-to-b from-white/95 to-gray-50/95 backdrop-blur-xl border-r border-white/20 transform transition-all duration-300 shadow-2xl ${
+        isOpen ? 'w-72 translate-x-0' : 'w-0 -translate-x-full lg:w-20 lg:translate-x-0'
+      }`}>
+        <div className={`h-full flex flex-col ${!isOpen && 'lg:flex'} ${!isOpen && 'hidden lg:flex'}`}>
+          {/* Header */}
+          <div className={`flex items-center border-b border-gray-200/50 bg-gradient-to-r from-blue-50/50 to-purple-50/50 transition-all duration-300 ${
+            isOpen ? 'justify-between p-6' : 'lg:justify-center lg:p-4'
+          }`}>
+            <div className={`flex items-center transition-all duration-300 ${
+              isOpen ? 'gap-3' : 'lg:flex-col lg:gap-2'
+            }`}>
+              <div className={`bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg transition-all duration-300 ${
+                isOpen ? 'w-12 h-12' : 'lg:w-10 lg:h-10'
               }`}>
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300 ${
-                isActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600 group-hover:bg-blue-100 group-hover:text-blue-600'
-              }`}>
-                <item.icon className="w-4 h-4" />
+                <Crown className={`text-white transition-all duration-300 ${
+                  isOpen ? 'w-6 h-6' : 'lg:w-5 lg:h-5'
+                }`} />
               </div>
-              <span className="font-medium">{item.label}</span>
-              {isActive && <div className="w-2 h-2 bg-white rounded-full animate-pulse ml-auto"></div>}
-            </Link>
-          );
-        })}
-      </nav>
-
-      <div className="p-4 border-t border-gray-200/50 bg-gradient-to-r from-red-50/50 to-pink-50/30">
-        <button onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:text-white hover:bg-gradient-to-r hover:from-red-500 hover:to-pink-500 rounded-xl transition-all duration-300 hover:scale-[1.02] hover:shadow-lg font-medium">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-red-100 group-hover:bg-white/20 transition-colors">
-            <LogOut className="w-4 h-4" />
+              {isOpen && (
+                <div>
+                  <h1 className="font-bold text-gray-900 text-lg">U PLUS</h1>
+                  <p className="text-xs bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent font-semibold">DIRECTOR PANEL</p>
+                </div>
+              )}
+            </div>
           </div>
-          Logout
-        </button>
+
+          {/* User Profile */}
+          <div className={`border-b border-gray-200/50 bg-gradient-to-r from-gray-50/50 to-blue-50/30 transition-all duration-300 ${
+            isOpen ? 'p-6' : 'lg:p-3'
+          }`}>
+            <div className={`flex items-center transition-all duration-300 ${
+              isOpen ? 'gap-3' : 'lg:flex-col lg:gap-2'
+            }`}>
+              <div className={`bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center text-white font-bold shadow-lg transition-all duration-300 ${
+                isOpen ? 'w-10 h-10' : 'lg:w-9 lg:h-9 lg:text-sm'
+              }`}>
+                {user?.firstName?.[0]}{user?.lastName?.[0]}
+              </div>
+              {isOpen && (
+                <div className="flex-1">
+                  <p className="font-semibold text-gray-900">{user?.firstName} {user?.lastName}</p>
+                  <p className="text-xs text-gray-500 capitalize">Director</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Navigation */}
+          <nav className={`flex-1 space-y-2 overflow-y-auto transition-all duration-300 ${
+            isOpen ? 'p-4' : 'lg:p-2'
+          }`}>
+            {sidebarItems.map(item => {
+              const isActive = pathname === item.path;
+              return (
+                <Link key={item.path} href={item.path}
+                  className={`group flex items-center rounded-xl transition-all duration-300 ${
+                    isOpen ? 'gap-3 px-4 py-3' : 'lg:gap-0 lg:px-0 lg:py-3 lg:flex-col lg:justify-center'
+                  } ${
+                    isActive
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg transform scale-[1.02]'
+                      : 'text-gray-700 hover:text-blue-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 hover:scale-[1.02]'
+                  }`}
+                  title={!isOpen ? item.label : ''}>
+                  <div className={`rounded-lg flex items-center justify-center transition-all duration-300 ${
+                    isOpen ? 'w-8 h-8' : 'lg:w-9 lg:h-9'
+                  } ${
+                    isActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600 group-hover:bg-blue-100 group-hover:text-blue-600'
+                  }`}>
+                    <item.icon className="w-4 h-4" />
+                  </div>
+                  {isOpen && (
+                    <>
+                      <span className="font-medium">{item.label}</span>
+                      {isActive && <div className="w-2 h-2 bg-white rounded-full animate-pulse ml-auto"></div>}
+                    </>
+                  )}
+                  {!isOpen && (
+                    <span className="hidden lg:block text-xs mt-1 font-medium">{item.label.slice(0, 3)}</span>
+                  )}
+                </Link>
+              );
+            })}
+          </nav>
+
+          {/* Logout Button */}
+          <div className={`border-t border-gray-200/50 bg-gradient-to-r from-red-50/50 to-pink-50/30 transition-all duration-300 ${
+            isOpen ? 'p-4' : 'lg:p-2'
+          }`}>
+            <button onClick={handleLogout}
+              className={`w-full flex items-center text-red-600 hover:text-white hover:bg-gradient-to-r hover:from-red-500 hover:to-pink-500 rounded-xl transition-all duration-300 hover:scale-[1.02] hover:shadow-lg font-medium ${
+                isOpen ? 'gap-3 px-4 py-3' : 'lg:gap-0 lg:px-0 lg:py-3 lg:flex-col lg:justify-center'
+              }`}
+              title={!isOpen ? 'Logout' : ''}>
+              <div className={`rounded-lg flex items-center justify-center bg-red-100 group-hover:bg-white/20 transition-colors ${
+                isOpen ? 'w-8 h-8' : 'lg:w-9 lg:h-9'
+              }`}>
+                <LogOut className="w-4 h-4" />
+              </div>
+              {isOpen && <span>Logout</span>}
+              {!isOpen && <span className="hidden lg:block text-xs mt-1">Out</span>}
+            </button>
+          </div>
+        </div>
       </div>
-    </div>
+
+      {/* Mobile Overlay */}
+      {isOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden" onClick={toggleSidebar} />
+      )}
+    </>
   );
 
   const Navbar = () => (
     <header className="bg-gradient-to-r from-white/70 to-gray-50/70 backdrop-blur-xl border-b border-white/20 shadow-lg sticky top-0 z-40">
       <div className="flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-4">
-          <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-colors">
+          {/* Toggle Button - Works on all screen sizes */}
+          <button 
+            onClick={toggleSidebar} 
+            className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-colors"
+            aria-label="Toggle Sidebar">
             <Menu className="w-6 h-6" />
           </button>
           
-          <div className="hidden lg:flex items-center gap-6">
+          <div className="hidden md:flex items-center gap-6">
             <div className="relative">
               <Search className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
               <input type="text" placeholder="Search anything..."
@@ -369,9 +428,11 @@ export default function DirectorLayout({ children }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-900 to-slate-900">
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar isOpen={sidebarOpen} />
       
-      <div className="lg:ml-72 min-h-screen flex flex-col">
+      <div className={`min-h-screen flex flex-col transition-all duration-300 ${
+        sidebarOpen ? 'lg:ml-72' : 'lg:ml-20'
+      }`}>
         <Navbar />
         <main className="flex-1">
           <div className="p-8">{children}</div>
@@ -393,10 +454,6 @@ export default function DirectorLayout({ children }) {
           </div>
         </footer>
       </div>
-
-      {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
-      )}
     </div>
   );
 }

@@ -1,9 +1,13 @@
 import { requireAuth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
-import { v4 as uuidv4 } from 'uuid';
+import { v2 as cloudinary } from 'cloudinary';
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
 export async function POST(request) {
   try {
@@ -38,35 +42,34 @@ export async function POST(request) {
     }
 
     const uploadedResources = [];
-    const uploadDir = join(process.cwd(), 'public', 'uploads', 'resources');
-
-    // Ensure upload directory exists
-    try {
-      await mkdir(uploadDir, { recursive: true });
-    } catch (error) {
-      // Directory already exists or permission error
-    }
 
     for (const file of files) {
       if (file.size === 0) continue;
 
-      // Generate unique filename
-      const fileExtension = file.name.split('.').pop();
-      const uniqueFileName = `${uuidv4()}.${fileExtension}`;
-      const filePath = join(uploadDir, uniqueFileName);
-
-      // Convert file to buffer and save
-      const bytes = await file.arrayBuffer();
-      const buffer = Buffer.from(bytes);
-      await writeFile(filePath, buffer);
+      // Upload file to Cloudinary
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const uploadResult = await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            folder: `resources/${user.schoolId}`,
+            resource_type: 'auto',
+            public_id: file.name.split('.').slice(0, -1).join('') // Remove file extension
+          },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        );
+        uploadStream.end(buffer);
+      });
 
       // Create database record
       const resource = await prisma.resource.create({
         data: {
           name: file.name,
           originalName: file.name,
-          filename: uniqueFileName,
-          url: `/uploads/resources/${uniqueFileName}`,
+          filename: uploadResult.public_id,
+          url: uploadResult.secure_url,
           mimeType: file.type || 'application/octet-stream',
           size: file.size,
           schoolId: user.schoolId,
