@@ -221,7 +221,14 @@ const StudentLayout = ({ children }) => {
       name: 'Messages',
       href: '/protected/students/messages',
       icon: MessageSquare
+    },
+      
+    {
+      name: 'Tests',
+      href: '/protected/students/tests',
+      icon: FileText,
     }
+
   ];
 
   if (loading) {
