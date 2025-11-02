@@ -1,362 +1,430 @@
-// /app/api/protected/teacher/subject/grading/route.js
-import { requireAuth } from '@/lib/auth';
+// app/api/protected/teacher/subject/grading/route.js
 import { NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { cookies } from 'next/headers';
-import jwt from 'jsonwebtoken';
 
-// Helper function to verify subject teacher access
-async function verifySubjectTeacherAccess(token) {
-  if (!token) {
-    throw new Error('Unauthorized');
-  }
+// Helper function to automatically grade objective questions
+function autoGradeObjectiveQuestions(questions, studentAnswers) {
+  let totalObjectiveScore = 0;
+  let maxObjectiveScore = 0;
+  const gradedQuestions = [];
 
-  const decoded = jwt.verify(token, process.env.JWT_SECRET);
-  const user = await prisma.user.findUnique({
-    where: { id: decoded.userId },
-    include: { 
-      teacherProfile: {
-        include: {
-          teacherSubjects: {
-            include: {
-              subject: true
-            }
-          }
-        }
-      }, 
-      school: true 
+  questions.forEach((question, index) => {
+    if (question.type === 'objective' || question.type === 'multiple_choice') {
+      maxObjectiveScore += question.points || 1;
+      
+      const studentAnswer = studentAnswers[question.id] || studentAnswers[index];
+      const correctAnswer = question.correctAnswer || question.answer;
+      
+      let isCorrect = false;
+      
+      // Handle different answer formats
+      if (Array.isArray(correctAnswer)) {
+        // Multiple correct answers (checkbox type)
+        isCorrect = JSON.stringify(studentAnswer?.sort()) === JSON.stringify(correctAnswer.sort());
+      } else {
+        // Single correct answer
+        isCorrect = String(studentAnswer).toLowerCase().trim() === String(correctAnswer).toLowerCase().trim();
+      }
+      
+      if (isCorrect) {
+        totalObjectiveScore += question.points || 1;
+      }
+      
+      gradedQuestions.push({
+        questionId: question.id,
+        questionNumber: index + 1,
+        type: question.type,
+        question: question.text || question.question,
+        studentAnswer: studentAnswer,
+        correctAnswer: correctAnswer,
+        isCorrect: isCorrect,
+        points: question.points || 1,
+        scored: isCorrect ? (question.points || 1) : 0
+      });
     }
   });
 
-  if (!user || user.role !== 'teacher' || user.teacherProfile?.department !== 'subject_teacher') {
-    throw new Error('Access denied');
-  }
-
-  return user;
+  return {
+    totalObjectiveScore,
+    maxObjectiveScore,
+    gradedQuestions,
+    objectivePercentage: maxObjectiveScore > 0 ? (totalObjectiveScore / maxObjectiveScore) * 100 : 0
+  };
 }
 
-// GET - Fetch submissions for grading
+// GET - Fetch submissions to grade
 export async function GET(request) {
   try {
-    await requireAuth(['subject_teacher']);
-
-    const cookieStore = await cookies();
-    const token = cookieStore.get('auth_token')?.value;
+    const user = await getCurrentUser();
     
-    const subjectTeacher = await verifySubjectTeacherAccess(token);
-    const { searchParams } = new URL(request.url);
-    const assignmentId = searchParams.get('assignment');
-    const status = searchParams.get('status') || 'all';
-    const subjectFilter = searchParams.get('subject');
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '20');
-
-    // Get teacher's assigned subjects
-    const teacherSubjects = subjectTeacher.teacherProfile?.teacherSubjects || [];
-    const subjectNames = teacherSubjects.map(ts => ts.subject?.name).filter(Boolean);
-    const assignedClasses = [...new Set(teacherSubjects.flatMap(ts => ts.classes))];
-
-    if (subjectNames.length === 0) {
-      return NextResponse.json({
-        success: true,
-        data: {
-          submissions: [],
-          summary: { total: 0, pending: 0, graded: 0, late: 0 },
-          message: 'No subjects assigned to this teacher'
-        }
-      });
-    }
-
-    // TODO: In production, this would query actual assignment_submissions table
-    // For now, generate mock submission data
-    const mockSubmissions = [];
-    
-    // Generate submissions for each subject/assignment
-    teacherSubjects.forEach(teacherSubject => {
-      const subjectName = teacherSubject.subject?.name;
-      const subjectClasses = teacherSubject.classes;
-      
-      // Generate sample assignments for this subject
-      for (let assignmentIndex = 0; assignmentIndex < 3; assignmentIndex++) {
-        const assignmentTitle = `Assignment ${assignmentIndex + 1}`;
-        const assignmentId = `assignment_${subjectName.replace(/\s+/g, '')}_${assignmentIndex}`;
-        
-        // Generate students for this assignment
-        for (let studentIndex = 0; studentIndex < 15; studentIndex++) {
-          const submissionDate = new Date();
-          submissionDate.setDate(submissionDate.getDate() - Math.floor(Math.random() * 14)); // Last 14 days
-          
-          const dueDate = new Date(submissionDate);
-          dueDate.setDate(dueDate.getDate() + Math.floor(Math.random() * 7) + 1); // Due 1-7 days after submission
-          
-          const isLateSubmission = submissionDate > dueDate;
-          const isGraded = Math.random() > 0.4; // 60% chance of being graded
-          const score = isGraded ? Math.floor(Math.random() * 40) + 60 : null; // 60-100 if graded
-          
-          const submissionStatus = !isGraded ? 'pending' : 
-                                 isLateSubmission ? 'late' : 'graded';
-
-          mockSubmissions.push({
-            id: `submission_${assignmentId}_student_${studentIndex}`,
-            assignmentId: assignmentId,
-            studentId: `student_${studentIndex}`,
-            schoolId: subjectTeacher.schoolId,
-            
-            // Assignment details
-            assignment: {
-              id: assignmentId,
-              title: `${subjectName} ${assignmentTitle}`,
-              subject: subjectName,
-              maxScore: 100,
-              dueDate: dueDate
-            },
-            
-            // Student details
-            student: {
-              id: `student_${studentIndex}`,
-              name: `Student ${studentIndex + 1}`,
-              className: subjectClasses[Math.floor(Math.random() * subjectClasses.length)]
-            },
-            
-            // Submission details
-            content: `This is the submission content for ${subjectName} ${assignmentTitle} by Student ${studentIndex + 1}. The student has provided their work and is awaiting feedback.`,
-            attachments: Math.random() > 0.7 ? [`attachment_${assignmentId}_${studentIndex}.pdf`] : [],
-            
-            submittedAt: submissionDate,
-            isLateSubmission: isLateSubmission,
-            attemptNumber: 1,
-            
-            // Grading
-            score: score,
-            maxScore: 100,
-            feedback: isGraded ? `Good work on this assignment. ${score >= 80 ? 'Excellent understanding demonstrated.' : 'Some areas need improvement.'}` : null,
-            gradedAt: isGraded ? new Date() : null,
-            gradedBy: isGraded ? subjectTeacher.id : null,
-            
-            status: submissionStatus,
-            createdAt: submissionDate,
-            updatedAt: isGraded ? new Date() : submissionDate
-          });
-        }
-      }
-    });
-
-    // Apply filters
-    let filteredSubmissions = mockSubmissions;
-
-    // Filter by assignment
-    if (assignmentId && assignmentId !== 'all') {
-      filteredSubmissions = filteredSubmissions.filter(s => s.assignmentId === assignmentId);
-    }
-
-    // Filter by status
-    if (status !== 'all') {
-      filteredSubmissions = filteredSubmissions.filter(s => s.status === status);
-    }
-
-    // Filter by subject
-    if (subjectFilter && subjectFilter !== 'all') {
-      filteredSubmissions = filteredSubmissions.filter(s => 
-        s.assignment.subject.toLowerCase().includes(subjectFilter.toLowerCase())
+    if (!user || user.role !== 'teacher') {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 403 }
       );
     }
 
-    // Sort by submission date (most recent first)
-    filteredSubmissions.sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+    const { searchParams } = new URL(request.url);
+    const assignmentId = searchParams.get('assignment');
+    const status = searchParams.get('status') || 'submitted';
 
-    // Apply pagination
-    const startIndex = (page - 1) * limit;
-    const paginatedSubmissions = filteredSubmissions.slice(startIndex, startIndex + limit);
-
-    // Calculate summary statistics
-    const summary = {
-      total: filteredSubmissions.length,
-      pending: filteredSubmissions.filter(s => s.status === 'pending').length,
-      graded: filteredSubmissions.filter(s => s.status === 'graded').length,
-      late: filteredSubmissions.filter(s => s.status === 'late' || s.isLateSubmission).length
+    const whereClause = {
+      assignment: {
+        teacherId: user.id
+      }
     };
+
+    if (assignmentId && assignmentId !== 'all') {
+      whereClause.assignmentId = assignmentId;
+    }
+
+    if (status && status !== 'all') {
+      if (status === 'pending') {
+        whereClause.status = 'submitted';
+        whereClause.score = null;
+      } else if (status === 'graded') {
+        whereClause.status = 'graded';
+      } else if (status === 'late') {
+        whereClause.isLateSubmission = true;
+      }
+    }
+
+    const submissions = await prisma.assignmentSubmission.findMany({
+      where: whereClause,
+      include: {
+        student: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            studentProfile: {
+              select: {
+                studentId: true,
+                className: true
+              }
+            }
+          }
+        },
+        assignment: {
+          select: {
+            id: true,
+            title: true,
+            maxScore: true,
+            dueDate: true,
+            assignmentType: true,
+            // Assuming questions are stored as JSON in a field
+            // Adjust based on your actual schema
+            description: true,
+            subject: {
+              select: {
+                name: true,
+                code: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: [
+        { submittedAt: 'asc' }
+      ]
+    });
+
+    const formattedSubmissions = submissions.map(sub => {
+      // Parse submission content if it contains answers
+      let parsedContent = null;
+      let autoGradingResult = null;
+      
+      try {
+        if (sub.content) {
+          parsedContent = typeof sub.content === 'string' ? JSON.parse(sub.content) : sub.content;
+          
+          // If assignment has questions, auto-grade objective questions
+          if (parsedContent.questions && parsedContent.answers) {
+            autoGradingResult = autoGradeObjectiveQuestions(
+              parsedContent.questions,
+              parsedContent.answers
+            );
+          }
+        }
+      } catch (e) {
+        console.error('Error parsing submission content:', e);
+      }
+
+      return {
+        id: sub.id,
+        content: sub.content,
+        parsedContent: parsedContent,
+        autoGradingResult: autoGradingResult,
+        attachments: sub.attachments,
+        submittedAt: sub.submittedAt,
+        isLateSubmission: sub.isLateSubmission,
+        attemptNumber: sub.attemptNumber,
+        score: sub.score,
+        maxScore: sub.maxScore,
+        feedback: sub.feedback,
+        gradedAt: sub.gradedAt,
+        status: sub.status,
+        hasObjectiveQuestions: autoGradingResult !== null,
+        objectiveScore: autoGradingResult?.totalObjectiveScore,
+        maxObjectiveScore: autoGradingResult?.maxObjectiveScore,
+        requiresManualGrading: parsedContent?.hasTheoryQuestions || false,
+        student: {
+          id: sub.student.id,
+          name: `${sub.student.firstName} ${sub.student.lastName}`,
+          email: sub.student.email,
+          studentId: sub.student.studentProfile?.studentId,
+          className: sub.student.studentProfile?.className
+        },
+        assignment: {
+          id: sub.assignment.id,
+          title: sub.assignment.title,
+          type: sub.assignment.assignmentType,
+          maxScore: sub.assignment.maxScore,
+          dueDate: sub.assignment.dueDate,
+          subject: sub.assignment.subject.name,
+          subjectCode: sub.assignment.subject.code
+        }
+      };
+    });
 
     return NextResponse.json({
       success: true,
       data: {
-        submissions: paginatedSubmissions,
-        summary: summary,
-        pagination: {
-          total: filteredSubmissions.length,
-          page: page,
-          limit: limit,
-          pages: Math.ceil(filteredSubmissions.length / limit)
-        },
-        teacherInfo: {
-          id: subjectTeacher.id,
-          name: `${subjectTeacher.firstName} ${subjectTeacher.lastName}`,
-          assignedSubjects: subjectNames
-        }
+        submissions: formattedSubmissions,
+        total: formattedSubmissions.length,
+        pending: formattedSubmissions.filter(s => !s.score).length,
+        graded: formattedSubmissions.filter(s => s.score !== null).length,
+        autoGradable: formattedSubmissions.filter(s => s.hasObjectiveQuestions && !s.requiresManualGrading).length
       }
     });
 
   } catch (error) {
-    console.error('Subject teacher grading GET error:', error);
-    
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (error.message === 'Access denied') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-    
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Fetch submissions error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to fetch submissions', details: error.message },
+      { status: 500 }
+    );
   }
 }
 
-// POST - Submit individual grade
+// POST - Grade a submission (with auto-grading for objective questions)
 export async function POST(request) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get('auth_token')?.value;
+    const user = await getCurrentUser();
     
-    const subjectTeacher = await verifySubjectTeacherAccess(token);
+    if (!user || user.role !== 'teacher') {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
-    const { submissionId, score, feedback = '', gradedAt } = body;
+    const { submissionId, theoryScore, feedback, autoGrade } = body;
 
-    if (!submissionId || score === null || score === undefined) {
-      return NextResponse.json({
-        error: 'Submission ID and score are required'
-      }, { status: 400 });
+    if (!submissionId) {
+      return NextResponse.json(
+        { success: false, error: 'Missing submission ID' },
+        { status: 400 }
+      );
     }
 
-    const scoreNum = parseInt(score);
-    if (isNaN(scoreNum) || scoreNum < 0) {
-      return NextResponse.json({
-        error: 'Score must be a valid number greater than or equal to 0'
-      }, { status: 400 });
-    }
-
-    // TODO: In production, update the actual assignment_submission record
-    
+    // Fetch submission with assignment details
     const submission = await prisma.assignmentSubmission.findUnique({
       where: { id: submissionId },
       include: {
         assignment: {
-          include: {
-            teacher: true
+          select: {
+            teacherId: true,
+            maxScore: true,
+            assignmentType: true,
+            description: true
           }
-        },
-        student: true
+        }
       }
     });
 
     if (!submission) {
-      return NextResponse.json({
-        error: 'Submission not found'
-      }, { status: 404 });
+      return NextResponse.json(
+        { success: false, error: 'Submission not found' },
+        { status: 404 }
+      );
     }
 
-    // Verify teacher owns this assignment
-    if (submission.assignment.teacherId !== subjectTeacher.id) {
-      return NextResponse.json({
-        error: 'You can only grade submissions for your own assignments'
-      }, { status: 403 });
+    if (submission.assignment.teacherId !== user.id) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized to grade this submission' },
+        { status: 403 }
+      );
     }
 
-    // Verify score doesn't exceed max score
-    if (scoreNum > submission.assignment.maxScore) {
-      return NextResponse.json({
-        error: `Score cannot exceed maximum score of ${submission.assignment.maxScore}`
-      }, { status: 400 });
+    let totalScore = 0;
+    let gradingDetails = {};
+
+    // Parse submission content
+    let parsedContent = null;
+    try {
+      parsedContent = typeof submission.content === 'string' 
+        ? JSON.parse(submission.content) 
+        : submission.content;
+    } catch (e) {
+      console.error('Error parsing submission content:', e);
     }
 
-    // Update the submission
+    // Auto-grade objective questions if enabled
+    if (autoGrade && parsedContent?.questions && parsedContent?.answers) {
+      const autoGradingResult = autoGradeObjectiveQuestions(
+        parsedContent.questions,
+        parsedContent.answers
+      );
+      
+      totalScore += autoGradingResult.totalObjectiveScore;
+      gradingDetails.objectiveGrading = autoGradingResult;
+    }
+
+    // Add theory score if provided
+    if (theoryScore !== undefined && theoryScore !== null) {
+      totalScore += parseInt(theoryScore);
+      gradingDetails.theoryScore = parseInt(theoryScore);
+    }
+
+    // Validate total score
+    const maxScore = submission.maxScore || submission.assignment.maxScore;
+    if (totalScore > maxScore) {
+      return NextResponse.json(
+        { success: false, error: `Total score (${totalScore}) exceeds max score (${maxScore})` },
+        { status: 400 }
+      );
+    }
+
+    // Update submission
     const updatedSubmission = await prisma.assignmentSubmission.update({
       where: { id: submissionId },
       data: {
-        score: scoreNum,
-        feedback: feedback,
-        gradedAt: new Date(gradedAt || Date.now()),
-        gradedBy: subjectTeacher.id,
-        status: 'graded'
-      }
-    });
-
-    // Create notification for student
-    await prisma.notification.create({
-      data: {
-        userId: submission.student.id,
-        schoolId: subjectTeacher.schoolId,
-        title: 'Assignment Graded',
-        content: `Your ${submission.assignment.title} has been graded. Score: ${scoreNum}/${submission.assignment.maxScore}`,
-        type: 'info',
-        priority: 'normal',
-        isRead: false
+        score: totalScore,
+        feedback: feedback || null,
+        status: 'graded',
+        gradedAt: new Date(),
+        gradedBy: user.id,
+        // Store grading details as JSON in content or a separate field
+        content: JSON.stringify({
+          ...parsedContent,
+          gradingDetails: gradingDetails
+        })
+      },
+      include: {
+        student: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        },
+        assignment: {
+          select: {
+            title: true
+          }
+        }
       }
     });
 
     return NextResponse.json({
       success: true,
-      message: 'Grade submitted successfully',
       data: {
-        submissionId,
-        score: scoreNum,
-        feedback: feedback,
-        gradedAt: new Date(),
-        gradedBy: subjectTeacher.id
+        submission: updatedSubmission,
+        totalScore: totalScore,
+        maxScore: maxScore,
+        percentage: ((totalScore / maxScore) * 100).toFixed(2),
+        gradingDetails: gradingDetails,
+        message: 'Grade submitted successfully'
       }
     });
 
   } catch (error) {
-    console.error('Submit grade error:', error);
-    
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (error.message === 'Access denied') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-    
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Grade submission error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to submit grade', details: error.message },
+      { status: 500 }
+    );
   }
 }
 
-// PUT - Update existing grade
+// PUT - Auto-grade all objective questions in a submission
 export async function PUT(request) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get('auth_token')?.value;
+    const user = await getCurrentUser();
     
-    const subjectTeacher = await verifySubjectTeacherAccess(token);
-    const body = await request.json();
-    const { submissionId, score, feedback } = body;
-
-    if (!submissionId) {
-      return NextResponse.json({
-        error: 'Submission ID is required'
-      }, { status: 400 });
+    if (!user || user.role !== 'teacher') {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 403 }
+      );
     }
 
-    // TODO: In production, update the actual submission record
-    // Similar logic to POST but for updating existing grades
+    const body = await request.json();
+    const { submissionId } = body;
+
+    // Fetch submission
+    const submission = await prisma.assignmentSubmission.findUnique({
+      where: { id: submissionId },
+      include: {
+        assignment: {
+          select: {
+            teacherId: true,
+            maxScore: true
+          }
+        }
+      }
+    });
+
+    if (!submission || submission.assignment.teacherId !== user.id) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized or submission not found' },
+        { status: 403 }
+      );
+    }
+
+    // Parse and auto-grade
+    let parsedContent = null;
+    try {
+      parsedContent = typeof submission.content === 'string' 
+        ? JSON.parse(submission.content) 
+        : submission.content;
+    } catch (e) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid submission content format' },
+        { status: 400 }
+      );
+    }
+
+    if (!parsedContent?.questions || !parsedContent?.answers) {
+      return NextResponse.json(
+        { success: false, error: 'No questions found in submission' },
+        { status: 400 }
+      );
+    }
+
+    const autoGradingResult = autoGradeObjectiveQuestions(
+      parsedContent.questions,
+      parsedContent.answers
+    );
 
     return NextResponse.json({
       success: true,
-      message: 'Grade updated successfully',
       data: {
-        submissionId,
-        score: parseInt(score),
-        feedback: feedback,
-        updatedAt: new Date()
+        submissionId: submissionId,
+        autoGradingResult: autoGradingResult,
+        message: 'Objective questions auto-graded successfully'
       }
     });
 
   } catch (error) {
-    console.error('Update grade error:', error);
-    
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (error.message === 'Access denied') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-    
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Auto-grade error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to auto-grade', details: error.message },
+      { status: 500 }
+    );
   }
 }

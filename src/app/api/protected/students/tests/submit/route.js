@@ -1,6 +1,5 @@
-
 // ===================================================================
-// FILE 3: src/app/api/protected/students/tests/submit/route.js
+// FILE: src/app/api/protected/students/tests/submit/route.js
 // ===================================================================
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -135,7 +134,7 @@ export async function POST(request) {
           schoolId: user.schoolId,
           title: 'Test Submitted',
           content: `Your ${test.title} has been submitted and graded. Score: ${objectiveScore}/${test.maxScore}`,
-          type: 'success',
+          type: 'success', // Valid NotificationType
           actionUrl: `/protected/students/tests/result/${testId}`,
           actionText: 'View Result'
         }
@@ -143,13 +142,14 @@ export async function POST(request) {
     }
 
     // Notify teacher
+    // Valid NotificationType values: info, success, warning, error, system
     await prisma.notification.create({
       data: {
         userId: test.teacherId,
         schoolId: user.schoolId,
         title: needsManualGrading ? 'Test Submitted - Grading Required' : 'Test Completed',
         content: `${user.firstName} ${user.lastName} ${autoSubmit ? 'auto-submitted' : 'submitted'} ${test.title}${needsManualGrading ? '. Manual grading required.' : ''}`,
-        type: needsManualGrading ? 'alert' : 'info',
+        type: needsManualGrading ? 'warning' : 'info', // Changed from 'alert' to 'warning'
         actionUrl: needsManualGrading ? `/protected/teacher/subject/online-tests/grade/${testId}` : null,
         actionText: needsManualGrading ? 'Grade Now' : null
       }

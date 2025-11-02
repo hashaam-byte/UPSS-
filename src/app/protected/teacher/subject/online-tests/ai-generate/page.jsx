@@ -38,9 +38,14 @@ export default function AITestGenerator() {
         const data = await response.json();
         setSubjects(data.subjects || []);
         setSchoolId(data.schoolId || null); // Set schoolId from API response
+      } else {
+        const errorText = await response.text();
+        console.error('Error fetching subjects:', errorText);
+        setError('Failed to load subjects. Please try again later.');
       }
     } catch (err) {
       console.error('Error fetching subjects:', err);
+      setError('An unexpected error occurred while fetching subjects.');
     } finally {
       setLoading(false);
     }
@@ -55,11 +60,11 @@ export default function AITestGenerator() {
     try {
       setGenerating(true);
       setError('');
-      
+
       const response = await fetch('/api/protected/teacher/subject/ai-generate-test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(formData),
       });
 
       const data = await response.json();
