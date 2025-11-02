@@ -16,6 +16,7 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^6.16.1",
     "bcryptjs": "^3.0.2",
     "cloudinary": "^2.7.0",

@@ -54,6 +54,25 @@ export default function CreateOnlineTest() {
     }
   };
 
+useEffect(() => {
+  // Check for AI-generated questions
+  const aiData = sessionStorage.getItem('aiGeneratedQuestions');
+  if (aiData) {
+    try {
+      const parsed = JSON.parse(aiData);
+      setQuestions(parsed.questions || []);
+      setTestData(prev => ({
+        ...prev,
+        subjectId: parsed.subject || prev.subjectId,
+        description: `AI-generated test on ${parsed.topic}` || prev.description
+      }));
+      sessionStorage.removeItem('aiGeneratedQuestions');
+    } catch (e) {
+      console.error('Error loading AI questions:', e);
+    }
+  }
+}, []);
+
   const addQuestion = (type) => {
     const newQuestion = {
       id: `q_${Date.now()}`,

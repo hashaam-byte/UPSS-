@@ -22,7 +22,7 @@ export async function GET(request) {
     const where = {
       teacherId: user.id,
       schoolId: user.schoolId,
-      assignmentType: { in: ['test', 'exam', 'quiz'] }
+      assignmentType: { in: ['quiz', 'exam'] } // Use valid enum values from your schema
     };
 
     if (status !== 'all') {

@@ -1,6 +1,6 @@
 'use client'
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Eye, Edit, Trash2, Users, Clock, CheckCircle, Loader2, FileText } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Trash2, Users, Clock, CheckCircle, Loader2, FileText, Sparkles } from 'lucide-react';
 
 export default function OnlineTestsList() {
   const [tests, setTests] = useState([]);
@@ -77,13 +77,29 @@ export default function OnlineTestsList() {
               <h1 className="text-3xl font-bold text-gray-900">Online Tests & Exams</h1>
               <p className="text-gray-600 mt-1">Create and manage online tests with auto-grading</p>
             </div>
-            <a
-              href="/protected/teacher/subject/online-tests/create"
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              Create Test
-            </a>
+            <div className="flex gap-4">
+              <a
+                href="/protected/teacher/subject/online-tests/create"
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Create Test
+              </a>
+              <a
+                href="/protected/teacher/subject/online-tests/ai-generate"
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2"
+              >
+                <Sparkles className="w-4 h-4" />
+                AI Generate
+              </a>
+              <a
+                href="/protected/teacher/subject/online-tests/diagnostics"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+              >
+                <FileText className="w-4 h-4" />
+                Diagnostics
+              </a>
+            </div>
           </div>
         </div>
 
