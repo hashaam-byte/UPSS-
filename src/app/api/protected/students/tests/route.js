@@ -1,6 +1,3 @@
-// ===================================================================
-// FILE 1: src/app/api/protected/students/tests/route.js
-// ===================================================================
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
@@ -27,22 +24,37 @@ export async function GET(request) {
     const now = new Date();
     
     // Build where clause
+    // Valid AssignmentType values: homework, project, quiz, exam, essay, lab_report, presentation, research, classwork
+    // Valid AssignmentStatus values: draft, active, closed, cancelled
     const whereClause = {
       schoolId: user.schoolId,
-      assignmentType: { in: ['test', 'exam', 'quiz'] },
+      assignmentType: { in: ['quiz', 'exam'] },
       classes: { has: studentProfile.className }
     };
 
-    // Filter by status
+    // Filter by status - handle frontend status values
+    // Frontend sends: 'available', 'upcoming', 'completed', 'pending', 'all'
+    // We need to map these to database queries
     if (status === 'available') {
-      whereClause.status = 'published';
+      // Active tests that are currently available
+      whereClause.status = 'active';
       whereClause.availableFrom = { lte: now };
       whereClause.dueDate = { gte: now };
     } else if (status === 'upcoming') {
+      // Tests that are scheduled but not yet available
       whereClause.availableFrom = { gt: now };
-    } else if (status !== 'all') {
-      whereClause.status = status;
+      whereClause.status = 'active';
+    } else if (status === 'draft') {
+      whereClause.status = 'draft';
+    } else if (status === 'closed') {
+      whereClause.status = 'closed';
+    } else if (status === 'cancelled') {
+      whereClause.status = 'cancelled';
+    } else if (status === 'active') {
+      whereClause.status = 'active';
     }
+    // For 'completed' and 'pending', we'll filter after fetching based on submissions
+    // For 'all', no status filter is applied
 
     // Fetch tests
     const tests = await prisma.assignment.findMany({
@@ -119,23 +131,45 @@ export async function GET(request) {
           maxScore: submission.maxScore,
           status: submission.status,
           feedback: submission.feedback
-        } : null
+        } : null,
+        // Helper properties for filtering
+        hasSubmission: !!submission,
+        isGraded: submission?.status === 'graded',
+        isPending: submission && submission.status !== 'graded',
+        isAvailable: test.status === 'active' && 
+                     test.availableFrom <= now && 
+                     test.dueDate >= now,
+        isUpcoming: test.availableFrom > now,
+        isPastDue: test.dueDate < now
       };
     });
 
-    // Filter based on submission status if needed
+    // Apply client-side filtering for submission-based statuses
     let filteredTests = transformedTests;
+    
     if (status === 'completed') {
-      filteredTests = transformedTests.filter(t => t.mySubmission?.status === 'graded');
+      // Tests that have been submitted and graded
+      filteredTests = transformedTests.filter(t => t.isGraded);
     } else if (status === 'pending') {
-      filteredTests = transformedTests.filter(t => t.mySubmission && t.mySubmission.status !== 'graded');
+      // Tests that have been submitted but not yet graded
+      filteredTests = transformedTests.filter(t => t.isPending);
+    } else if (status === 'not-submitted') {
+      // Tests available but not submitted
+      filteredTests = transformedTests.filter(t => !t.hasSubmission && t.isAvailable);
     }
 
     return NextResponse.json({
       success: true,
       data: {
         tests: filteredTests,
-        studentClass: studentProfile.className
+        studentClass: studentProfile.className,
+        summary: {
+          total: filteredTests.length,
+          available: transformedTests.filter(t => t.isAvailable && !t.hasSubmission).length,
+          completed: transformedTests.filter(t => t.isGraded).length,
+          pending: transformedTests.filter(t => t.isPending).length,
+          upcoming: transformedTests.filter(t => t.isUpcoming).length
+        }
       }
     });
   } catch (error) {
