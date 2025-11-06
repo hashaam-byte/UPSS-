@@ -1,5 +1,5 @@
 'use client'
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Users, 
   GraduationCap, 
@@ -29,24 +29,30 @@ import {
   Activity,
   Crown,
   BookOpen,
-  ChevronDown
+  ChevronDown,
+  FileText,
+  CheckCircle
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 
 const AdminUsersPage = () => {
-  const router = useRouter();
   const [activeTab, setActiveTab] = useState('students');
   const [users, setUsers] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const [availableArms, setAvailableArms] = useState([]); // New state for arms
-  const [loadingArms, setLoadingArms] = useState(false); // Loading state for arms
+  const [availableArms, setAvailableArms] = useState([]);
+  const [loadingArms, setLoadingArms] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importProgress, setImportProgress] = useState(0);
+  const [importResults, setImportResults] = useState(null);
+  const fileInputRef = useRef(null);
+  const abortControllerRef = useRef(null);
 
   const tabs = [
     { id: 'students', label: 'Students', icon: GraduationCap, count: 0, gradient: 'from-blue-500 to-cyan-500' },
@@ -68,15 +74,29 @@ const AdminUsersPage = () => {
     address: '',
     gender: '',
     teacherType: '',
-    coordinatorClasses: [], // For coordinator classes
-    classTeacherArms: []    // New field for class teacher arms
+    coordinatorClasses: [],
+    classTeacherArms: []
   });
 
   useEffect(() => {
+    // Abort previous request if exists
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Create new abort controller
+    abortControllerRef.current = new AbortController();
+
     fetchUsers();
+
+    // Cleanup function
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [activeTab, currentPage, searchQuery]);
 
-  // New function to fetch available arms for a school
   const fetchAvailableArms = async () => {
     try {
       setLoadingArms(true);
@@ -87,17 +107,16 @@ const AdminUsersPage = () => {
         setAvailableArms(data.arms || []);
       } else {
         console.error('Failed to fetch arms:', data.error);
-        setAvailableArms(['Silver', 'Diamond', 'Gold']); // Fallback to default arms
+        setAvailableArms(['Silver', 'Diamond', 'Gold']);
       }
     } catch (error) {
       console.error('Error fetching arms:', error);
-      setAvailableArms(['Silver', 'Diamond', 'Gold']); // Fallback to default arms
+      setAvailableArms(['Silver', 'Diamond', 'Gold']);
     } finally {
       setLoadingArms(false);
     }
   };
 
-  // Fetch arms when modal opens and class_teacher is selected
   useEffect(() => {
     if (showCreateModal && createForm.teacherType === 'class_teacher') {
       fetchAvailableArms();
@@ -114,7 +133,10 @@ const AdminUsersPage = () => {
         ...(searchQuery && { search: searchQuery })
       });
 
-      const response = await fetch(`/api/protected/admin/users?${params}`);
+      const response = await fetch(`/api/protected/admin/users?${params}`, {
+        signal: abortControllerRef.current?.signal
+      });
+      
       const data = await response.json();
 
       if (response.ok) {
@@ -124,6 +146,10 @@ const AdminUsersPage = () => {
         setError(data.error || 'Failed to fetch users');
       }
     } catch (error) {
+      if (error.name === 'AbortError') {
+        console.log('Fetch aborted');
+        return;
+      }
       console.error('Error fetching users:', error);
       setError('Network error occurred');
     } finally {
@@ -131,16 +157,111 @@ const AdminUsersPage = () => {
     }
   };
 
+  const handleTabChange = (tabId) => {
+    // Abort any ongoing request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // Reset state
+    setUsers([]);
+    setActiveTab(tabId);
+    setCurrentPage(1);
+    setSearchQuery('');
+    setSelectedUsers([]);
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file && file.type === 'text/csv') {
+      setImportFile(file);
+      setError('');
+    } else {
+      setError('Please select a valid CSV file');
+      setImportFile(null);
+    }
+  };
+
+  const handleImportCSV = async () => {
+    if (!importFile) {
+      setError('Please select a CSV file first');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setImportProgress(0);
+      setImportResults(null);
+
+      const formData = new FormData();
+      formData.append('file', importFile);
+      formData.append('role', activeTab === 'students' ? 'student' : activeTab === 'teachers' ? 'teacher' : 'admin');
+
+      const response = await fetch('/api/protected/admin/users/import', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setImportResults({
+          success: data.success || 0,
+          failed: data.failed || 0,
+          errors: data.errors || []
+        });
+        setSuccessMessage(`Successfully imported ${data.success} users`);
+        setShowImportModal(false);
+        fetchUsers();
+        setImportFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      } else {
+        setError(data.error || 'Failed to import users');
+      }
+    } catch (error) {
+      console.error('Error importing CSV:', error);
+      setError('Network error occurred during import');
+    } finally {
+      setIsLoading(false);
+      setImportProgress(0);
+    }
+  };
+
+  const downloadCSVTemplate = () => {
+    const role = activeTab === 'students' ? 'student' : activeTab === 'teachers' ? 'teacher' : 'admin';
+    let csvContent = '';
+
+    if (role === 'student') {
+      csvContent = 'firstName,lastName,email,username,password,phone,dateOfBirth,gender,className,section,parentName,parentPhone,parentEmail\n';
+      csvContent += 'John,Doe,john.doe@example.com,johndoe,Password123,+2348012345678,2005-01-15,male,SS1,A,Jane Doe,+2348087654321,jane.doe@example.com\n';
+    } else if (role === 'teacher') {
+      csvContent = 'firstName,lastName,email,username,password,phone,dateOfBirth,gender,teacherType,coordinatorClasses,classTeacherArms,qualification,experienceYears\n';
+      csvContent += 'Jane,Smith,jane.smith@example.com,janesmith,Password123,+2348012345678,1985-03-20,female,subject_teacher,,,B.Ed Mathematics,5\n';
+      csvContent += 'Bob,Johnson,bob.johnson@example.com,bobjohnson,Password123,+2348087654321,1980-06-15,male,coordinator,"JS1,JS2,JS3",,M.Sc Physics,10\n';
+    } else {
+      csvContent = 'firstName,lastName,email,username,password,phone,dateOfBirth,gender\n';
+      csvContent += 'Admin,User,admin.user@example.com,adminuser,Password123,+2348012345678,1990-05-10,male\n';
+    }
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${role}_import_template.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
+
   const handleCreateUser = async (e) => {
     e.preventDefault();
     
-    // Validation for coordinator
     if (createForm.teacherType === 'coordinator' && createForm.coordinatorClasses.length === 0) {
       setError('Please select at least one class for the coordinator to manage');
       return;
     }
 
-    // Validation for class teacher
     if (createForm.teacherType === 'class_teacher' && createForm.classTeacherArms.length === 0) {
       setError('Please select at least one class arm for the class teacher');
       return;
@@ -155,11 +276,9 @@ const AdminUsersPage = () => {
         },
         body: JSON.stringify({
           ...createForm,
-          // Include coordinator classes if it's a coordinator
           ...(createForm.teacherType === 'coordinator' && {
             coordinatorClasses: createForm.coordinatorClasses
           }),
-          // Include class teacher arms if it's a class teacher
           ...(createForm.teacherType === 'class_teacher' && {
             classTeacherArms: createForm.classTeacherArms
           })
@@ -244,10 +363,6 @@ const AdminUsersPage = () => {
     }
   };
 
-  const handleEditUser = (userId) => {
-    router.push(`/protected/admin/users/${userId}/edit`);
-  };
-
   const generatePassword = () => {
     const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&*';
     let password = '';
@@ -266,7 +381,6 @@ const AdminUsersPage = () => {
     }));
   };
 
-  // New function for handling class teacher arm selection
   const handleArmToggle = (arm) => {
     setCreateForm(prev => ({
       ...prev,
@@ -298,39 +412,21 @@ const AdminUsersPage = () => {
       return null;
     }
     
-    // Get classes from TeacherSubjects relations
     const classes = user.teacherProfile?.teacherSubjects?.flatMap(ts => ts.classes) || [];
     return [...new Set(classes)];
   };
 
-  // New function to get class teacher arms
   const getClassTeacherArms = (user) => {
     if (user.role !== 'teacher' || user.teacherProfile?.department !== 'class_teacher') {
       return null;
     }
     
-    // Get arms from TeacherSubjects relations for class teachers
     const arms = user.teacherProfile?.teacherSubjects?.flatMap(ts => ts.classes) || [];
     return [...new Set(arms)];
   };
 
-  if (isLoading && users.length === 0) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="relative">
-            <div className="w-20 h-20 bg-gradient-to-r from-blue-600 to-purple-600 rounded-3xl animate-pulse shadow-2xl">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-purple-400 rounded-3xl animate-ping opacity-75"></div>
-            </div>
-          </div>
-          <p className="text-gray-700 mt-6 font-bold text-lg">Loading User Database...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-6">
       <div className="space-y-8">
         {/* Header */}
         <div className="relative overflow-hidden bg-gradient-to-r from-white/80 to-blue-50/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-8">
@@ -352,7 +448,7 @@ const AdminUsersPage = () => {
             </div>
             <div className="flex gap-4">
               <button
-                onClick={() => setShowImportModal && setShowImportModal(true)}
+                onClick={() => setShowImportModal(true)}
                 className="group relative overflow-hidden bg-gradient-to-r from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30 text-purple-600 px-6 py-3 rounded-xl font-bold transition-all duration-300 hover:scale-105 shadow-lg border border-purple-300/50 flex items-center gap-2"
               >
                 <Upload className="w-5 h-5" />
@@ -413,10 +509,7 @@ const AdminUsersPage = () => {
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => {
-                      setActiveTab(tab.id);
-                      setCurrentPage(1);
-                    }}
+                    onClick={() => handleTabChange(tab.id)}
                     className={`group relative overflow-hidden px-6 py-4 rounded-2xl font-bold transition-all duration-300 hover:scale-105 shadow-lg flex items-center gap-3 ${
                       activeTab === tab.id
                         ? `bg-gradient-to-r ${tab.gradient} text-white border-0`
@@ -632,7 +725,7 @@ const AdminUsersPage = () => {
                                   {user.isActive ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                 </button>
                                 <button
-                                  onClick={() => handleEditUser(user.id)}
+                                  onClick={() => alert('Edit feature coming soon')}
                                   className="p-2 text-blue-600 hover:bg-blue-100 border border-blue-200 rounded-xl transition-all shadow-lg"
                                   title="Edit user"
                                 >
@@ -682,6 +775,143 @@ const AdminUsersPage = () => {
             )}
           </div>
         </div>
+
+        {/* Import CSV Modal */}
+        {showImportModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl shadow-2xl border border-gray-200/50 p-8 w-full max-w-2xl">
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h2 className="text-2xl font-black text-gray-900">Import Users from CSV</h2>
+                  <p className="text-gray-600 font-medium">Upload a CSV file to bulk import {activeTab}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowImportModal(false);
+                    setImportFile(null);
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                  }}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                {/* Download Template */}
+                <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6">
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-lg flex-shrink-0">
+                      <FileText className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-black text-gray-900 mb-2">Download Template First</h3>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Download the CSV template for {activeTab} to ensure your file has the correct format and required columns.
+                      </p>
+                      <button
+                        onClick={downloadCSVTemplate}
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all"
+                      >
+                        <Download className="w-4 h-4" />
+                        Download Template
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* File Upload */}
+                <div className="border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    id="csv-upload"
+                  />
+                  <label htmlFor="csv-upload" className="cursor-pointer">
+                    <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                      <Upload className="w-8 h-8 text-white" />
+                    </div>
+                    <p className="text-lg font-black text-gray-900 mb-2">
+                      {importFile ? importFile.name : 'Click to upload CSV file'}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {importFile ? 'File selected - Click Import to proceed' : 'or drag and drop your CSV file here'}
+                    </p>
+                  </label>
+                </div>
+
+                {/* Import Progress */}
+                {isLoading && (
+                  <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-6 border border-blue-200">
+                    <div className="flex items-center gap-4 mb-4">
+                      <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                      <span className="font-bold text-gray-900">Importing users...</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                      <div 
+                        className="bg-gradient-to-r from-blue-600 to-purple-600 h-full transition-all duration-300 rounded-full"
+                        style={{ width: `${importProgress}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Import Results */}
+                {importResults && (
+                  <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-2xl p-6 border border-emerald-200">
+                    <div className="flex items-center gap-3 mb-4">
+                      <CheckCircle className="w-6 h-6 text-emerald-600" />
+                      <h3 className="font-black text-gray-900">Import Complete</h3>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-emerald-700 font-bold">✓ Successfully imported: {importResults.success} users</p>
+                      {importResults.failed > 0 && (
+                        <p className="text-red-700 font-bold">✗ Failed: {importResults.failed} users</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => {
+                      setShowImportModal(false);
+                      setImportFile(null);
+                      setImportResults(null);
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }}
+                    className="flex-1 px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-all font-bold"
+                  >
+                    {importResults ? 'Close' : 'Cancel'}
+                  </button>
+                  {!importResults && (
+                    <button
+                      onClick={handleImportCSV}
+                      disabled={!importFile || isLoading}
+                      className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl transition-all font-bold flex items-center justify-center gap-2 shadow-xl"
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Importing...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4" />
+                          Import Users
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Create User Modal */}
         {showCreateModal && (
@@ -957,6 +1187,5 @@ const AdminUsersPage = () => {
       </div>
     </div>
   );
-};
-
+}
 export default AdminUsersPage;

@@ -9,7 +9,8 @@ import {
   Settings, 
   LogOut, 
   User, 
-  X
+  X,
+  Building
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, onClose, user, onLogout, currentPath = '/protected/headadmin' }) => {
@@ -27,6 +28,13 @@ const Sidebar = ({ isOpen, onClose, user, onLogout, currentPath = '/protected/he
       icon: School,
       current: currentPath.startsWith('/protected/headadmin/schools'),
       gradient: 'from-emerald-500 to-teal-500'
+    },
+    {
+      name: 'School Management', // New navigation item
+      href: '/protected/headadmin/schoolmanagement',
+      icon: Building,
+      current: currentPath.startsWith('/protected/headadmin/schoolmanagement'),
+      gradient: 'from-indigo-500 to-purple-500'
     },
     {
       name: 'Invoices & Billing',

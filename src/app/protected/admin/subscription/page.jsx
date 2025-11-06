@@ -18,7 +18,8 @@ import {
   Activity,
   Crown,
   Sparkles,
-  ArrowUp
+  ArrowUp,
+  Bell
 } from 'lucide-react';
 
 const AdminSubscriptionPage = () => {
@@ -92,8 +93,7 @@ const AdminSubscriptionPage = () => {
     if (!subscription) return { text: 'Loading...', color: 'gray', icon: Clock };
     
     const isActive = subscription.subscriptionIsActive;
-    const expiresAt = new Date(subscription.subscriptionExpiresAt);
-    const daysLeft = Math.ceil((expiresAt - new Date()) / (1000 * 60 * 60 * 24));
+    const daysLeft = subscription.daysTillNextPayment;
     
     if (isActive && daysLeft > 30) {
       return { 
@@ -133,9 +133,10 @@ const AdminSubscriptionPage = () => {
 
   const status = getSubscriptionStatus();
   const StatusIcon = status.icon;
+  const daysLeft = subscription?.daysTillNextPayment || 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-6">
       <div className="space-y-8">
         {/* Futuristic Header */}
         <div className="relative overflow-hidden bg-gradient-to-r from-white/80 to-emerald-50/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-8">
@@ -182,6 +183,40 @@ const AdminSubscriptionPage = () => {
           </div>
         )}
 
+        {/* Payment Alert - Shows when approaching expiry */}
+        {subscription && daysLeft <= 30 && daysLeft > 0 && (
+          <div className="relative overflow-hidden bg-gradient-to-r from-yellow-50/90 to-orange-50/90 backdrop-blur-sm border border-yellow-300 rounded-2xl p-6 shadow-xl animate-pulse">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-2xl flex items-center justify-center shadow-lg">
+                <Bell className="w-6 h-6 text-white animate-bounce" />
+              </div>
+              <div className="flex-1">
+                <p className="text-yellow-900 font-black text-lg mb-1">Payment Due Soon!</p>
+                <p className="text-yellow-700 font-bold">
+                  Your subscription expires in {daysLeft} days. Please make payment to continue service.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Expired Alert */}
+        {subscription && daysLeft <= 0 && (
+          <div className="relative overflow-hidden bg-gradient-to-r from-red-50/90 to-pink-50/90 backdrop-blur-sm border border-red-300 rounded-2xl p-6 shadow-xl">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg">
+                <AlertTriangle className="w-6 h-6 text-white" />
+              </div>
+              <div className="flex-1">
+                <p className="text-red-900 font-black text-lg mb-1">Subscription Expired!</p>
+                <p className="text-red-700 font-bold">
+                  Your subscription has expired. Please make immediate payment to restore service.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Current Status Card */}
         <div className="relative overflow-hidden bg-gradient-to-br from-white/80 to-emerald-50/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50">
           <div className="bg-gradient-to-r from-emerald-600 to-cyan-600 p-8">
@@ -203,7 +238,7 @@ const AdminSubscriptionPage = () => {
 
           {subscription && (
             <div className="p-8">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="relative overflow-hidden bg-gradient-to-br from-blue-50/80 to-cyan-50/80 p-6 rounded-2xl border border-blue-200/50 shadow-lg">
                   <div className="flex items-center gap-4 mb-4">
                     <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-lg">
@@ -246,29 +281,37 @@ const AdminSubscriptionPage = () => {
                     {subscription.subscriptionExpiresAt ? 
                       new Date(subscription.subscriptionExpiresAt).toLocaleDateString('en-US', {
                         month: 'short',
-                        day: 'numeric'
+                        day: 'numeric',
+                        year: 'numeric'
                       }) : 'N/A'
-                    }
-                  </p>
-                  <p className="text-sm text-gray-600 font-medium">
-                    {subscription.subscriptionExpiresAt ? 
-                      new Date(subscription.subscriptionExpiresAt).getFullYear() : ''
                     }
                   </p>
                 </div>
 
-                <div className="relative overflow-hidden bg-gradient-to-br from-emerald-50/80 to-green-50/80 p-6 rounded-2xl border border-emerald-200/50 shadow-lg">
+                <div className={`relative overflow-hidden p-6 rounded-2xl border shadow-lg ${
+                  daysLeft > 30 ? 'bg-gradient-to-br from-emerald-50/80 to-green-50/80 border-emerald-200/50' :
+                  daysLeft > 0 ? 'bg-gradient-to-br from-yellow-50/80 to-orange-50/80 border-yellow-200/50' :
+                  'bg-gradient-to-br from-red-50/80 to-pink-50/80 border-red-200/50'
+                }`}>
                   <div className="flex items-center gap-4 mb-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-green-500 rounded-2xl flex items-center justify-center shadow-lg">
-                      <Calendar className="w-6 h-6 text-white" />
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg ${
+                      daysLeft > 30 ? 'bg-gradient-to-br from-emerald-500 to-green-500' :
+                      daysLeft > 0 ? 'bg-gradient-to-br from-yellow-500 to-orange-500' :
+                      'bg-gradient-to-br from-red-500 to-pink-500'
+                    }`}>
+                      <Clock className="w-6 h-6 text-white" />
                     </div>
-                    <h3 className="font-black text-gray-800 text-lg">Days Till Next Payment</h3>
+                    <h3 className="font-black text-gray-800 text-lg">Days Left</h3>
                   </div>
-                  <p className="text-4xl font-black text-gray-900 mb-2">
-                    {subscription.daysTillNextPayment ?? 'N/A'}
+                  <p className={`text-4xl font-black mb-2 ${
+                    daysLeft > 30 ? 'text-emerald-900' :
+                    daysLeft > 0 ? 'text-yellow-900' :
+                    'text-red-900'
+                  }`}>
+                    {daysLeft}
                   </p>
                   <p className="text-sm text-gray-600 font-medium">
-                    until next subscription renewal
+                    until next payment required
                   </p>
                 </div>
               </div>
@@ -336,7 +379,6 @@ const AdminSubscriptionPage = () => {
 
               {/* Bulk Payment Plan */}
               <div className="relative overflow-hidden bg-gradient-to-br from-emerald-50/80 to-green-50/80 rounded-2xl border-2 border-emerald-300/50 shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-[1.02]">
-                {/* Recommended Badge */}
                 <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
                   <div className="bg-gradient-to-r from-emerald-500 to-green-500 text-white px-6 py-2 rounded-full shadow-xl">
                     <div className="flex items-center gap-2">
@@ -378,7 +420,6 @@ const AdminSubscriptionPage = () => {
                       </span>
                     </div>
                     
-                    {/* Savings Highlight */}
                     <div className="bg-gradient-to-r from-emerald-100 to-green-100 p-4 rounded-xl border border-emerald-200">
                       <div className="flex items-center gap-2">
                         <ArrowUp className="w-5 h-5 text-emerald-600 transform rotate-45" />
