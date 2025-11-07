@@ -12,15 +12,14 @@ import {
   Save,
   Loader2,
   Users,
-  DollarSign,
   Edit3,
   Eye,
   Activity,
-  Crown,
   Filter,
   RefreshCw,
-  TrendingUp,
-  Building
+  Building,
+  CalendarDays,
+  Repeat
 } from 'lucide-react';
 
 const HeadAdminSchoolManagement = () => {
@@ -31,10 +30,16 @@ const HeadAdminSchoolManagement = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedSchool, setSelectedSchool] = useState(null);
-  const [customDays, setCustomDays] = useState('');
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all'); // all, active, expiring, expired
+  const [filterStatus, setFilterStatus] = useState('all');
+  
+  // New state for scheduling options
+  const [scheduleMode, setScheduleMode] = useState('days'); // 'days' or 'exact'
+  const [customDays, setCustomDays] = useState('');
+  const [exactDate, setExactDate] = useState('');
+  const [exactTime, setExactTime] = useState('23:59');
+  const [recurringMonths, setRecurringMonths] = useState('');
 
   useEffect(() => {
     fetchSchools();
@@ -69,7 +74,15 @@ const HeadAdminSchoolManagement = () => {
 
   const handleEditPaymentSchedule = (school) => {
     setSelectedSchool(school);
+    setScheduleMode('days');
     setCustomDays(school.customNextPaymentDays?.toString() || '');
+    setRecurringMonths(school.recurringPaymentMonths?.toString() || '');
+    
+    // Set exact date to current expiry
+    const expiryDate = new Date(school.subscriptionExpiresAt);
+    setExactDate(expiryDate.toISOString().split('T')[0]);
+    setExactTime(expiryDate.toTimeString().slice(0, 5));
+    
     setShowEditModal(true);
     setError('');
   };
@@ -77,10 +90,48 @@ const HeadAdminSchoolManagement = () => {
   const handleSavePaymentSchedule = async () => {
     if (!selectedSchool) return;
 
-    const days = parseInt(customDays);
-    if (isNaN(days) || days < 1 || days > 365) {
-      setError('Please enter a valid number of days between 1 and 365');
-      return;
+    let payload = {
+      recurringMonths: recurringMonths ? parseInt(recurringMonths) : null
+    };
+
+    if (scheduleMode === 'exact') {
+      if (!exactDate) {
+        setError('Please select an expiry date');
+        return;
+      }
+      
+      // Combine date and time
+      const dateTimeString = `${exactDate}T${exactTime}:00`;
+      const selectedDateTime = new Date(dateTimeString);
+      
+      if (isNaN(selectedDateTime.getTime())) {
+        setError('Invalid date or time format');
+        return;
+      }
+
+      // Check if date is in the past
+      if (selectedDateTime < new Date()) {
+        setError('Expiry date cannot be in the past');
+        return;
+      }
+
+      payload.exactExpiryDate = selectedDateTime.toISOString();
+    } else {
+      const days = parseInt(customDays);
+      if (isNaN(days) || days < 1 || days > 3650) {
+        setError('Please enter a valid number of days between 1 and 3650');
+        return;
+      }
+      payload.customNextPaymentDays = days;
+    }
+
+    // Validate recurring months if provided
+    if (recurringMonths) {
+      const months = parseInt(recurringMonths);
+      if (isNaN(months) || months < 1 || months > 120) {
+        setError('Recurring months must be between 1 and 120');
+        return;
+      }
     }
 
     try {
@@ -90,9 +141,7 @@ const HeadAdminSchoolManagement = () => {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          customNextPaymentDays: days
-        })
+        body: JSON.stringify(payload)
       });
 
       const data = await response.json();
@@ -101,7 +150,7 @@ const HeadAdminSchoolManagement = () => {
         setSuccessMessage(`Payment schedule updated successfully for ${selectedSchool.name}`);
         setShowEditModal(false);
         setSelectedSchool(null);
-        setCustomDays('');
+        resetForm();
         fetchSchools();
       } else {
         setError(data.error || 'Failed to update payment schedule');
@@ -112,6 +161,14 @@ const HeadAdminSchoolManagement = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const resetForm = () => {
+    setCustomDays('');
+    setExactDate('');
+    setExactTime('23:59');
+    setRecurringMonths('');
+    setScheduleMode('days');
   };
 
   const getSubscriptionStatus = (school) => {
@@ -130,20 +187,13 @@ const HeadAdminSchoolManagement = () => {
     }
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-NG', {
-      style: 'currency',
-      currency: 'NGN',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount);
-  };
-
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
-      year: 'numeric'
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     });
   };
 
@@ -415,11 +465,21 @@ const HeadAdminSchoolManagement = () => {
                               </div>
                             </td>
                             <td className="py-4 px-6">
-                              <div className="flex items-center gap-2">
-                                <Clock className="w-4 h-4 text-blue-600" />
-                                <span className="font-bold text-gray-900">
-                                  {school.customNextPaymentDays || 30} days
-                                </span>
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <Clock className="w-4 h-4 text-blue-600" />
+                                  <span className="font-bold text-gray-900">
+                                    {school.customNextPaymentDays || 30} days
+                                  </span>
+                                </div>
+                                {school.recurringPaymentMonths && (
+                                  <div className="flex items-center gap-2">
+                                    <Repeat className="w-4 h-4 text-purple-600" />
+                                    <span className="text-xs text-gray-600 font-medium">
+                                      Every {school.recurringPaymentMonths} month{school.recurringPaymentMonths > 1 ? 's' : ''}
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                             </td>
                             <td className="py-4 px-6">
@@ -430,13 +490,6 @@ const HeadAdminSchoolManagement = () => {
                                   title="Edit payment schedule"
                                 >
                                   <Settings className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => alert('View details coming soon')}
-                                  className="p-2 text-gray-600 hover:bg-gray-100 border border-gray-200 rounded-xl transition-all shadow-lg"
-                                  title="View details"
-                                >
-                                  <Eye className="w-4 h-4" />
                                 </button>
                               </div>
                             </td>
@@ -476,10 +529,10 @@ const HeadAdminSchoolManagement = () => {
           </div>
         </div>
 
-        {/* Edit Payment Schedule Modal */}
+        {/* Enhanced Edit Payment Schedule Modal */}
         {showEditModal && selectedSchool && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl shadow-2xl border border-gray-200/50 p-8 w-full max-w-lg">
+            <div className="bg-white rounded-3xl shadow-2xl border border-gray-200/50 p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-8">
                 <div>
                   <h2 className="text-2xl font-black text-gray-900">Edit Payment Schedule</h2>
@@ -489,7 +542,7 @@ const HeadAdminSchoolManagement = () => {
                   onClick={() => {
                     setShowEditModal(false);
                     setSelectedSchool(null);
-                    setCustomDays('');
+                    resetForm();
                     setError('');
                   }}
                   className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
@@ -499,6 +552,7 @@ const HeadAdminSchoolManagement = () => {
               </div>
 
               <div className="space-y-6">
+                {/* Current Schedule Info */}
                 <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6">
                   <div className="flex items-start gap-4">
                     <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-lg flex-shrink-0">
@@ -509,71 +563,254 @@ const HeadAdminSchoolManagement = () => {
                       <p className="text-sm text-gray-600 mb-1">
                         Payment frequency: <span className="font-bold">{selectedSchool.customNextPaymentDays || 30} days</span>
                       </p>
-                      <p className="text-sm text-gray-600">
+                      <p className="text-sm text-gray-600 mb-1">
                         Next payment due: <span className="font-bold">{formatDate(selectedSchool.subscriptionExpiresAt)}</span>
                       </p>
+                      {selectedSchool.recurringPaymentMonths && (
+                        <p className="text-sm text-gray-600">
+                          Recurring: <span className="font-bold">Every {selectedSchool.recurringPaymentMonths} month{selectedSchool.recurringPaymentMonths > 1 ? 's' : ''}</span>
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
 
+                {/* Schedule Mode Selector */}
                 <div>
                   <label className="block text-sm font-black text-gray-700 mb-3 uppercase tracking-wider">
-                    Custom Payment Days *
+                    Schedule Type
                   </label>
-                  <div className="flex gap-3">
-                    <input
-                      type="number"
-                      min="1"
-                      max="365"
-                      value={customDays}
-                      onChange={(e) => setCustomDays(e.target.value)}
-                      placeholder="Enter number of days"
-                      className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
-                    />
-                    <div className="flex items-center px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl">
-                      <span className="font-bold text-gray-700">days</span>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setScheduleMode('days')}
+                      className={`px-6 py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-2 ${
+                        scheduleMode === 'days'
+                          ? 'bg-blue-600 text-white shadow-lg'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <Clock className="w-5 h-5" />
+                      Days from Now
+                    </button>
+                    <button
+                      onClick={() => setScheduleMode('exact')}
+                      className={`px-6 py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-2 ${
+                        scheduleMode === 'exact'
+                          ? 'bg-purple-600 text-white shadow-lg'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <CalendarDays className="w-5 h-5" />
+                      Exact Date & Time
+                    </button>
+                  </div>
+                </div>
+
+                {/* Days Mode */}
+                {scheduleMode === 'days' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-black text-gray-700 mb-3 uppercase tracking-wider">
+                        Custom Payment Days *
+                      </label>
+                      <div className="flex gap-3">
+                        <input
+                          type="number"
+                          min="1"
+                          max="3650"
+                          value={customDays}
+                          onChange={(e) => setCustomDays(e.target.value)}
+                          placeholder="Enter number of days"
+                          className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
+                        />
+                        <div className="flex items-center px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl">
+                          <span className="font-bold text-gray-700">days</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">
+                        Set the number of days until the next payment is due (1-3650 days)
+                      </p>
+                    </div>
+
+                    {/* Quick Presets */}
+                    <div>
+                      <label className="block text-sm font-black text-gray-700 mb-3 uppercase tracking-wider">
+                        Quick Presets
+                      </label>
+                      <div className="grid grid-cols-3 gap-3">
+                        {[
+                          { label: '30 Days', value: 30 },
+                          { label: '60 Days', value: 60 },
+                          { label: '90 Days', value: 90 },
+                          { label: '6 Months', value: 180 },
+                          { label: '9 Months', value: 270 },
+                          { label: '1 Year', value: 365 }
+                        ].map((preset) => (
+                          <button
+                            key={preset.value}
+                            onClick={() => setCustomDays(preset.value.toString())}
+                            className={`px-4 py-2 rounded-xl font-bold transition-all ${
+                              customDays === preset.value.toString()
+                                ? 'bg-blue-600 text-white shadow-lg'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Exact Date Mode */}
+                {scheduleMode === 'exact' && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-black text-gray-700 mb-3 uppercase tracking-wider">
+                          Expiry Date *
+                        </label>
+                        <input
+                          type="date"
+                          value={exactDate}
+                          onChange={(e) => setExactDate(e.target.value)}
+                          min={new Date().toISOString().split('T')[0]}
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all font-medium"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-black text-gray-700 mb-3 uppercase tracking-wider">
+                          Time
+                        </label>
+                        <input
+                          type="time"
+                          value={exactTime}
+                          onChange={(e) => setExactTime(e.target.value)}
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all font-medium"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+                      <p className="text-sm text-purple-700 font-medium">
+                        📅 Selected: {exactDate ? new Date(`${exactDate}T${exactTime}`).toLocaleString('en-US', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        }) : 'No date selected'}
+                      </p>
+                    </div>
+
+                    {/* Date Presets */}
+                    <div>
+                      <label className="block text-sm font-black text-gray-700 mb-3 uppercase tracking-wider">
+                        Quick Date Presets
+                      </label>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {[
+                          { label: '1 Month', months: 1 },
+                          { label: '3 Months', months: 3 },
+                          { label: '6 Months', months: 6 },
+                          { label: '9 Months', months: 9 },
+                          { label: '1 Year', months: 12 },
+                          { label: '2 Years', months: 24 }
+                        ].map((preset) => (
+                          <button
+                            key={preset.months}
+                            onClick={() => {
+                              const date = new Date();
+                              date.setMonth(date.getMonth() + preset.months);
+                              setExactDate(date.toISOString().split('T')[0]);
+                            }}
+                            className="px-4 py-2 rounded-xl font-bold transition-all bg-gray-100 text-gray-700 hover:bg-purple-100 hover:text-purple-700"
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">
-                    Set the number of days until the next payment is due (1-365 days)
-                  </p>
-                </div>
+                )}
 
-                {/* Quick Presets */}
-                <div>
-                  <label className="block text-sm font-black text-gray-700 mb-3 uppercase tracking-wider">
-                    Quick Presets
-                  </label>
-                  <div className="grid grid-cols-3 gap-3">
-                    {[
-                      { label: '30 Days', value: 30 },
-                      { label: '60 Days', value: 60 },
-                      { label: '90 Days', value: 90 },
-                      { label: '6 Months', value: 180 },
-                      { label: '9 Months', value: 270 },
-                      { label: '1 Year', value: 365 }
-                    ].map((preset) => (
-                      <button
-                        key={preset.value}
-                        onClick={() => setCustomDays(preset.value.toString())}
-                        className={`px-4 py-2 rounded-xl font-bold transition-all ${
-                          customDays === preset.value.toString()
-                            ? 'bg-blue-600 text-white shadow-lg'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                      >
-                        {preset.label}
-                      </button>
-                    ))}
+                {/* Recurring Payment Schedule */}
+                <div className="border-t border-gray-200 pt-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <Repeat className="w-5 h-5 text-purple-600" />
+                    <h3 className="text-lg font-black text-gray-900">Recurring Payment Schedule</h3>
                   </div>
+                  
+                  <div>
+                    <label className="block text-sm font-black text-gray-700 mb-3 uppercase tracking-wider">
+                      Renewal Period (Optional)
+                    </label>
+                    <div className="flex gap-3">
+                      <input
+                        type="number"
+                        min="1"
+                        max="120"
+                        value={recurringMonths}
+                        onChange={(e) => setRecurringMonths(e.target.value)}
+                        placeholder="Enter number of months"
+                        className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all font-medium"
+                      />
+                      <div className="flex items-center px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl">
+                        <span className="font-bold text-gray-700">months</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Set how many months between automatic renewals (1-120 months). Leave empty for manual renewal.
+                    </p>
+                  </div>
+
+                  {/* Recurring Presets */}
+                  <div className="mt-4">
+                    <label className="block text-sm font-black text-gray-700 mb-3 uppercase tracking-wider">
+                      Common Periods
+                    </label>
+                    <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+                      {[
+                        { label: '1 Month', value: 1 },
+                        { label: '3 Months', value: 3 },
+                        { label: '6 Months', value: 6 },
+                        { label: '9 Months', value: 9 },
+                        { label: '1 Year', value: 12 },
+                        { label: '2 Years', value: 24 }
+                      ].map((preset) => (
+                        <button
+                          key={preset.value}
+                          onClick={() => setRecurringMonths(preset.value.toString())}
+                          className={`px-3 py-2 rounded-xl font-bold transition-all text-sm ${
+                            recurringMonths === preset.value.toString()
+                              ? 'bg-purple-600 text-white shadow-lg'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {recurringMonths && (
+                    <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4">
+                      <p className="text-sm text-green-700 font-medium">
+                        ✓ Subscription will automatically renew every {recurringMonths} month{parseInt(recurringMonths) > 1 ? 's' : ''}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
-                <div className="flex gap-4">
+                {/* Action Buttons */}
+                <div className="flex gap-4 pt-4">
                   <button
                     onClick={() => {
                       setShowEditModal(false);
                       setSelectedSchool(null);
-                      setCustomDays('');
+                      resetForm();
                       setError('');
                     }}
                     className="flex-1 px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-all font-bold"
@@ -582,7 +819,7 @@ const HeadAdminSchoolManagement = () => {
                   </button>
                   <button
                     onClick={handleSavePaymentSchedule}
-                    disabled={isLoading || !customDays}
+                    disabled={isLoading || (scheduleMode === 'days' && !customDays) || (scheduleMode === 'exact' && !exactDate)}
                     className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl transition-all font-bold flex items-center justify-center gap-2 shadow-xl"
                   >
                     {isLoading ? (
