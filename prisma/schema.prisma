@@ -541,7 +541,7 @@ model Timetable {
 model Subject {
   id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   name        String   @db.VarChar(100)
-  code        String   @unique @db.VarChar(20)
+  code        String   @db.VarChar(20)  // Removed @unique
   category    SubjectCategory
   classes     String[] // e.g., ["SS1", "SS2", "SS3"]
   schoolId    String   @db.Uuid
@@ -556,6 +556,7 @@ model Subject {
   grades      Grade[]
 
   @@index([schoolId])
+  @@unique([code, schoolId])  // Added compound unique constraint
   @@map("subjects")
 }
 
