@@ -26,7 +26,12 @@ export async function GET(request: NextRequest) {
 
     // Extract unique user IDs that admin has chatted with
     const chattedUserIds = new Set<string>();
-    existingMessages.forEach(message => {
+    interface ExistingMessage {
+      fromUserId: string;
+      toUserId: string;
+    }
+
+    (existingMessages as ExistingMessage[]).forEach((message: ExistingMessage) => {
       if (message.fromUserId !== user.id) {
         chattedUserIds.add(message.fromUserId);
       }
