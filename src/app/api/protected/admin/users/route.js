@@ -1,4 +1,4 @@
-// src/app/api/protected/admin/users/route.js - COMPLETE COMBINED VERSION
+// src/app/api/protected/admin/users/route.js - FIXED VERSION
 import { requireAuth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
@@ -22,7 +22,6 @@ export async function GET(request) {
     if (user.role === 'admin') {
       where.schoolId = user.schoolId;
     }
-    // headadmin can see all schools or filter by specific school if needed
 
     // Filter by role - only if not 'all'
     if (role && role !== 'all') {
@@ -162,23 +161,7 @@ export async function POST(request) {
       );
     }
 
-    // Validate coordinator/class teacher requirements
-    if (role === 'teacher') {
-      if (teacherType === 'coordinator' && coordinatorClasses.length === 0) {
-        return NextResponse.json(
-          { error: 'Coordinators must be assigned to at least one class' },
-          { status: 400 }
-        );
-      }
-      if (teacherType === 'class_teacher' && classTeacherArms.length === 0) {
-        return NextResponse.json(
-          { error: 'Class teachers must be assigned to at least one class arm' },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Determine target school
+    // Determine target school FIRST
     let targetSchoolId = schoolId;
     if (currentUser.role === 'admin') {
       targetSchoolId = currentUser.schoolId;
@@ -189,6 +172,39 @@ export async function POST(request) {
         { error: 'School ID is required' },
         { status: 400 }
       );
+    }
+
+    // Validate coordinator/class teacher requirements
+    if (role === 'teacher') {
+      // Valid class levels
+      const validClasses = ['JSS1', 'JSS2', 'JSS3', 'SS1', 'SS2', 'SS3'];
+      
+      if (teacherType === 'coordinator' && coordinatorClasses.length === 0) {
+        return NextResponse.json(
+          { error: 'Coordinators must be assigned to at least one class' },
+          { status: 400 }
+        );
+      }
+      
+      if (teacherType === 'class_teacher' && classTeacherArms.length === 0) {
+        return NextResponse.json(
+          { error: 'Class teachers must be assigned to at least one class arm' },
+          { status: 400 }
+        );
+      }
+      
+      // Validate coordinator classes are valid
+      if (teacherType === 'coordinator' && coordinatorClasses.length > 0) {
+        const normalizedClasses = coordinatorClasses.map(c => c.toUpperCase());
+        const invalidClasses = normalizedClasses.filter(cn => !validClasses.includes(cn));
+        
+        if (invalidClasses.length > 0) {
+          return NextResponse.json(
+            { error: `Invalid classes: ${invalidClasses.join(', ')}. Valid classes are: ${validClasses.join(', ')}` },
+            { status: 400 }
+          );
+        }
+      }
     }
 
     // Check if email or username already exists
@@ -211,11 +227,13 @@ export async function POST(request) {
       );
     }
 
-    // Hash password
+    // Hash password BEFORE transaction
     const passwordHash = await bcrypt.hash(password, 12);
 
     // Create user with transaction
     const newUser = await prisma.$transaction(async (tx) => {
+      console.log('Transaction started - Creating user:', email);
+      
       // Create base user
       const createdUser = await tx.user.create({
         data: {
@@ -240,6 +258,7 @@ export async function POST(request) {
 
       // Create role-specific profile
       if (role === 'student') {
+        console.log('Creating student profile for:', createdUser.id);
         await tx.studentProfile.create({
           data: {
             userId: createdUser.id,
@@ -248,6 +267,7 @@ export async function POST(request) {
           }
         });
       } else if (role === 'teacher') {
+        console.log('Creating teacher profile for:', createdUser.id);
         const teacherProfile = await tx.teacherProfile.create({
           data: {
             userId: createdUser.id,
@@ -259,32 +279,41 @@ export async function POST(request) {
 
         // Handle coordinator classes
         if (teacherType === 'coordinator' && coordinatorClasses.length > 0) {
-          // Get or create coordination subject
+          console.log('Setting up coordinator classes:', coordinatorClasses);
+          // Remove duplicates and normalize to uppercase
+          const uniqueClasses = [...new Set(coordinatorClasses.map(c => c.toUpperCase()))];
+
+          // Create unique code with school prefix to avoid conflicts
+          const coordCode = `COORD_${targetSchoolId.slice(-8)}`;
+
+          // Try to find existing coordination subject first (by code AND schoolId)
           let coordinationSubject = await tx.subject.findFirst({
-            where: {
-              schoolId: targetSchoolId,
-              code: 'COORD',
-              name: 'Academic Coordination'
+            where: { 
+              code: coordCode,
+              schoolId: targetSchoolId
             }
           });
 
-          if (!coordinationSubject) {
+          if (coordinationSubject) {
+            // Update existing subject with merged classes
+            const existingClasses = coordinationSubject.classes || [];
+            const mergedClasses = [...new Set([...existingClasses, ...uniqueClasses])];
+            
+            coordinationSubject = await tx.subject.update({
+              where: { id: coordinationSubject.id },
+              data: { classes: mergedClasses }
+            });
+          } else {
+            // Create new coordination subject with unique code
             coordinationSubject = await tx.subject.create({
               data: {
                 name: 'Academic Coordination',
-                code: 'COORD',
+                code: coordCode,
                 category: 'CORE',
-                classes: coordinatorClasses,
+                classes: uniqueClasses,
                 schoolId: targetSchoolId,
                 isActive: true
               }
-            });
-          } else {
-            // Update to include new classes
-            const updatedClasses = [...new Set([...coordinationSubject.classes, ...coordinatorClasses])];
-            coordinationSubject = await tx.subject.update({
-              where: { id: coordinationSubject.id },
-              data: { classes: updatedClasses }
             });
           }
 
@@ -293,47 +322,77 @@ export async function POST(request) {
             data: {
               teacherId: teacherProfile.id,
               subjectId: coordinationSubject.id,
-              classes: coordinatorClasses
+              classes: uniqueClasses
             }
           });
         }
 
         // Handle class teacher arms
         if (teacherType === 'class_teacher' && classTeacherArms.length > 0) {
+          console.log('Setting up class teacher arms:', classTeacherArms);
+          
+          // Process each arm
           for (const arm of classTeacherArms) {
-            // Find or create class management subject
+            // Normalize arm name
+            const normalizedArm = arm.toUpperCase().trim();
+            // Create unique code with school suffix
+            const subjectCode = `CLASS_${normalizedArm.replace(/\s+/g, '_')}_${targetSchoolId.slice(-8)}`;
+            
+            // Try to find existing class management subject
             let subject = await tx.subject.findFirst({
               where: {
-                schoolId: targetSchoolId,
-                name: `${arm} Class Management`,
-                category: 'CORE'
+                code: subjectCode,
+                schoolId: targetSchoolId
               }
             });
 
             if (!subject) {
+              // Create new subject
               subject = await tx.subject.create({
                 data: {
-                  name: `${arm} Class Management`,
-                  code: `CLASS_${arm.replace(/\s+/g, '_')}`,
+                  name: `${normalizedArm} Class Management`,
+                  code: subjectCode,
                   category: 'CORE',
-                  classes: [arm],
+                  classes: [normalizedArm],
                   schoolId: targetSchoolId,
                   isActive: true
                 }
               });
+            } else {
+              // Update existing subject to include this class if not already included
+              const existingClasses = subject.classes || [];
+              if (!existingClasses.includes(normalizedArm)) {
+                subject = await tx.subject.update({
+                  where: { id: subject.id },
+                  data: { 
+                    classes: [...existingClasses, normalizedArm]
+                  }
+                });
+              }
             }
 
-            // Create teacher-subject assignment
-            await tx.teacherSubject.create({
-              data: {
+            // Check if teacher-subject assignment already exists
+            const existingAssignment = await tx.teacherSubject.findFirst({
+              where: {
                 teacherId: teacherProfile.id,
-                subjectId: subject.id,
-                classes: [arm]
+                subjectId: subject.id
               }
             });
+
+            if (!existingAssignment) {
+              // Create teacher-subject assignment
+              await tx.teacherSubject.create({
+                data: {
+                  teacherId: teacherProfile.id,
+                  subjectId: subject.id,
+                  classes: [normalizedArm]
+                }
+              });
+            }
           }
         }
       } else if (role === 'admin') {
+        console.log('Creating admin profile for:', createdUser.id);
         await tx.adminProfile.create({
           data: {
             userId: createdUser.id,
@@ -342,7 +401,11 @@ export async function POST(request) {
         });
       }
 
+      console.log('Transaction completed successfully for:', createdUser.email);
       return createdUser;
+    }, {
+      maxWait: 10000,
+      timeout: 30000,
     });
 
     return NextResponse.json({
@@ -367,7 +430,43 @@ export async function POST(request) {
     if (error.message === 'Access denied') {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
-    console.error('Create user error:', error);
-    return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
+    
+    // Log detailed error for debugging
+    console.error('Create user error:', {
+      message: error.message,
+      code: error.code,
+      meta: error.meta,
+      stack: error.stack
+    });
+    
+    // Handle specific Prisma errors
+    if (error.code === 'P2002') {
+      return NextResponse.json({ 
+        error: 'A user with this email or username already exists' 
+      }, { status: 409 });
+    }
+    
+    if (error.code === 'P2023') {
+      return NextResponse.json({ 
+        error: 'Invalid data format. Please ensure all IDs are valid UUIDs and class names exist.' 
+      }, { status: 400 });
+    }
+    
+    if (error.code === 'P2028') {
+      return NextResponse.json({ 
+        error: 'Transaction timeout. Please try again.' 
+      }, { status: 408 });
+    }
+    
+    if (error.code === 'P2025') {
+      return NextResponse.json({ 
+        error: 'Required record not found. Please ensure all referenced data exists.' 
+      }, { status: 404 });
+    }
+    
+    return NextResponse.json({ 
+      error: 'Failed to create user',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    }, { status: 500 });
   }
 }

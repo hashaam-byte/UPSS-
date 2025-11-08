@@ -61,6 +61,9 @@ model School {
   fileUploads         FileUpload[]
   announcements       Announcement[]
   
+  // New relation for classes
+  classes     Class[]   @relation("SchoolClasses") // Fixed relation name
+  
   @@map("schools")
 }
 
@@ -189,6 +192,9 @@ model TeacherProfile {
   experienceYears Int       @default(0) @map("experience_years")
   joiningDate     DateTime? @map("joining_date") @db.Date
   coordinatorClass String?   @db.VarChar(10) // e.g., "SS1", "JS2", etc.
+  
+  // New relation for class coordinators
+  teacherClassCoordinators TeacherClassCoordinator[] // Fixed relation name
   
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
@@ -1294,4 +1300,35 @@ model UserSettings {
   user                  User        @relation("UserToUserSettings", fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_settings")
+}
+
+model TeacherClassCoordinator {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  teacherId String   @db.Uuid
+  classId   String   @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  teacher   TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade) // Removed relation name
+  class     Class          @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, classId])
+  @@map("teacher_class_coordinators")
+}
+
+model Class {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name      String   @db.VarChar(100)
+  code      String   @unique @db.VarChar(20)
+  schoolId  String   @db.Uuid
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  school    School   @relation("SchoolClasses", fields: [schoolId], references: [id], onDelete: Cascade) // Added relation name
+  teacherClassCoordinators TeacherClassCoordinator[]
+
+  @@index([schoolId])
+  @@map("classes")
 }

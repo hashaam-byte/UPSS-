@@ -33,11 +33,13 @@ import {
   FileText,
   CheckCircle
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 const AdminUsersPage = () => {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState('students');
   const [users, setUsers] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -48,11 +50,12 @@ const AdminUsersPage = () => {
   const [successMessage, setSuccessMessage] = useState('');
   const [availableArms, setAvailableArms] = useState([]);
   const [loadingArms, setLoadingArms] = useState(false);
+  
+  // CSV Import States
   const [importFile, setImportFile] = useState(null);
   const [importProgress, setImportProgress] = useState(0);
   const [importResults, setImportResults] = useState(null);
   const fileInputRef = useRef(null);
-  const abortControllerRef = useRef(null);
 
   const tabs = [
     { id: 'students', label: 'Students', icon: GraduationCap, count: 0, gradient: 'from-blue-500 to-cyan-500' },
@@ -79,22 +82,7 @@ const AdminUsersPage = () => {
   });
 
   useEffect(() => {
-    // Abort previous request if exists
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-
-    // Create new abort controller
-    abortControllerRef.current = new AbortController();
-
     fetchUsers();
-
-    // Cleanup function
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
   }, [activeTab, currentPage, searchQuery]);
 
   const fetchAvailableArms = async () => {
@@ -133,10 +121,7 @@ const AdminUsersPage = () => {
         ...(searchQuery && { search: searchQuery })
       });
 
-      const response = await fetch(`/api/protected/admin/users?${params}`, {
-        signal: abortControllerRef.current?.signal
-      });
-      
+      const response = await fetch(`/api/protected/admin/users?${params}`);
       const data = await response.json();
 
       if (response.ok) {
@@ -146,10 +131,6 @@ const AdminUsersPage = () => {
         setError(data.error || 'Failed to fetch users');
       }
     } catch (error) {
-      if (error.name === 'AbortError') {
-        console.log('Fetch aborted');
-        return;
-      }
       console.error('Error fetching users:', error);
       setError('Network error occurred');
     } finally {
@@ -157,20 +138,7 @@ const AdminUsersPage = () => {
     }
   };
 
-  const handleTabChange = (tabId) => {
-    // Abort any ongoing request
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    
-    // Reset state
-    setUsers([]);
-    setActiveTab(tabId);
-    setCurrentPage(1);
-    setSearchQuery('');
-    setSelectedUsers([]);
-  };
-
+  // CSV File Selection Handler
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
     if (file && file.type === 'text/csv') {
@@ -182,6 +150,7 @@ const AdminUsersPage = () => {
     }
   };
 
+  // CSV Import Handler
   const handleImportCSV = async () => {
     if (!importFile) {
       setError('Please select a CSV file first');
@@ -219,7 +188,6 @@ const AdminUsersPage = () => {
         setError(data.error || 'Failed to import users');
       }
     } catch (error) {
-      console.error('Error importing CSV:', error);
       setError('Network error occurred during import');
     } finally {
       setIsLoading(false);
@@ -227,6 +195,7 @@ const AdminUsersPage = () => {
     }
   };
 
+  // CSV Template Download
   const downloadCSVTemplate = () => {
     const role = activeTab === 'students' ? 'student' : activeTab === 'teachers' ? 'teacher' : 'admin';
     let csvContent = '';
@@ -237,7 +206,6 @@ const AdminUsersPage = () => {
     } else if (role === 'teacher') {
       csvContent = 'firstName,lastName,email,username,password,phone,dateOfBirth,gender,teacherType,coordinatorClasses,classTeacherArms,qualification,experienceYears\n';
       csvContent += 'Jane,Smith,jane.smith@example.com,janesmith,Password123,+2348012345678,1985-03-20,female,subject_teacher,,,B.Ed Mathematics,5\n';
-      csvContent += 'Bob,Johnson,bob.johnson@example.com,bobjohnson,Password123,+2348087654321,1980-06-15,male,coordinator,"JS1,JS2,JS3",,M.Sc Physics,10\n';
     } else {
       csvContent = 'firstName,lastName,email,username,password,phone,dateOfBirth,gender\n';
       csvContent += 'Admin,User,admin.user@example.com,adminuser,Password123,+2348012345678,1990-05-10,male\n';
@@ -363,6 +331,10 @@ const AdminUsersPage = () => {
     }
   };
 
+  const handleEditUser = (userId) => {
+    router.push(`/protected/admin/users/${userId}/edit`);
+  };
+
   const generatePassword = () => {
     const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&*';
     let password = '';
@@ -424,6 +396,21 @@ const AdminUsersPage = () => {
     const arms = user.teacherProfile?.teacherSubjects?.flatMap(ts => ts.classes) || [];
     return [...new Set(arms)];
   };
+
+  if (isLoading && users.length === 0) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="relative">
+            <div className="w-20 h-20 bg-gradient-to-r from-blue-600 to-purple-600 rounded-3xl animate-pulse shadow-2xl">
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-purple-400 rounded-3xl animate-ping opacity-75"></div>
+            </div>
+          </div>
+          <p className="text-gray-700 mt-6 font-bold text-lg">Loading User Database...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-6">
@@ -509,7 +496,10 @@ const AdminUsersPage = () => {
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => handleTabChange(tab.id)}
+                    onClick={() => {
+                      setActiveTab(tab.id);
+                      setCurrentPage(1);
+                    }}
                     className={`group relative overflow-hidden px-6 py-4 rounded-2xl font-bold transition-all duration-300 hover:scale-105 shadow-lg flex items-center gap-3 ${
                       activeTab === tab.id
                         ? `bg-gradient-to-r ${tab.gradient} text-white border-0`
@@ -725,7 +715,7 @@ const AdminUsersPage = () => {
                                   {user.isActive ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                 </button>
                                 <button
-                                  onClick={() => alert('Edit feature coming soon')}
+                                  onClick={() => handleEditUser(user.id)}
                                   className="p-2 text-blue-600 hover:bg-blue-100 border border-blue-200 rounded-xl transition-all shadow-lg"
                                   title="Edit user"
                                 >
@@ -798,7 +788,6 @@ const AdminUsersPage = () => {
               </div>
 
               <div className="space-y-6">
-                {/* Download Template */}
                 <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6">
                   <div className="flex items-start gap-4">
                     <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-lg flex-shrink-0">
@@ -807,7 +796,7 @@ const AdminUsersPage = () => {
                     <div className="flex-1">
                       <h3 className="font-black text-gray-900 mb-2">Download Template First</h3>
                       <p className="text-sm text-gray-600 mb-4">
-                        Download the CSV template for {activeTab} to ensure your file has the correct format and required columns.
+                        Download the CSV template for {activeTab} to ensure your file has the correct format.
                       </p>
                       <button
                         onClick={downloadCSVTemplate}
@@ -820,7 +809,6 @@ const AdminUsersPage = () => {
                   </div>
                 </div>
 
-                {/* File Upload */}
                 <div className="border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center">
                   <input
                     ref={fileInputRef}
@@ -843,7 +831,6 @@ const AdminUsersPage = () => {
                   </label>
                 </div>
 
-                {/* Import Progress */}
                 {isLoading && (
                   <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-6 border border-blue-200">
                     <div className="flex items-center gap-4 mb-4">
@@ -859,7 +846,6 @@ const AdminUsersPage = () => {
                   </div>
                 )}
 
-                {/* Import Results */}
                 {importResults && (
                   <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-2xl p-6 border border-emerald-200">
                     <div className="flex items-center gap-3 mb-4">
@@ -875,7 +861,6 @@ const AdminUsersPage = () => {
                   </div>
                 )}
 
-                {/* Actions */}
                 <div className="flex gap-4">
                   <button
                     onClick={() => {
@@ -973,13 +958,14 @@ const AdminUsersPage = () => {
 
                 <div>
                   <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-wider">
-                    Username
+                    Username *
                   </label>
                   <input
                     type="text"
                     value={createForm.username}
                     onChange={(e) => setCreateForm(prev => ({ ...prev, username: e.target.value }))}
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
+                    required
                   />
                 </div>
 
@@ -1036,7 +1022,7 @@ const AdminUsersPage = () => {
                 {createForm.role === 'teacher' && createForm.teacherType === 'coordinator' && (
                   <div>
                     <label className="block text-sm font-black text-gray-700 mb-3 uppercase tracking-wider">
-                      Coordinator Classes * (Select classes this coordinator will manage)
+                      Coordinator Classes *
                     </label>
                     <div className="grid grid-cols-3 gap-3 p-4 bg-blue-50 rounded-xl border border-blue-200">
                       {classLevels.map(className => (
@@ -1065,7 +1051,7 @@ const AdminUsersPage = () => {
                 {createForm.role === 'teacher' && createForm.teacherType === 'class_teacher' && (
                   <div>
                     <label className="block text-sm font-black text-gray-700 mb-3 uppercase tracking-wider">
-                      Class Teacher Arms * (Select class arms this teacher will manage)
+                      Class Teacher Arms *
                     </label>
                     {loadingArms ? (
                       <div className="flex items-center justify-center p-4 bg-green-50 rounded-xl border border-green-200">
@@ -1187,5 +1173,6 @@ const AdminUsersPage = () => {
       </div>
     </div>
   );
-}
+};
+
 export default AdminUsersPage;
