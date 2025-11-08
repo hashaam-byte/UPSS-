@@ -4,33 +4,34 @@ import {
   MessageSquare, 
   Send, 
   Search,
-  Crown,
-  Plus,
+  User,
   Paperclip,
   MoreVertical,
   CheckCheck,
-  AlertTriangle,
   X,
-  Loader2,
-  Phone,
-  Video,
-  Info
+  Crown,
+  GraduationCap,
+  UserCog,
+  Plus
 } from 'lucide-react';
 
 const AdminMessagesPage = () => {
   const [conversations, setConversations] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [isSending, setIsSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState('');
+  const [showNewChat, setShowNewChat] = useState(false);
+  const [schoolUsers, setSchoolUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
   const messagesEndRef = useRef(null);
-  const textareaRef = useRef(null);
 
   useEffect(() => {
     fetchConversations();
+    fetchSchoolUsers();
   }, []);
 
   useEffect(() => {
@@ -55,7 +56,8 @@ const AdminMessagesPage = () => {
 
       if (response.ok) {
         setConversations(data.conversations || []);
-        if (data.conversations && data.conversations.length > 0 && !selectedConversation) {
+        setAllUsers(data.allUsers || []);
+        if (data.conversations && data.conversations.length > 0) {
           setSelectedConversation(data.conversations[0]);
         }
       } else {
@@ -76,22 +78,34 @@ const AdminMessagesPage = () => {
 
       if (response.ok) {
         setMessages(data.messages || []);
-        // Refresh conversations to update unread count
-        fetchConversations();
-      } else {
-        setError(data.error || 'Failed to fetch messages');
       }
     } catch (error) {
       console.error('Error fetching messages:', error);
-      setError('Network error occurred');
     }
   };
 
-  const sendMessage = async (e) => {
-    e.preventDefault();
-    if (!newMessage.trim() || !selectedConversation || isSending) return;
+  const fetchSchoolUsers = async () => {
+    try {
+      setLoadingUsers(true);
+      const response = await fetch('/api/protected/admin/messages/users');
+      const data = await response.json();
 
-    setIsSending(true);
+      if (response.ok) {
+        setSchoolUsers(data.availableUsers || []); // Only show users not chatted with
+      } else {
+        setError(data.error || 'Failed to fetch users');
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      setError('Network error occurred');
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !selectedConversation) return;
+
     try {
       const response = await fetch('/api/protected/admin/messages/send', {
         method: 'POST',
@@ -107,7 +121,6 @@ const AdminMessagesPage = () => {
       if (response.ok) {
         setMessages(prev => [...prev, data.message]);
         setNewMessage('');
-        textareaRef.current?.focus();
         fetchConversations();
       } else {
         setError(data.error || 'Failed to send message');
@@ -115,9 +128,23 @@ const AdminMessagesPage = () => {
     } catch (error) {
       console.error('Error sending message:', error);
       setError('Network error occurred');
-    } finally {
-      setIsSending(false);
     }
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  const startNewConversation = (contact) => {
+    setSelectedConversation({
+      id: contact.id,
+      participant: contact
+    });
+    setMessages([]);
+    setShowNewChat(false);
   };
 
   const formatMessageTime = (dateString) => {
@@ -125,9 +152,7 @@ const AdminMessagesPage = () => {
     const now = new Date();
     const diffInHours = (now - date) / (1000 * 60 * 60);
 
-    if (diffInHours < 1) {
-      return 'Just now';
-    } else if (diffInHours < 24) {
+    if (diffInHours < 24) {
       return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     } else if (diffInHours < 168) {
       return date.toLocaleDateString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
@@ -136,269 +161,329 @@ const AdminMessagesPage = () => {
     }
   };
 
+  const getUserRole = (user) => {
+    if (user.role === 'admin') {
+      return user.adminProfile?.department 
+        ? `Admin - ${user.adminProfile.department}` 
+        : 'Administrator';
+    }
+    if (user.role === 'teacher') {
+      if (user.teacherProfile?.coordinatorClass) {
+        return `Class Coordinator - ${user.teacherProfile.coordinatorClass}`;
+      }
+      const subjects = user.teacherProfile?.teacherSubjects?.map(ts => ts.subject?.name).filter(Boolean).join(', ');
+      return subjects ? `Teacher - ${subjects}` : 'Teacher';
+    }
+    if (user.role === 'student') {
+      return user.studentProfile?.className 
+        ? `Student - ${user.studentProfile.className}${user.studentProfile.section ? user.studentProfile.section : ''}` 
+        : 'Student';
+    }
+    return user.role;
+  };
+
+  const getRoleIcon = (role) => {
+    switch(role) {
+      case 'admin':
+        return <Crown className="w-5 h-5" />;
+      case 'teacher':
+        return <UserCog className="w-5 h-5" />;
+      case 'student':
+        return <GraduationCap className="w-5 h-5" />;
+      default:
+        return <User className="w-5 h-5" />;
+    }
+  };
+
+  const getRoleColor = (role) => {
+    switch(role) {
+      case 'admin':
+        return 'from-purple-500 to-indigo-500';
+      case 'teacher':
+        return 'from-blue-500 to-cyan-500';
+      case 'student':
+        return 'from-green-500 to-emerald-500';
+      default:
+        return 'from-gray-500 to-slate-500';
+    }
+  };
+
   const filteredConversations = conversations.filter(conv =>
     conv.participant?.firstName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     conv.participant?.lastName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    conv.lastMessage?.content?.toLowerCase().includes(searchQuery.toLowerCase())
+    conv.participant?.email?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredUsers = allUsers.filter(user =>
+    user.firstName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    user.lastName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    user.email?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredContacts = schoolUsers.filter(contact =>
+    contact.firstName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    contact.lastName?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-[600px]">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-indigo-50 flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 text-purple-600 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600 font-medium">Loading messages...</p>
+          <div className="w-16 h-16 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl animate-pulse mx-auto"></div>
+          <p className="text-gray-600 mt-4 font-medium">Loading messages...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Messages</h1>
-            <p className="text-gray-600 mt-1">Communicate with teachers and staff</p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-indigo-50">
+      <div className="h-screen flex flex-col">
+        <div className="bg-gradient-to-r from-white/70 to-purple-50/70 backdrop-blur-sm shadow-lg border-b border-white/50 p-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-800 via-purple-800 to-indigo-800 bg-clip-text text-transparent">
+                Messages
+              </h1>
+              <p className="text-gray-600">Communicate with teachers, students, and staff</p>
+            </div>
+            <button
+              onClick={() => setShowNewChat(true)}
+              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-xl font-semibold hover:scale-105 transition-all shadow-lg"
+            >
+              <Plus className="w-5 h-5" />
+              New Message
+            </button>
           </div>
-          <button className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition-colors">
-            <Plus className="w-5 h-5" />
-            New Message
-          </button>
         </div>
-      </div>
 
-      {/* Error Display */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <AlertTriangle className="w-5 h-5 text-red-600" />
-            <p className="text-red-700 font-medium">{error}</p>
+        {error && (
+          <div className="mx-6 mt-4 bg-red-50 border border-red-300 rounded-xl p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-5 h-5 text-red-600">⚠</div>
+              <p className="text-red-700 font-medium">{error}</p>
+            </div>
+            <button onClick={() => setError('')} className="text-red-600 hover:text-red-800">
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button onClick={() => setError('')} className="text-red-600 hover:text-red-700">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-      )}
+        )}
 
-      {/* Main Chat Interface */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex h-[calc(100vh-300px)]">
-        
-        {/* Left Sidebar - Conversations */}
-        <div className="w-80 flex-shrink-0 border-r border-gray-200 flex flex-col">
-          {/* Search */}
-          <div className="p-4 border-b border-gray-200">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="text"
-                placeholder="Search conversations..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-              />
+        <div className="flex-1 flex overflow-hidden">
+          <div className="w-80 bg-gradient-to-br from-white/70 to-gray-50/70 backdrop-blur-sm border-r border-gray-200/50 flex flex-col">
+            <div className="p-4 border-b border-gray-200/50">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search conversations..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 pr-4 py-2 w-full border border-gray-300/50 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white/50 backdrop-blur-sm text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              {filteredConversations.length === 0 ? (
+                <div className="text-center py-12 px-4">
+                  <MessageSquare className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                  <p className="text-gray-500 font-medium">No conversations yet</p>
+                  <p className="text-gray-400 text-sm mt-1">Start a new conversation</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-200/50">
+                  {filteredConversations.map((conversation) => (
+                    <button
+                      key={conversation.id}
+                      onClick={() => setSelectedConversation(conversation)}
+                      className={`w-full p-4 text-left hover:bg-purple-50/50 transition-colors ${
+                        selectedConversation?.id === conversation.id 
+                          ? 'bg-gradient-to-r from-purple-50 to-indigo-50 border-r-4 border-purple-500' 
+                          : ''
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <div className={`w-12 h-12 bg-gradient-to-br ${getRoleColor(conversation.participant?.role)} rounded-full flex items-center justify-center text-white shadow-lg`}>
+                            {getRoleIcon(conversation.participant?.role)}
+                          </div>
+                          {conversation.unreadCount > 0 && (
+                            <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-xs font-bold text-white">
+                              {conversation.unreadCount}
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-gray-900 truncate">
+                            {conversation.participant?.firstName} {conversation.participant?.lastName}
+                          </p>
+                          <p className="text-sm text-gray-600 truncate">
+                            {getUserRole(conversation.participant)}
+                          </p>
+                          <p className="text-xs text-gray-500 truncate mt-1">
+                            {conversation.lastMessage?.content || 'No messages yet'}
+                          </p>
+                        </div>
+                        {conversation.lastMessage && (
+                          <div className="text-xs text-gray-400">
+                            {formatMessageTime(conversation.lastMessage.createdAt)}
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Conversations List */}
-          <div className="flex-1 overflow-y-auto">
-            {filteredConversations.length === 0 ? (
-              <div className="p-6 text-center">
-                <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500 font-medium">No conversations found</p>
-                <p className="text-gray-400 text-sm mt-1">Start a new conversation</p>
-              </div>
-            ) : (
-              filteredConversations.map((conversation) => (
-                <button
-                  key={conversation.id}
-                  onClick={() => setSelectedConversation(conversation)}
-                  className={`w-full flex items-start gap-3 p-4 hover:bg-gray-50 transition-colors border-l-4 ${
-                    selectedConversation?.id === conversation.id
-                      ? 'bg-purple-50 border-l-purple-600'
-                      : 'border-l-transparent'
-                  }`}
-                >
-                  <div className="relative flex-shrink-0">
-                    <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-bold shadow-lg">
-                      {conversation.participant?.role === 'headadmin' ? (
-                        <Crown className="w-6 h-6" />
-                      ) : (
-                        `${conversation.participant?.firstName?.[0] || '?'}${conversation.participant?.lastName?.[0] || ''}`
-                      )}
-                    </div>
-                    {conversation.unreadCount > 0 && (
-                      <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
-                        {conversation.unreadCount > 9 ? '9+' : conversation.unreadCount}
+          <div className="flex-1 flex flex-col bg-gradient-to-br from-white/50 to-purple-50/30">
+            {selectedConversation ? (
+              <>
+                <div className="bg-gradient-to-r from-white/80 to-purple-50/80 backdrop-blur-sm p-4 border-b border-gray-200/50 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 bg-gradient-to-br ${getRoleColor(selectedConversation.participant?.role)} rounded-full flex items-center justify-center text-white shadow-lg`}>
+                        {getRoleIcon(selectedConversation.participant?.role)}
                       </div>
-                    )}
-                  </div>
-                  <div className="flex-1 text-left overflow-hidden min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="font-semibold text-gray-900 truncate">
-                        {conversation.participant?.role === 'headadmin' ? 'Head Administrator' : 
-                         `${conversation.participant?.firstName || 'Unknown'} ${conversation.participant?.lastName || ''}`}
-                      </p>
-                      <span className="text-xs text-gray-500 flex-shrink-0 ml-2">
-                        {conversation.lastMessage ? formatMessageTime(conversation.lastMessage.createdAt) : ''}
-                      </span>
+                      <div>
+                        <h3 className="font-semibold text-gray-900">
+                          {selectedConversation.participant?.firstName} {selectedConversation.participant?.lastName}
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          {getUserRole(selectedConversation.participant)}
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-sm text-gray-600 truncate">
-                      {conversation.lastMessage?.content || 'No messages yet'}
-                    </p>
-                  </div>
-                </button>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Right Side - Chat Area */}
-        <div className="flex-1 flex flex-col bg-gray-50">
-          {selectedConversation ? (
-            <>
-              {/* Chat Header */}
-              <div className="bg-white border-b border-gray-200 px-6 py-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-bold">
-                      {selectedConversation.participant?.role === 'headadmin' ? (
-                        <Crown className="w-5 h-5" />
-                      ) : (
-                        `${selectedConversation.participant?.firstName?.[0] || '?'}${selectedConversation.participant?.lastName?.[0] || ''}`
-                      )}
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900">
-                        {selectedConversation.participant?.role === 'headadmin' ? 'Head Administrator' : 
-                         `${selectedConversation.participant?.firstName || 'Unknown'} ${selectedConversation.participant?.lastName || ''}`}
-                      </h3>
-                      <p className="text-sm text-gray-500">
-                        {selectedConversation.participant?.email || 'No email'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
-                      <Phone className="w-5 h-5" />
-                    </button>
-                    <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
-                      <Video className="w-5 h-5" />
-                    </button>
-                    <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
-                      <Info className="w-5 h-5" />
-                    </button>
-                    <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+                    <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100/50 rounded-lg transition-colors">
                       <MoreVertical className="w-5 h-5" />
                     </button>
                   </div>
                 </div>
-              </div>
 
-              {/* Messages Area */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                {messages.length === 0 ? (
-                  <div className="h-full flex items-center justify-center">
-                    <div className="text-center">
-                      <MessageSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                      <h3 className="text-xl font-semibold text-gray-700 mb-2">No messages yet</h3>
-                      <p className="text-gray-500">Start the conversation by sending a message</p>
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                  {messages.length === 0 ? (
+                    <div className="h-full flex items-center justify-center">
+                      <div className="text-center">
+                        <MessageSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                        <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                          No messages yet
+                        </h3>
+                        <p className="text-gray-500">
+                          Start the conversation by sending a message
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <>
-                    {messages.map((message) => {
-                      const isFromCurrentUser = message.fromCurrentUser;
-                      
-                      return (
+                  ) : (
+                    messages.map((message) => (
+                      <div
+                        key={message.id}
+                        className={`flex ${message.fromCurrentUser ? 'justify-end' : 'justify-start'}`}
+                      >
                         <div
-                          key={message.id}
-                          className={`flex ${isFromCurrentUser ? 'justify-end' : 'justify-start'}`}
+                          className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl shadow-lg ${
+                            message.fromCurrentUser
+                              ? 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white'
+                              : 'bg-white border border-gray-200/50'
+                          }`}
                         >
-                          <div className={`max-w-md ${isFromCurrentUser ? '' : 'flex items-start gap-2'}`}>
-                            {!isFromCurrentUser && (
-                              <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                                {selectedConversation.participant?.firstName?.[0] || '?'}
-                              </div>
+                          <p className="text-sm">{message.content}</p>
+                          <div className={`flex items-center gap-2 mt-2 text-xs ${
+                            message.fromCurrentUser ? 'text-purple-100' : 'text-gray-500'
+                          }`}>
+                            <span>{formatMessageTime(message.createdAt)}</span>
+                            {message.fromCurrentUser && (
+                              <CheckCheck className={`w-4 h-4 ${message.isRead ? 'text-white' : 'text-purple-200'}`} />
                             )}
-                            <div>
-                              <div
-                                className={`px-4 py-3 rounded-2xl ${
-                                  isFromCurrentUser
-                                    ? 'bg-purple-600 text-white rounded-br-sm'
-                                    : 'bg-white text-gray-900 border border-gray-200 rounded-bl-sm'
-                                }`}
-                              >
-                                <p className="text-sm">{message.content}</p>
-                              </div>
-                              <div className={`mt-1 flex items-center gap-2 text-xs text-gray-500 ${
-                                isFromCurrentUser ? 'justify-end' : 'justify-start'
-                              }`}>
-                                <span>{formatMessageTime(message.createdAt)}</span>
-                                {isFromCurrentUser && (
-                                  <CheckCheck className={`w-4 h-4 ${message.isRead ? 'text-purple-600' : 'text-gray-400'}`} />
-                                )}
-                              </div>
-                            </div>
                           </div>
                         </div>
-                      );
-                    })}
-                    <div ref={messagesEndRef} />
-                  </>
-                )}
-              </div>
+                      </div>
+                    ))
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
 
-              {/* Message Input */}
-              <div className="bg-white border-t border-gray-200 p-4">
-                <form onSubmit={sendMessage} className="flex items-end gap-3">
-                  <button
-                    type="button"
-                    className="p-3 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                  >
-                    <Paperclip className="w-5 h-5" />
-                  </button>
-                  <div className="flex-1">
-                    <textarea
-                      ref={textareaRef}
-                      value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value)}
-                      placeholder="Type your message..."
-                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900 placeholder-gray-500 resize-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                      rows={1}
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          sendMessage(e);
-                        }
-                      }}
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={!newMessage.trim() || isSending}
-                    className="p-3 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl transition-colors flex items-center gap-2"
-                  >
-                    {isSending ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
+                <div className="bg-gradient-to-r from-white/80 to-purple-50/80 backdrop-blur-sm p-4 border-t border-gray-200/50">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 relative">
+                      <input
+                        type="text"
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        onKeyPress={handleKeyPress}
+                        placeholder="Type your message..."
+                        className="w-full px-4 py-3 pr-12 border border-gray-300/50 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white/70 backdrop-blur-sm"
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        <Paperclip className="w-5 h-5" />
+                      </button>
+                    </div>
+                    <button
+                      onClick={sendMessage}
+                      disabled={!newMessage.trim()}
+                      className="p-3 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-xl hover:from-indigo-500 hover:to-purple-600 transition-all hover:scale-105 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    >
                       <Send className="w-5 h-5" />
-                    )}
-                  </button>
-                </form>
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center">
+                  <MessageSquare className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500 font-medium text-lg">Select a conversation</p>
+                  <p className="text-gray-400 text-sm mt-1">Choose someone to start messaging</p>
+                </div>
               </div>
-            </>
-          ) : (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center">
-                <MessageSquare className="w-20 h-20 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-2xl font-semibold text-gray-700 mb-2">Select a Conversation</h3>
-                <p className="text-gray-500">Choose a conversation from the list to start messaging</p>
+            )}
+          </div>
+        </div>
+
+        {showNewChat && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden">
+              <div className="bg-gradient-to-r from-purple-500 to-indigo-500 p-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-bold text-white">Start New Chat</h3>
+                  <button
+                    onClick={() => setShowNewChat(false)}
+                    className="text-white/80 hover:text-white p-1 rounded transition-colors"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+              </div>
+              <div className="p-6 overflow-y-auto max-h-96">
+                <div className="space-y-2">
+                  {filteredContacts.map((contact) => (
+                    <button
+                      key={contact.id}
+                      onClick={() => startNewConversation(contact)}
+                      className="w-full flex items-center gap-3 p-3 hover:bg-purple-50 rounded-xl transition-colors"
+                    >
+                      <div className={`w-10 h-10 bg-gradient-to-br ${getRoleColor(contact.role)} rounded-full flex items-center justify-center text-white`}>
+                        {getRoleIcon(contact.role)}
+                      </div>
+                      <div className="text-left">
+                        <p className="font-semibold text-gray-900">
+                          {contact.firstName} {contact.lastName}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {getUserRole(contact)}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

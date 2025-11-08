@@ -1,24 +1,20 @@
+// src/app/api/protected/teacher/subject/ai-generate-test/route.js
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-// GET - Fetch teacher's subjects and classes from their school
+// GET - Fetch teacher's subjects and classes
 export async function GET(request) {
   try {
     const user = await requireAuth(['teacher']);
     
-    // Get teacher's profile with subjects from their school only
     const teacherProfile = await prisma.teacherProfile.findUnique({
-      where: { 
-        userId: user.id 
-      },
+      where: { userId: user.id },
       include: {
         teacherSubjects: {
           include: {
             subject: {
-              where: {
-                schoolId: user.schoolId // Ensure subjects are from teacher's school
-              }
+              where: { schoolId: user.schoolId }
             }
           }
         }
@@ -32,10 +28,7 @@ export async function GET(request) {
       }, { status: 404 });
     }
 
-    // Filter out any null subjects (in case of data inconsistency)
     const validSubjects = teacherProfile.teacherSubjects.filter(ts => ts.subject !== null);
-    
-    // Get unique classes from teacher's subjects
     const classes = [...new Set(validSubjects.flatMap(ts => ts.classes))];
 
     return NextResponse.json({
@@ -63,92 +56,87 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const user = await requireAuth(['teacher']);
-    const { subjectId, subject, topic, questionCount, difficulty, questionTypes } = await request.json();
+    const { 
+      subjectId, 
+      subject, 
+      topic, 
+      questionCount, 
+      difficulty, 
+      questionTypes,
+      examType,        // NEW: jamb, waec, utme, common_entrance, school_exam
+      targetClass,     // NEW: ss1, ss2, ss3, jss1, jss2, jss3, custom
+      customPrompt     // NEW: User's custom instructions
+    } = await request.json();
 
     // Verify teacher has access to this subject
     if (subjectId) {
-      // Ensure the teacher profile exists
       let teacherProfile = await prisma.teacherProfile.findUnique({
-        where: {
-          userId: user.id,
-        },
+        where: { userId: user.id },
       });
 
       if (!teacherProfile) {
-        console.log('Teacher profile not found. Creating a new teacher profile...');
         teacherProfile = await prisma.teacherProfile.create({
           data: {
             userId: user.id,
-            department: null, // Set default values as needed
+            department: null,
             qualification: null,
             experienceYears: 0,
           },
         });
-        console.log('Teacher profile created successfully.');
       }
 
       let hasAccess = await prisma.teacherSubject.findFirst({
         where: {
           teacherId: teacherProfile.id,
           subjectId: subjectId,
-          subject: {
-            schoolId: user.schoolId, // Ensure the subject belongs to the teacher's school
-          },
+          subject: { schoolId: user.schoolId },
         },
-        include: {
-          subject: true, // Fetch the subject details
-        },
+        include: { subject: true },
       });
 
-      // If the teacherSubject record is missing, create it
       if (!hasAccess) {
-        console.log('Teacher does not have access to this subject. Adding access...');
         hasAccess = await prisma.teacherSubject.create({
           data: {
             teacherId: teacherProfile.id,
             subjectId: subjectId,
-            classes: [], // Default to an empty array; update as needed
+            classes: [],
           },
-          include: {
-            subject: true,
-          },
+          include: { subject: true },
         });
-        console.log('Access granted to the teacher for the subject.');
       }
     }
 
     // Validate input
-    if (!topic) {
+    if (!topic && !customPrompt) {
       return NextResponse.json(
-        { success: false, error: 'Topic is required' },
+        { success: false, error: 'Topic or custom prompt is required' },
         { status: 400 }
       );
     }
 
-    // Get the actual subject name for the prompt
+    // Get the actual subject name
     let subjectName = subject;
     if (subjectId) {
       const subjectData = await prisma.subject.findUnique({
-        where: { 
-          id: subjectId,
-        },
+        where: { id: subjectId },
       });
-      
       if (subjectData) {
         subjectName = subjectData.name;
       }
     }
 
-    // Log the generation attempt for audit
-    console.log(`[AI Test Generation] User: ${user.id}, School: ${user.schoolId}, Subject: ${subjectName}, Topic: ${topic}`);
+    console.log(`[AI Test Generation] User: ${user.id}, Subject: ${subjectName}, ExamType: ${examType}, Class: ${targetClass}`);
 
-    // Build the prompt for Gemini
-    const prompt = buildTestGenerationPrompt({
+    // Build enhanced prompt
+    const prompt = buildEnhancedTestPrompt({
       subject: subjectName,
       topic,
       questionCount: questionCount || 10,
       difficulty: difficulty || 'medium',
       questionTypes: questionTypes || ['objective', 'theory'],
+      examType: examType || 'school_exam',
+      targetClass: targetClass || 'ss1',
+      customPrompt: customPrompt || ''
     });
 
     // Try AI generation
@@ -162,22 +150,14 @@ export async function POST(request) {
         throw new Error('GOOGLE_API_KEY not configured');
       }
 
-      // CRITICAL: Use v1beta API with current model names
-      // Gemini 1.5 models are deprecated - use Gemini 2.0 or 2.5
-      const model = 'gemini-2.0-flash-exp'; // or 'gemini-2.5-flash' for stable version
+      const model = 'gemini-2.0-flash-exp';
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
 
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: prompt }],
-            },
-          ],
+          contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
             temperature: 0.7,
             topK: 40,
@@ -190,23 +170,20 @@ export async function POST(request) {
       if (!response.ok) {
         const err = await response.text();
         console.error('Gemini API Error:', err);
-        throw new Error(`Gemini API error: ${response.status} - ${err}`);
+        throw new Error(`Gemini API error: ${response.status}`);
       }
 
       const data = await response.json();
       
-      // Check if response has the expected structure
       if (!data.candidates || data.candidates.length === 0) {
         throw new Error('No content generated by AI');
       }
 
       const generatedText = data.candidates[0].content.parts[0].text || '';
-
       if (!generatedText) {
         throw new Error('Empty response from AI');
       }
 
-      // Parse the AI response into structured questions
       questions = parseAIResponse(generatedText, questionTypes);
 
       if (questions.length === 0) {
@@ -217,12 +194,13 @@ export async function POST(request) {
       aiError = aiErr.message;
       isAIGenerated = false;
 
-      // Fallback to template-based generation
       questions = generateFallbackQuestions({
         subject: subjectName,
         topic,
         questionCount: questionCount || 10,
         questionTypes: questionTypes || ['objective', 'theory'],
+        examType,
+        targetClass
       });
     }
 
@@ -235,6 +213,8 @@ export async function POST(request) {
           subjectName: subjectName,
           topic,
           difficulty,
+          examType,
+          targetClass,
           generatedAt: new Date().toISOString(),
           totalQuestions: questions.length,
           isAIGenerated,
@@ -246,7 +226,6 @@ export async function POST(request) {
     });
   } catch (error) {
     console.error('AI test generation error:', error);
-    
     return NextResponse.json({
       success: false,
       error: error.message || 'Failed to generate test',
@@ -254,27 +233,73 @@ export async function POST(request) {
   }
 }
 
-// Build comprehensive prompt for AI
-function buildTestGenerationPrompt({ subject, topic, questionCount, difficulty, questionTypes }) {
+// Enhanced prompt builder
+function buildEnhancedTestPrompt({ 
+  subject, 
+  topic, 
+  questionCount, 
+  difficulty, 
+  questionTypes,
+  examType,
+  targetClass,
+  customPrompt 
+}) {
   const hasObjective = questionTypes.includes('objective');
   const hasTheory = questionTypes.includes('theory');
   
   const objectiveCount = hasObjective ? Math.ceil(questionCount * (hasTheory ? 0.6 : 1)) : 0;
   const theoryCount = hasTheory ? Math.ceil(questionCount * (hasObjective ? 0.4 : 1)) : 0;
 
-  let prompt = `You are an expert educational content creator. Generate a comprehensive test for the following:
+  // Exam-specific guidelines
+  const examGuidelines = {
+    jamb: "Follow JAMB (Joint Admissions and Matriculation Board) style: 4 options per question, standard Nigerian university entrance exam format, clear and unambiguous questions.",
+    waec: "Follow WAEC (West African Examinations Council) style: Standard West African secondary school format, both objective and essay questions testing comprehensive understanding.",
+    utme: "Follow UTME (Unified Tertiary Matriculation Examination) style: University entrance level, rigorous questioning, testing deep understanding and application.",
+    common_entrance: "Follow Common Entrance style: Junior secondary entrance level, age-appropriate vocabulary, testing fundamental concepts for transition to secondary school.",
+    school_exam: "Follow standard school examination format: Balanced difficulty, curriculum-aligned, suitable for continuous assessment."
+  };
 
-Subject: ${subject}
-Topic: ${topic}
-Difficulty Level: ${difficulty}
-Total Questions: ${questionCount}
+  // Class-specific context
+  const classContext = {
+    jss1: "Junior Secondary 1 level - Introduce foundational concepts, simple language, basic examples",
+    jss2: "Junior Secondary 2 level - Build on foundations, moderate complexity, practical applications",
+    jss3: "Junior Secondary 3 level - Prepare for senior secondary, comprehensive coverage, exam preparation",
+    ss1: "Senior Secondary 1 level - Advanced concepts introduction, analytical thinking required",
+    ss2: "Senior Secondary 2 level - Deep subject mastery, complex problem-solving",
+    ss3: "Senior Secondary 3 level - Exam preparation, comprehensive revision, application-focused",
+    custom: "Adaptable level based on topic complexity"
+  };
 
-IMPORTANT FORMATTING RULES:
+  let prompt = `You are an expert Nigerian educational content creator specializing in ${subject}.
+
+EXAMINATION CONTEXT:
+- Exam Type: ${examType.toUpperCase().replace('_', ' ')}
+- Target Class: ${targetClass.toUpperCase()}
+- ${examGuidelines[examType] || examGuidelines.school_exam}
+- ${classContext[targetClass] || classContext.custom}
+
+SUBJECT AND TOPIC:
+- Subject: ${subject}
+- Topic: ${topic || 'As specified in custom instructions'}
+- Difficulty Level: ${difficulty}
+- Total Questions: ${questionCount}
+
+${customPrompt ? `\nCUSTOM INSTRUCTIONS FROM TEACHER:\n${customPrompt}\n` : ''}
+
+CRITICAL FORMATTING RULES:
 1. Return ONLY valid JSON - no markdown, no code blocks, no explanations
 2. Each question must have a unique ID starting with "q_"
 3. For objective questions: provide exactly 4 options (A, B, C, D)
-4. Include detailed explanations for all questions
-5. Mark values should reflect difficulty: easy (1-2), medium (3-5), hard (6-10)
+4. Questions must be appropriate for ${targetClass.toUpperCase()} students
+5. Follow ${examType.toUpperCase()} examination standards strictly
+6. Include detailed explanations for all questions
+7. Mark values should reflect difficulty: easy (1-2), medium (3-5), hard (6-10)
+
+NIGERIAN CURRICULUM ALIGNMENT:
+- Use Nigerian examples, names, locations where relevant
+- Reference Nigerian context (currency: Naira, locations: Lagos, Abuja, etc.)
+- Follow Nigerian educational standards and terminology
+- Use British English spelling and grammar
 
 Generate a JSON array with this EXACT structure:
 `;
@@ -285,11 +310,12 @@ Generate a JSON array with this EXACT structure:
 {
   "id": "q_1",
   "type": "objective",
-  "question": "Clear, specific question text",
+  "question": "Clear, specific question text appropriate for ${targetClass} level",
   "marks": ${difficulty === 'easy' ? 1 : difficulty === 'medium' ? 2 : 3},
   "options": ["Option A text", "Option B text", "Option C text", "Option D text"],
   "correctAnswer": 0,
-  "explanation": "Detailed explanation of why this answer is correct"
+  "explanation": "Detailed explanation of why this answer is correct, suitable for ${targetClass} understanding",
+  "examTip": "Optional: Tip for answering similar questions in ${examType} exams"
 }
 `;
   }
@@ -300,10 +326,11 @@ Generate a JSON array with this EXACT structure:
 {
   "id": "q_${objectiveCount + 1}",
   "type": "theory",
-  "question": "Open-ended question requiring detailed response",
+  "question": "Open-ended question requiring detailed response, ${examType} style",
   "marks": ${difficulty === 'easy' ? 5 : difficulty === 'medium' ? 10 : 15},
-  "sampleAnswer": "Comprehensive sample answer with key points",
-  "explanation": "Grading criteria and important points to look for"
+  "sampleAnswer": "Comprehensive sample answer with key points that ${targetClass} students should include",
+  "explanation": "Grading criteria and important points to look for",
+  "markingScheme": "Break down of how marks should be allocated (e.g., 3 marks for introduction, 5 marks for main points, 2 marks for conclusion)"
 }
 `;
   }
@@ -315,27 +342,27 @@ EXAMPLE OUTPUT FORMAT (return ONLY the JSON array):
   {
     "id": "q_1",
     "type": "objective",
-    "question": "What is the capital of France?",
+    "question": "Lagos is the capital city of which Nigerian state?",
     "marks": 2,
-    "options": ["London", "Paris", "Berlin", "Madrid"],
-    "correctAnswer": 1,
-    "explanation": "Paris is the capital and largest city of France."
+    "options": ["Lagos State", "Oyo State", "Ogun State", "Rivers State"],
+    "correctAnswer": 0,
+    "explanation": "Lagos is both a city and a state. Lagos State has Ikeja as its capital, but Lagos city (formerly the federal capital) is within Lagos State.",
+    "examTip": "Remember state capitals vs city names in Nigerian geography."
   }
 ]
 
-Generate ${questionCount} well-crafted, academically sound questions suitable for ${difficulty} level students.
+${customPrompt ? '\nIMPORTANT: Prioritize the custom instructions provided by the teacher while maintaining exam standards.\n' : ''}
+
+Generate ${questionCount} well-crafted, academically sound questions suitable for ${targetClass} ${difficulty} level ${examType} examination.
 Return ONLY the JSON array, no additional text.`;
 
   return prompt;
 }
 
-// Parse AI response into structured questions
+// Parse AI response
 function parseAIResponse(text, questionTypes) {
   try {
-    // Remove markdown code blocks if present
     let cleanText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    
-    // Try to extract JSON array
     const jsonMatch = cleanText.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
       cleanText = jsonMatch[0];
@@ -343,7 +370,6 @@ function parseAIResponse(text, questionTypes) {
 
     const parsedQuestions = JSON.parse(cleanText);
     
-    // Validate and format questions
     return parsedQuestions.map((q, index) => ({
       id: q.id || `q_${Date.now()}_${index}`,
       type: q.type || 'objective',
@@ -352,7 +378,9 @@ function parseAIResponse(text, questionTypes) {
       options: q.type === 'objective' ? (q.options || ['', '', '', '']) : null,
       correctAnswer: q.type === 'objective' ? (q.correctAnswer ?? 0) : null,
       explanation: q.explanation || '',
-      sampleAnswer: q.type === 'theory' ? (q.sampleAnswer || '') : null
+      sampleAnswer: q.type === 'theory' ? (q.sampleAnswer || '') : null,
+      examTip: q.examTip || null,
+      markingScheme: q.markingScheme || null
     }));
   } catch (error) {
     console.error('Error parsing AI response:', error);
@@ -360,47 +388,37 @@ function parseAIResponse(text, questionTypes) {
   }
 }
 
-// Fallback template-based question generation
-function generateFallbackQuestions({ subject, topic, questionCount, questionTypes }) {
+// Enhanced fallback generation
+function generateFallbackQuestions({ subject, topic, questionCount, questionTypes, examType, targetClass }) {
   const questions = [];
   const hasObjective = questionTypes.includes('objective');
   const hasTheory = questionTypes.includes('theory');
 
   const objectiveTemplates = [
     {
-      pattern: `What is the primary focus of ${topic} in ${subject}?`,
+      pattern: `What is the primary concept of ${topic} in ${subject}?`,
       options: [
-        `Understanding basic concepts`,
-        `Advanced applications`,
-        `Historical context`,
+        `Understanding basic principles`,
+        `Advanced applications only`,
+        `Historical context exclusively`,
         `Theoretical foundations`
       ]
     },
     {
       pattern: `Which statement best describes ${topic}?`,
       options: [
-        `It is a fundamental concept`,
+        `It is a fundamental concept in ${subject}`,
         `It is an advanced technique`,
-        `It is a theoretical framework`,
-        `It is a practical application`
-      ]
-    },
-    {
-      pattern: `In ${subject}, ${topic} is most closely related to:`,
-      options: [
-        `Basic principles`,
-        `Complex theories`,
-        `Practical methods`,
-        `Historical developments`
+        `It is purely theoretical`,
+        `It has no practical application`
       ]
     }
   ];
 
   const theoryTemplates = [
-    `Explain the main concepts of ${topic} in ${subject}.`,
-    `Discuss the importance and applications of ${topic}.`,
-    `Compare and contrast different aspects of ${topic}.`,
-    `Analyze the key principles underlying ${topic} in ${subject}.`
+    `Explain the main concepts of ${topic} in ${subject}. Provide examples relevant to ${targetClass} level.`,
+    `Discuss the importance and applications of ${topic} in ${subject}.`,
+    `With reference to ${topic}, analyze the key principles. (Suitable for ${examType} examination)`
   ];
 
   if (hasObjective) {
@@ -414,7 +432,8 @@ function generateFallbackQuestions({ subject, topic, questionCount, questionType
         marks: 2,
         options: template.options,
         correctAnswer: 0,
-        explanation: `This question tests understanding of ${topic} in ${subject}.`
+        explanation: `This question tests understanding of ${topic} at ${targetClass} level for ${examType} examination.`,
+        examTip: `Review ${topic} thoroughly before the exam.`
       });
     }
   }
@@ -427,8 +446,9 @@ function generateFallbackQuestions({ subject, topic, questionCount, questionType
         type: 'theory',
         question: theoryTemplates[i % theoryTemplates.length],
         marks: 10,
-        sampleAnswer: `A comprehensive answer should cover the main aspects of ${topic}, including definitions, key concepts, and practical applications in ${subject}.`,
-        explanation: `Look for clear explanation, understanding of concepts, and relevant examples.`
+        sampleAnswer: `A comprehensive answer should cover: 1) Definition of ${topic}, 2) Key principles, 3) Practical applications in ${subject}, 4) Relevant examples for ${targetClass} level.`,
+        explanation: `Look for clear explanation, understanding of concepts, and relevant examples.`,
+        markingScheme: `Introduction (2 marks), Main points (5 marks), Examples (2 marks), Conclusion (1 mark)`
       });
     }
   }

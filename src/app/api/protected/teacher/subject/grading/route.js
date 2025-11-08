@@ -1,35 +1,80 @@
-// app/api/protected/teacher/subject/grading/route.js
+// src/app/api/protected/teacher/subject/grading/route.js - IMPROVED
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-// Helper function to automatically grade objective questions
+// Helper: Auto-grade objective questions with VERIFICATION
 function autoGradeObjectiveQuestions(questions, studentAnswers) {
   let totalObjectiveScore = 0;
   let maxObjectiveScore = 0;
   const gradedQuestions = [];
 
+  // Ensure we're using the correct data structures
+  console.log('[Auto-Grade] Starting grading process');
+  console.log('[Auto-Grade] Questions count:', questions?.length);
+  console.log('[Auto-Grade] Student answers:', Object.keys(studentAnswers || {}).length);
+
   questions.forEach((question, index) => {
     if (question.type === 'objective' || question.type === 'multiple_choice') {
-      maxObjectiveScore += question.points || 1;
+      const questionMarks = question.points || question.marks || 1;
+      maxObjectiveScore += questionMarks;
       
-      const studentAnswer = studentAnswers[question.id] || studentAnswers[index];
-      const correctAnswer = question.correctAnswer || question.answer;
+      // Get student answer - try multiple formats
+      let studentAnswer = studentAnswers[question.id];
+      if (studentAnswer === undefined) {
+        studentAnswer = studentAnswers[index];
+      }
+      if (studentAnswer === undefined) {
+        studentAnswer = studentAnswers[`q_${index + 1}`];
+      }
       
+      // Get correct answer - handle multiple formats
+      let correctAnswer = question.correctAnswer;
+      if (correctAnswer === undefined) {
+        correctAnswer = question.answer;
+      }
+      
+      // VERIFICATION: Log each question grading
+      console.log(`[Auto-Grade Q${index + 1}]`, {
+        questionId: question.id,
+        questionText: question.question?.substring(0, 50),
+        studentAnswer: studentAnswer,
+        correctAnswer: correctAnswer,
+        studentAnswerType: typeof studentAnswer,
+        correctAnswerType: typeof correctAnswer
+      });
+      
+      // Determine if answer is correct
       let isCorrect = false;
       
-      // Handle different answer formats
       if (Array.isArray(correctAnswer)) {
         // Multiple correct answers (checkbox type)
-        isCorrect = JSON.stringify(studentAnswer?.sort()) === JSON.stringify(correctAnswer.sort());
+        const studentAnswerArray = Array.isArray(studentAnswer) ? studentAnswer : [studentAnswer];
+        isCorrect = JSON.stringify(studentAnswerArray.sort()) === JSON.stringify(correctAnswer.sort());
       } else {
-        // Single correct answer
-        isCorrect = String(studentAnswer).toLowerCase().trim() === String(correctAnswer).toLowerCase().trim();
+        // Single correct answer - CAREFUL TYPE CONVERSION
+        // Convert both to same type for comparison
+        const studentAnswerNormalized = String(studentAnswer).toLowerCase().trim();
+        const correctAnswerNormalized = String(correctAnswer).toLowerCase().trim();
+        
+        isCorrect = studentAnswerNormalized === correctAnswerNormalized;
+        
+        // Also check numeric equivalence
+        if (!isCorrect && !isNaN(studentAnswer) && !isNaN(correctAnswer)) {
+          isCorrect = Number(studentAnswer) === Number(correctAnswer);
+        }
       }
       
+      // Award marks if correct
       if (isCorrect) {
-        totalObjectiveScore += question.points || 1;
+        totalObjectiveScore += questionMarks;
       }
+      
+      // VERIFICATION: Log result
+      console.log(`[Auto-Grade Q${index + 1} Result]`, {
+        isCorrect,
+        marksAwarded: isCorrect ? questionMarks : 0
+      });
       
       gradedQuestions.push({
         questionId: question.id,
@@ -39,10 +84,20 @@ function autoGradeObjectiveQuestions(questions, studentAnswers) {
         studentAnswer: studentAnswer,
         correctAnswer: correctAnswer,
         isCorrect: isCorrect,
-        points: question.points || 1,
-        scored: isCorrect ? (question.points || 1) : 0
+        points: questionMarks,
+        scored: isCorrect ? questionMarks : 0,
+        options: question.options || null,
+        explanation: question.explanation || null
       });
     }
+  });
+
+  // VERIFICATION: Log final totals
+  console.log('[Auto-Grade Summary]', {
+    totalObjectiveScore,
+    maxObjectiveScore,
+    percentage: maxObjectiveScore > 0 ? (totalObjectiveScore / maxObjectiveScore) * 100 : 0,
+    gradedQuestionsCount: gradedQuestions.length
   });
 
   return {
@@ -71,7 +126,8 @@ export async function GET(request) {
 
     const whereClause = {
       assignment: {
-        teacherId: user.id
+        teacherId: user.id,
+        schoolId: user.schoolId
       }
     };
 
@@ -114,9 +170,7 @@ export async function GET(request) {
             maxScore: true,
             dueDate: true,
             assignmentType: true,
-            // Assuming questions are stored as JSON in a field
-            // Adjust based on your actual schema
-            description: true,
+            attachments: true,
             subject: {
               select: {
                 name: true,
@@ -132,7 +186,6 @@ export async function GET(request) {
     });
 
     const formattedSubmissions = submissions.map(sub => {
-      // Parse submission content if it contains answers
       let parsedContent = null;
       let autoGradingResult = null;
       
@@ -140,12 +193,26 @@ export async function GET(request) {
         if (sub.content) {
           parsedContent = typeof sub.content === 'string' ? JSON.parse(sub.content) : sub.content;
           
-          // If assignment has questions, auto-grade objective questions
-          if (parsedContent.questions && parsedContent.answers) {
-            autoGradingResult = autoGradeObjectiveQuestions(
-              parsedContent.questions,
-              parsedContent.answers
-            );
+          // Get questions from assignment attachments
+          let questions = [];
+          if (sub.assignment.attachments && sub.assignment.attachments.length > 0) {
+            const testConfig = JSON.parse(sub.assignment.attachments[0]);
+            questions = testConfig.questions || [];
+          }
+          
+          // If we have questions and answers, auto-grade
+          if (questions.length > 0 && parsedContent.answers) {
+            // Build answers object from parsedContent
+            const answersMap = {};
+            if (Array.isArray(parsedContent.answers)) {
+              parsedContent.answers.forEach(ans => {
+                answersMap[ans.questionId] = ans.studentAnswer;
+              });
+            } else {
+              Object.assign(answersMap, parsedContent.answers);
+            }
+            
+            autoGradingResult = autoGradeObjectiveQuestions(questions, answersMap);
           }
         }
       } catch (e) {
@@ -209,7 +276,7 @@ export async function GET(request) {
   }
 }
 
-// POST - Grade a submission (with auto-grading for objective questions)
+// POST - Grade a submission with VERIFICATION
 export async function POST(request) {
   try {
     const user = await getCurrentUser();
@@ -231,7 +298,7 @@ export async function POST(request) {
       );
     }
 
-    // Fetch submission with assignment details
+    // Fetch submission with full details
     const submission = await prisma.assignmentSubmission.findUnique({
       where: { id: submissionId },
       include: {
@@ -240,7 +307,16 @@ export async function POST(request) {
             teacherId: true,
             maxScore: true,
             assignmentType: true,
-            description: true
+            attachments: true,
+            subjectId: true
+          }
+        },
+        student: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            schoolId: true
           }
         }
       }
@@ -273,21 +349,42 @@ export async function POST(request) {
       console.error('Error parsing submission content:', e);
     }
 
+    // Get questions from assignment
+    let questions = [];
+    if (submission.assignment.attachments && submission.assignment.attachments.length > 0) {
+      const testConfig = JSON.parse(submission.assignment.attachments[0]);
+      questions = testConfig.questions || [];
+    }
+
     // Auto-grade objective questions if enabled
-    if (autoGrade && parsedContent?.questions && parsedContent?.answers) {
-      const autoGradingResult = autoGradeObjectiveQuestions(
-        parsedContent.questions,
-        parsedContent.answers
-      );
+    if (autoGrade && parsedContent && questions.length > 0) {
+      // Build answers map
+      const answersMap = {};
+      if (Array.isArray(parsedContent.answers)) {
+        parsedContent.answers.forEach(ans => {
+          answersMap[ans.questionId] = ans.studentAnswer;
+        });
+      } else if (parsedContent.answers) {
+        Object.assign(answersMap, parsedContent.answers);
+      }
+      
+      const autoGradingResult = autoGradeObjectiveQuestions(questions, answersMap);
       
       totalScore += autoGradingResult.totalObjectiveScore;
       gradingDetails.objectiveGrading = autoGradingResult;
+      
+      console.log('[Grading] Auto-grade result:', {
+        submissionId,
+        objectiveScore: autoGradingResult.totalObjectiveScore,
+        maxObjectiveScore: autoGradingResult.maxObjectiveScore
+      });
     }
 
     // Add theory score if provided
     if (theoryScore !== undefined && theoryScore !== null) {
-      totalScore += parseInt(theoryScore);
-      gradingDetails.theoryScore = parseInt(theoryScore);
+      const theoryScoreNum = parseInt(theoryScore);
+      totalScore += theoryScoreNum;
+      gradingDetails.theoryScore = theoryScoreNum;
     }
 
     // Validate total score
@@ -299,6 +396,13 @@ export async function POST(request) {
       );
     }
 
+    // Calculate percentage and grade
+    const percentage = (totalScore / maxScore) * 100;
+    const gradeLetter = percentage >= 90 ? 'A' :
+                       percentage >= 80 ? 'B' :
+                       percentage >= 70 ? 'C' :
+                       percentage >= 60 ? 'D' : 'F';
+
     // Update submission
     const updatedSubmission = await prisma.assignmentSubmission.update({
       where: { id: submissionId },
@@ -308,26 +412,69 @@ export async function POST(request) {
         status: 'graded',
         gradedAt: new Date(),
         gradedBy: user.id,
-        // Store grading details as JSON in content or a separate field
         content: JSON.stringify({
           ...parsedContent,
           gradingDetails: gradingDetails
         })
-      },
-      include: {
-        student: {
-          select: {
-            firstName: true,
-            lastName: true,
-            email: true
-          }
-        },
-        assignment: {
-          select: {
-            title: true
-          }
-        }
       }
+    });
+
+    // Create or update grade record
+    await prisma.grade.upsert({
+      where: {
+        studentId_subjectId_assessmentName_termName: {
+          studentId: submission.student.id,
+          subjectId: submission.assignment.subjectId,
+          assessmentName: `Assignment: ${submission.assignment.id}`,
+          termName: 'Current Term'
+        }
+      },
+      update: {
+        score: totalScore,
+        maxScore: maxScore,
+        percentage: percentage,
+        grade: gradeLetter,
+        assessmentDate: new Date(),
+        comments: feedback || null
+      },
+      create: {
+        studentId: submission.student.id,
+        subjectId: submission.assignment.subjectId,
+        schoolId: submission.student.schoolId,
+        teacherId: user.id,
+        assessmentType: submission.assignment.assignmentType,
+        assessmentName: `Assignment: ${submission.assignment.id}`,
+        score: totalScore,
+        maxScore: maxScore,
+        percentage: percentage,
+        grade: gradeLetter,
+        termName: 'Current Term',
+        academicYear: new Date().getFullYear().toString(),
+        assessmentDate: new Date(),
+        comments: feedback || null,
+        createdBy: user.id
+      }
+    });
+
+    // Notify student
+    await prisma.notification.create({
+      data: {
+        userId: submission.student.id,
+        schoolId: submission.student.schoolId,
+        title: 'Assignment Graded',
+        content: `Your assignment has been graded. Score: ${totalScore}/${maxScore} (${Math.round(percentage)}%)`,
+        type: 'success',
+        actionUrl: `/protected/students/assignments/${submission.assignmentId}/result`,
+        actionText: 'View Result'
+      }
+    });
+
+    console.log('[Grading Complete]', {
+      submissionId,
+      totalScore,
+      maxScore,
+      percentage: percentage.toFixed(2),
+      grade: gradeLetter
     });
 
     return NextResponse.json({
@@ -336,7 +483,8 @@ export async function POST(request) {
         submission: updatedSubmission,
         totalScore: totalScore,
         maxScore: maxScore,
-        percentage: ((totalScore / maxScore) * 100).toFixed(2),
+        percentage: percentage.toFixed(2),
+        grade: gradeLetter,
         gradingDetails: gradingDetails,
         message: 'Grade submitted successfully'
       }
@@ -351,7 +499,7 @@ export async function POST(request) {
   }
 }
 
-// PUT - Auto-grade all objective questions in a submission
+// PUT - Auto-grade objective questions with verification
 export async function PUT(request) {
   try {
     const user = await getCurrentUser();
@@ -366,14 +514,14 @@ export async function PUT(request) {
     const body = await request.json();
     const { submissionId } = body;
 
-    // Fetch submission
     const submission = await prisma.assignmentSubmission.findUnique({
       where: { id: submissionId },
       include: {
         assignment: {
           select: {
             teacherId: true,
-            maxScore: true
+            maxScore: true,
+            attachments: true
           }
         }
       }
@@ -386,12 +534,19 @@ export async function PUT(request) {
       );
     }
 
-    // Parse and auto-grade
+    // Parse content and questions
     let parsedContent = null;
+    let questions = [];
+    
     try {
       parsedContent = typeof submission.content === 'string' 
         ? JSON.parse(submission.content) 
         : submission.content;
+        
+      if (submission.assignment.attachments && submission.assignment.attachments.length > 0) {
+        const testConfig = JSON.parse(submission.assignment.attachments[0]);
+        questions = testConfig.questions || [];
+      }
     } catch (e) {
       return NextResponse.json(
         { success: false, error: 'Invalid submission content format' },
@@ -399,17 +554,24 @@ export async function PUT(request) {
       );
     }
 
-    if (!parsedContent?.questions || !parsedContent?.answers) {
+    if (questions.length === 0 || !parsedContent?.answers) {
       return NextResponse.json(
-        { success: false, error: 'No questions found in submission' },
+        { success: false, error: 'No questions or answers found in submission' },
         { status: 400 }
       );
     }
 
-    const autoGradingResult = autoGradeObjectiveQuestions(
-      parsedContent.questions,
-      parsedContent.answers
-    );
+    // Build answers map
+    const answersMap = {};
+    if (Array.isArray(parsedContent.answers)) {
+      parsedContent.answers.forEach(ans => {
+        answersMap[ans.questionId] = ans.studentAnswer;
+      });
+    } else {
+      Object.assign(answersMap, parsedContent.answers);
+    }
+
+    const autoGradingResult = autoGradeObjectiveQuestions(questions, answersMap);
 
     return NextResponse.json({
       success: true,
