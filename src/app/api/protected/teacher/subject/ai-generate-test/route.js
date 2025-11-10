@@ -13,9 +13,7 @@ export async function GET(request) {
       include: {
         teacherSubjects: {
           include: {
-            subject: {
-              where: { schoolId: user.schoolId }
-            }
+            subject: true
           }
         }
       }
@@ -28,7 +26,11 @@ export async function GET(request) {
       }, { status: 404 });
     }
 
-    const validSubjects = teacherProfile.teacherSubjects.filter(ts => ts.subject !== null);
+    // Filter subjects by schoolId after fetching
+    const validSubjects = teacherProfile.teacherSubjects.filter(
+      ts => ts.subject !== null && ts.subject.schoolId === user.schoolId
+    );
+    
     const classes = [...new Set(validSubjects.flatMap(ts => ts.classes))];
 
     return NextResponse.json({

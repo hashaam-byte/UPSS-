@@ -194,10 +194,10 @@ const ImprovedSubjectTeacherLayout = ({ children }) => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      {/* Sidebar */}
-      <div className={`bg-white shadow-xl transition-all duration-300 fixed h-full z-30 ${
+       {/* Sidebar */}
+      <div className={`bg-white shadow-xl transition-all duration-300 fixed inset-y-0 left-0 z-30 flex flex-col ${
         sidebarOpen ? 'w-64' : 'w-20'
-      } lg:relative`}>
+      } lg:relative lg:inset-auto`}>
         {/* Header */}
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between">
