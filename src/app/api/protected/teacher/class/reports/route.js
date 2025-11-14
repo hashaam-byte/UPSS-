@@ -2,68 +2,26 @@
 import { requireAuth } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { cookies } from 'next/headers';
-import jwt from 'jsonwebtoken';
-
-// Helper function to verify class teacher access
-async function verifyClassTeacherAccess(token) {
-  if (!token) {
-    throw new Error('Unauthorized');
-  }
-
-  const decoded = jwt.verify(token, process.env.JWT_SECRET);
-  const user = await prisma.user.findUnique({
-    where: { id: decoded.userId },
-    include: { 
-      teacherProfile: {
-        include: {
-          teacherSubjects: {
-            include: {
-              subject: true
-            }
-          }
-        }
-      }, 
-      school: true 
-    }
-  });
-
-  if (!user || user.role !== 'teacher' || user.teacherProfile?.department !== 'class_teacher') {
-    throw new Error('Access denied');
-  }
-
-  return user;
-}
 
 // GET - Fetch available reports and report data
 export async function GET(request) {
   try {
-    await requireAuth(['class_teacher']);
-
-    const cookieStore = await cookies();
-    const token = cookieStore.get('auth_token')?.value;
-    
-    const classTeacher = await verifyClassTeacherAccess(token);
+    const user = await requireAuth(['class_teacher']);
     const { searchParams } = new URL(request.url);
     const reportType = searchParams.get('type');
     const format = searchParams.get('format') || 'json';
     const period = searchParams.get('period') || 'current_term';
     const studentId = searchParams.get('studentId');
 
-    // Get assigned classes
-    const assignedClass = classTeacher.teacherProfile?.coordinatorClass;
-    let classNames = [];
+    // Get teacher profile and assigned classes
+    const teacherProfile = await prisma.teacherProfile.findUnique({
+      where: { userId: user.id },
+      include: { teacherSubjects: true }
+    });
     
-    if (assignedClass) {
-      classNames = [assignedClass];
-    } else {
-      const teacherSubjects = classTeacher.teacherProfile?.teacherSubjects || [];
-      classNames = [...new Set(
-        teacherSubjects.flatMap(ts => ts.classes)
-      )];
-    }
+    const assignedClasses = teacherProfile.teacherSubjects.flatMap(ts => ts.classes);
 
-    if (classNames.length === 0) {
+    if (assignedClasses.length === 0) {
       return NextResponse.json({
         success: true,
         data: {
@@ -117,11 +75,11 @@ export async function GET(request) {
         success: true,
         data: {
           availableReports,
-          assignedClasses: classNames,
+          assignedClasses: assignedClasses,
           teacherInfo: {
-            id: classTeacher.id,
-            name: `${classTeacher.firstName} ${classTeacher.lastName}`,
-            assignedClasses: classNames
+            id: user.id,
+            name: `${user.firstName} ${user.lastName}`,
+            assignedClasses: assignedClasses
           }
         }
       });
@@ -130,12 +88,12 @@ export async function GET(request) {
     // Get students for the reports
     const students = await prisma.user.findMany({
       where: {
-        schoolId: classTeacher.schoolId,
+        schoolId: user.schoolId,
         role: 'student',
         isActive: true,
         studentProfile: {
           className: {
-            in: classNames
+            in: assignedClasses
           }
         }
       },
@@ -152,7 +110,7 @@ export async function GET(request) {
 
     switch (reportType) {
       case 'class_performance':
-        reportData = await generateClassPerformanceReport(students, classTeacher, period);
+        reportData = await generateClassPerformanceReport(students, user, period);
         break;
       
       case 'student_progress':
@@ -163,22 +121,22 @@ export async function GET(request) {
               error: 'Student not found in your assigned class'
             }, { status: 404 });
           }
-          reportData = await generateStudentProgressReport(student, classTeacher, period);
+          reportData = await generateStudentProgressReport(student, user, period);
         } else {
-          reportData = await generateAllStudentsProgressReport(students, classTeacher, period);
+          reportData = await generateAllStudentsProgressReport(students, user, period);
         }
         break;
       
       case 'attendance_report':
-        reportData = await generateAttendanceReport(students, classTeacher, period);
+        reportData = await generateAttendanceReport(students, user, period);
         break;
       
       case 'parent_communication':
-        reportData = await generateParentCommunicationReport(students, classTeacher, period);
+        reportData = await generateParentCommunicationReport(students, user, period);
         break;
       
       case 'behavior_incidents':
-        reportData = await generateBehaviorIncidentsReport(students, classTeacher, period);
+        reportData = await generateBehaviorIncidentsReport(students, user, period);
         break;
       
       default:
@@ -189,7 +147,6 @@ export async function GET(request) {
 
     // If format is PDF or Excel, you would generate and return file here
     if (format !== 'json') {
-      // TODO: Implement PDF/Excel generation
       return NextResponse.json({
         error: 'PDF/Excel export not yet implemented'
       }, { status: 501 });
@@ -201,39 +158,71 @@ export async function GET(request) {
         reportType,
         generatedAt: new Date(),
         period,
-        assignedClasses: classNames,
+        assignedClasses: assignedClasses,
         ...reportData
       }
     });
 
   } catch (error) {
     console.error('Class teacher reports error:', error);
-    
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// POST - Generate and save custom report
+export async function POST(request) {
+  try {
+    const user = await requireAuth(['class_teacher']);
+    const body = await request.json();
+    const { reportType, parameters = {}, saveReport = false } = body;
+
+    if (!reportType) {
+      return NextResponse.json({
+        error: 'Report type is required'
+      }, { status: 400 });
     }
-    if (error.message === 'Access denied') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+
+    if (saveReport) {
+      const savedReport = await prisma.coordinatorReport.create({
+        data: {
+          coordinatorId: user.id,
+          reportType: `class_teacher_${reportType}`,
+          reportData: { reportType, parameters },
+          parameters: parameters,
+          generatedAt: new Date()
+        }
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: 'Report generated and saved successfully',
+        reportId: savedReport.id
+      });
     }
-    
+
+    return NextResponse.json({
+      success: true,
+      message: 'Report generated successfully'
+    });
+
+  } catch (error) {
+    console.error('Generate report error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
 // Helper functions to generate different types of reports
 async function generateClassPerformanceReport(students, teacher, period) {
-  // TODO: In production, this would query actual grades/assessments tables
   const totalStudents = students.length;
   
   return {
     summary: {
       totalStudents,
       period,
-      className: teacher.teacherProfile?.coordinatorClass,
       teacherName: `${teacher.firstName} ${teacher.lastName}`
     },
     performance: {
-      averageGrade: null, // Calculate from actual grades
+      averageGrade: null,
       topPerformers: [],
       strugglingStudents: [],
       subjectAnalysis: {},
@@ -258,13 +247,13 @@ async function generateStudentProgressReport(student, teacher, period) {
       className: student.studentProfile?.className
     },
     academicProgress: {
-      currentGrade: null, // From grades table
+      currentGrade: null,
       previousGrade: null,
       improvement: null,
       subjectBreakdown: {}
     },
     attendance: {
-      rate: null, // From attendance table
+      rate: null,
       daysPresent: 0,
       totalDays: 0,
       patterns: []
@@ -296,7 +285,6 @@ async function generateAllStudentsProgressReport(students, teacher, period) {
 }
 
 async function generateAttendanceReport(students, teacher, period) {
-  // TODO: Query attendance table
   return {
     summary: {
       totalStudents: students.length,
@@ -321,7 +309,6 @@ async function generateAttendanceReport(students, teacher, period) {
 }
 
 async function generateParentCommunicationReport(students, teacher, period) {
-  // TODO: Query messages and communication logs
   return {
     summary: {
       totalContacts: 0,
@@ -345,7 +332,6 @@ async function generateParentCommunicationReport(students, teacher, period) {
 }
 
 async function generateBehaviorIncidentsReport(students, teacher, period) {
-  // TODO: Query behavioral incidents table
   return {
     summary: {
       totalIncidents: 0,
@@ -361,61 +347,4 @@ async function generateBehaviorIncidentsReport(students, teacher, period) {
     },
     recommendations: []
   };
-}
-
-// POST - Generate and save custom report
-export async function POST(request) {
-  try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get('auth_token')?.value;
-    
-    const classTeacher = await verifyClassTeacherAccess(token);
-    const body = await request.json();
-    const { reportType, parameters = {}, saveReport = false } = body;
-
-    if (!reportType) {
-      return NextResponse.json({
-        error: 'Report type is required'
-      }, { status: 400 });
-    }
-
-    // Generate the report based on type and parameters
-    // This would be similar to the GET logic above
-
-    if (saveReport) {
-      // TODO: Save report to database for later retrieval
-      const savedReport = await prisma.coordinatorReport.create({
-        data: {
-          coordinatorId: classTeacher.id,
-          reportType: `class_teacher_${reportType}`,
-          reportData: { reportType, parameters },
-          parameters: parameters,
-          generatedAt: new Date()
-        }
-      });
-
-      return NextResponse.json({
-        success: true,
-        message: 'Report generated and saved successfully',
-        reportId: savedReport.id
-      });
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: 'Report generated successfully'
-    });
-
-  } catch (error) {
-    console.error('Generate report error:', error);
-    
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (error.message === 'Access denied') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-    
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
 }

@@ -19,7 +19,8 @@ import {
   BookOpen,
   Target,
   MoreVertical,
-  Loader2
+  Loader2,
+  X
 } from 'lucide-react';
 
 const SubjectTeacherAssignments = () => {
@@ -32,10 +33,14 @@ const SubjectTeacherAssignments = () => {
   const [filterStatus, setFilterStatus] = useState('all');
   const [sortBy, setSortBy] = useState('dueDate');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [searchTimeout, setSearchTimeout] = useState(null);
+
+  useEffect(() => {
+    fetchSubjects();
+  }, []);
 
   useEffect(() => {
     fetchAssignments();
-    fetchSubjects();
   }, [filterSubject, filterStatus, sortBy]);
 
   const fetchAssignments = async () => {
@@ -44,15 +49,16 @@ const SubjectTeacherAssignments = () => {
       setError(null);
 
       const params = new URLSearchParams();
-      if (filterSubject !== 'all') params.append('subject', filterSubject);
+      if (filterSubject !== 'all') params.append('subjectId', filterSubject);
       if (filterStatus !== 'all') params.append('status', filterStatus);
-      if (sortBy !== 'dueDate') params.append('sortBy', sortBy);
+      params.append('sortBy', sortBy);
       if (searchTerm) params.append('search', searchTerm);
 
       const response = await fetch(`/api/protected/teacher/subject/assignments?${params.toString()}`);
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch assignments: ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to fetch assignments: ${response.status}`);
       }
 
       const data = await response.json();
@@ -74,11 +80,15 @@ const SubjectTeacherAssignments = () => {
     try {
       const response = await fetch('/api/protected/teacher/subject/subjects');
       
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setSubjects(data.data.teacherSubjects || []);
-        }
+      if (!response.ok) {
+        console.error('Failed to fetch subjects');
+        return;
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        // API returns subjects directly, not nested in data.data
+        setSubjects(data.subjects || []);
       }
     } catch (err) {
       console.error('Fetch subjects error:', err);
@@ -86,12 +96,20 @@ const SubjectTeacherAssignments = () => {
   };
 
   const handleSearch = (e) => {
-    setSearchTerm(e.target.value);
-    // Debounce search
+    const value = e.target.value;
+    setSearchTerm(value);
+    
+    // Clear existing timeout
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+    
+    // Set new timeout for debounced search
     const timeoutId = setTimeout(() => {
       fetchAssignments();
     }, 500);
-    return () => clearTimeout(timeoutId);
+    
+    setSearchTimeout(timeoutId);
   };
 
   const deleteAssignment = async (assignmentId) => {
@@ -100,16 +118,17 @@ const SubjectTeacherAssignments = () => {
     }
 
     try {
-      const response = await fetch(`/api/protected/teacher/subject/assignments?id=${assignmentId}`, {
+      const response = await fetch(`/api/protected/teacher/subject/assignments/${assignmentId}`, {
         method: 'DELETE'
       });
 
       if (!response.ok) {
-        throw new Error('Failed to delete assignment');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete assignment');
       }
 
       alert('Assignment deleted successfully');
-      fetchAssignments(); // Refresh the list
+      fetchAssignments();
     } catch (err) {
       console.error('Delete assignment error:', err);
       alert('Failed to delete assignment: ' + err.message);
@@ -120,22 +139,22 @@ const SubjectTeacherAssignments = () => {
     try {
       const newStatus = currentStatus === 'active' ? 'closed' : 'active';
       
-      const response = await fetch('/api/protected/teacher/subject/assignments', {
-        method: 'PUT',
+      const response = await fetch(`/api/protected/teacher/subject/assignments/${assignmentId}`, {
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          assignmentId,
           status: newStatus
         })
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update assignment');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update assignment');
       }
 
-      fetchAssignments(); // Refresh the list
+      fetchAssignments();
     } catch (err) {
       console.error('Toggle assignment status error:', err);
       alert('Failed to update assignment: ' + err.message);
@@ -162,13 +181,11 @@ const SubjectTeacherAssignments = () => {
     return <FileText className="w-4 h-4" />;
   };
 
-  const filteredAssignments = assignments.filter(assignment => {
-    const matchesSearch = searchTerm === '' || 
-      assignment.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      assignment.subject.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    return matchesSearch;
-  });
+  const getStatusLabel = (status, dueDate) => {
+    const isOverdue = new Date(dueDate) < new Date() && status === 'active';
+    if (isOverdue) return 'Overdue';
+    return status.charAt(0).toUpperCase() + status.slice(1);
+  };
 
   if (loading) {
     return (
@@ -208,12 +225,12 @@ const SubjectTeacherAssignments = () => {
             <div>
               <h1 className="text-3xl font-bold text-gray-900">My Assignments</h1>
               <p className="text-gray-600 mt-1">
-                Manage assignments across your subjects • {filteredAssignments.length} total
+                Manage assignments across your subjects • {assignments.length} total
               </p>
             </div>
             <div className="flex items-center space-x-4">
               <button
-                onClick={() => setShowCreateModal(true)}
+                onClick={() => window.location.href = '/protected/teacher/subject/assignments/create'}
                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
               >
                 <Plus className="w-4 h-4" />
@@ -234,7 +251,7 @@ const SubjectTeacherAssignments = () => {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search assignments..."
+                  placeholder="Search assignments by title..."
                   value={searchTerm}
                   onChange={handleSearch}
                   className="pl-10 pr-4 py-3 w-full border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -251,8 +268,8 @@ const SubjectTeacherAssignments = () => {
               >
                 <option value="all">All Subjects</option>
                 {subjects.map(teacherSubject => (
-                  <option key={teacherSubject.id} value={teacherSubject.subject?.name}>
-                    {teacherSubject.subject?.name}
+                  <option key={teacherSubject.id} value={teacherSubject.subjectId}>
+                    {teacherSubject.subject?.name || 'Unknown Subject'}
                   </option>
                 ))}
               </select>
@@ -281,7 +298,6 @@ const SubjectTeacherAssignments = () => {
               >
                 <option value="dueDate">Sort by Due Date</option>
                 <option value="title">Sort by Title</option>
-                <option value="subject">Sort by Subject</option>
                 <option value="createdAt">Sort by Created Date</option>
               </select>
             </div>
@@ -289,119 +305,144 @@ const SubjectTeacherAssignments = () => {
         </div>
 
         {/* Assignments Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredAssignments.map((assignment) => {
-            const isOverdue = new Date(assignment.dueDate) < new Date() && assignment.status === 'active';
-            
-            return (
-              <div key={assignment.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
-                {/* Assignment Header */}
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 mb-1">{assignment.title}</h3>
-                    <div className="flex items-center space-x-2 text-sm text-gray-600">
-                      <BookOpen className="w-4 h-4" />
-                      <span>{assignment.subject}</span>
+        {assignments.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {assignments.map((assignment) => {
+              const isOverdue = new Date(assignment.dueDate) < new Date() && assignment.status === 'active';
+              const submissionCount = assignment._count?.submissions || 0;
+              const totalStudents = assignment.classes?.length > 0 ? 
+                (assignment._count?.totalStudents || 0) : 0;
+              const submissionPercentage = totalStudents > 0 ? 
+                Math.round((submissionCount / totalStudents) * 100) : 0;
+              
+              return (
+                <div key={assignment.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
+                  {/* Assignment Header */}
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2">{assignment.title}</h3>
+                      <div className="flex items-center space-x-2 text-sm text-gray-600">
+                        <BookOpen className="w-4 h-4" />
+                        <span>{assignment.subject?.name || 'Unknown Subject'}</span>
+                      </div>
                     </div>
                   </div>
-                  <div className="relative">
-                    <button className="p-2 hover:bg-gray-100 rounded-full">
-                      <MoreVertical className="w-4 h-4 text-gray-400" />
+
+                  {/* Assignment Type Badge */}
+                  <div className="mb-3">
+                    <span className="inline-block px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full">
+                      {assignment.assignmentType?.replace('_', ' ').toUpperCase() || 'HOMEWORK'}
+                    </span>
+                  </div>
+
+                  {/* Assignment Details */}
+                  <div className="space-y-3 mb-4">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Due Date:</span>
+                      <span className={`font-medium ${isOverdue ? 'text-red-600' : 'text-gray-900'}`}>
+                        {new Date(assignment.dueDate).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric'
+                        })}
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Submissions:</span>
+                      <span className="font-medium text-gray-900">
+                        {submissionCount}/{totalStudents}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Max Score:</span>
+                      <span className="font-medium text-gray-900">
+                        {assignment.maxScore} points
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Status:</span>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(assignment.status, assignment.dueDate)}`}>
+                        {getStatusIcon(assignment.status, assignment.dueDate)}
+                        <span className="ml-1">
+                          {getStatusLabel(assignment.status, assignment.dueDate)}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Classes */}
+                  {assignment.classes && assignment.classes.length > 0 && (
+                    <div className="mb-4">
+                      <span className="text-xs text-gray-600">Classes: </span>
+                      <span className="text-xs text-gray-900">
+                        {assignment.classes.join(', ')}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Progress Bar */}
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                      <span>Submission Progress</span>
+                      <span>{submissionPercentage}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-blue-600 h-2 rounded-full transition-all"
+                        style={{ width: `${submissionPercentage}%` }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => window.location.href = `/protected/teacher/subject/assignments/${assignment.id}`}
+                      className="flex-1 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium flex items-center justify-center space-x-1"
+                    >
+                      <Eye className="w-4 h-4" />
+                      <span>View</span>
+                    </button>
+                    <button
+                      onClick={() => window.location.href = `/protected/teacher/subject/grading?assignment=${assignment.id}`}
+                      className="flex-1 px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors text-sm font-medium flex items-center justify-center space-x-1"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Grade</span>
+                    </button>
+                  </div>
+
+                  {/* Additional Actions */}
+                  <div className="flex space-x-2 mt-2">
+                    <button
+                      onClick={() => toggleAssignmentStatus(assignment.id, assignment.status)}
+                      className="flex-1 px-3 py-2 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors text-sm font-medium"
+                      disabled={assignment.status === 'draft'}
+                    >
+                      {assignment.status === 'active' ? 'Close' : assignment.status === 'closed' ? 'Reopen' : 'Activate'}
+                    </button>
+                    <button
+                      onClick={() => window.location.href = `/protected/teacher/subject/assignments/${assignment.id}/edit`}
+                      className="px-3 py-2 bg-yellow-50 text-yellow-700 rounded-lg hover:bg-yellow-100 transition-colors text-sm font-medium"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => deleteAssignment(assignment.id)}
+                      className="px-3 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
-
-                {/* Assignment Details */}
-                <div className="space-y-3 mb-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Due Date:</span>
-                    <span className={`font-medium ${isOverdue ? 'text-red-600' : 'text-gray-900'}`}>
-                      {new Date(assignment.dueDate).toLocaleDateString()}
-                    </span>
-                  </div>
-                  
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Submissions:</span>
-                    <span className="font-medium text-gray-900">
-                      {assignment.submissionCount || 0}/{assignment.totalStudents || 0}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Status:</span>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(assignment.status, assignment.dueDate)}`}>
-                      {getStatusIcon(assignment.status, assignment.dueDate)}
-                      <span className="ml-1">
-                        {isOverdue ? 'Overdue' : assignment.status}
-                      </span>
-                    </span>
-                  </div>
-                </div>
-
-                {/* Progress Bar */}
-                <div className="mb-4">
-                  <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
-                    <span>Submission Progress</span>
-                    <span>
-                      {Math.round(((assignment.submissionCount || 0) / (assignment.totalStudents || 1)) * 100)}%
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-blue-600 h-2 rounded-full"
-                      style={{ 
-                        width: `${Math.round(((assignment.submissionCount || 0) / (assignment.totalStudents || 1)) * 100)}%` 
-                      }}
-                    ></div>
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => window.location.href = `/protected/teacher/subject/assignments/${assignment.id}`}
-                    className="flex-1 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium flex items-center justify-center space-x-1"
-                  >
-                    <Eye className="w-4 h-4" />
-                    <span>View</span>
-                  </button>
-                  <button
-                    onClick={() => window.location.href = `/protected/teacher/subject/grading?assignment=${assignment.id}`}
-                    className="flex-1 px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors text-sm font-medium flex items-center justify-center space-x-1"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Grade</span>
-                  </button>
-                </div>
-
-                {/* Additional Actions */}
-                <div className="flex space-x-2 mt-2">
-                  <button
-                    onClick={() => toggleAssignmentStatus(assignment.id, assignment.status)}
-                    className="flex-1 px-3 py-2 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors text-sm font-medium"
-                  >
-                    {assignment.status === 'active' ? 'Close' : 'Reopen'}
-                  </button>
-                  <button
-                    onClick={() => window.location.href = `/protected/teacher/subject/assignments/${assignment.id}/edit`}
-                    className="px-3 py-2 bg-yellow-50 text-yellow-700 rounded-lg hover:bg-yellow-100 transition-colors text-sm font-medium"
-                  >
-                    <Edit className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => deleteAssignment(assignment.id)}
-                    className="px-3 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Empty State */}
-        {filteredAssignments.length === 0 && (
+              );
+            })}
+          </div>
+        ) : (
+          /* Empty State */
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
             <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">No Assignments Found</h3>
@@ -412,7 +453,7 @@ const SubjectTeacherAssignments = () => {
               }
             </p>
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={() => window.location.href = '/protected/teacher/subject/assignments/create'}
               className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2 mx-auto"
             >
               <Plus className="w-5 h-5" />
@@ -421,42 +462,6 @@ const SubjectTeacherAssignments = () => {
           </div>
         )}
       </div>
-
-      {/* Create Assignment Modal - Would be a separate component in production */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-gray-900">Create New Assignment</h2>
-                <button
-                  onClick={() => setShowCreateModal(false)}
-                  className="p-2 hover:bg-gray-100 rounded-full"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-            
-            <div className="p-6">
-              <div className="text-center py-8 text-gray-500">
-                <Upload className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                <p className="mb-4">Assignment creation form would go here</p>
-                <p className="text-sm">This would redirect to /protected/teacher/subject/assignments/create</p>
-                <button
-                  onClick={() => {
-                    setShowCreateModal(false);
-                    window.location.href = '/protected/teacher/subject/assignments/create';
-                  }}
-                  className="mt-4 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                >
-                  Go to Create Page
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

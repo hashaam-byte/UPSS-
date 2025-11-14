@@ -2,61 +2,19 @@
 import { requireAuth } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { cookies } from 'next/headers';
-import jwt from 'jsonwebtoken';
-
-// Helper function to verify class teacher access
-async function verifyClassTeacherAccess(token) {
-  if (!token) {
-    throw new Error('Unauthorized');
-  }
-
-  const decoded = jwt.verify(token, process.env.JWT_SECRET);
-  const user = await prisma.user.findUnique({
-    where: { id: decoded.userId },
-    include: { 
-      teacherProfile: {
-        include: {
-          teacherSubjects: {
-            include: {
-              subject: true
-            }
-          }
-        }
-      }, 
-      school: true 
-    }
-  });
-
-  if (!user || user.role !== 'teacher' || user.teacherProfile?.department !== 'class_teacher') {
-    throw new Error('Access denied');
-  }
-
-  return user;
-}
 
 // GET - Fetch class teacher settings and preferences
 export async function GET(request) {
   try {
-    await requireAuth(['class_teacher']);
+    const user = await requireAuth(['class_teacher']);
 
-    const cookieStore = await cookies();
-    const token = cookieStore.get('auth_token')?.value;
+    // Get teacher profile and assigned classes
+    const teacherProfile = await prisma.teacherProfile.findUnique({
+      where: { userId: user.id },
+      include: { teacherSubjects: true }
+    });
     
-    const classTeacher = await verifyClassTeacherAccess(token);
-
-    // Get assigned classes
-    const assignedClass = classTeacher.teacherProfile?.coordinatorClass;
-    let classNames = [];
-    
-    if (assignedClass) {
-      classNames = [assignedClass];
-    } else {
-      const teacherSubjects = classTeacher.teacherProfile?.teacherSubjects || [];
-      classNames = [...new Set(
-        teacherSubjects.flatMap(ts => ts.classes)
-      )];
-    }
+    const assignedClasses = teacherProfile.teacherSubjects.flatMap(ts => ts.classes);
 
     // Get school settings that affect class teachers
     const schoolSettings = await prisma.systemSetting.findMany({
@@ -68,7 +26,7 @@ export async function GET(request) {
     });
 
     const settings = {
-      // Personal settings (stored in user profile or separate settings table)
+      // Personal settings
       personalSettings: {
         emailNotifications: {
           studentAbsent: true,
@@ -78,15 +36,15 @@ export async function GET(request) {
           behavioralIssues: true
         },
         dashboardPreferences: {
-          defaultView: 'performance', // 'performance', 'attendance', 'messages'
+          defaultView: 'performance',
           studentsPerPage: 20,
           showParentContacts: true,
           autoRefresh: false,
-          refreshInterval: 300 // seconds
+          refreshInterval: 300
         },
         gradingPreferences: {
-          defaultGradingScale: 'percentage', // 'percentage', 'letter', 'points'
-          roundingMethod: 'nearest', // 'up', 'down', 'nearest'
+          defaultGradingScale: 'percentage',
+          roundingMethod: 'nearest',
           showTrends: true,
           highlightConcerns: true
         },
@@ -94,13 +52,13 @@ export async function GET(request) {
           autoReplyEnabled: false,
           autoReplyMessage: '',
           signatureEnabled: true,
-          emailSignature: `Best regards,\n${classTeacher.firstName} ${classTeacher.lastName}\nClass Teacher`,
+          emailSignature: `Best regards,\n${user.firstName} ${user.lastName}\nClass Teacher`,
           allowParentDirectContact: true,
-          parentMeetingSlots: [] // Available time slots for parent meetings
+          parentMeetingSlots: []
         }
       },
       
-      // School-wide settings that affect class teachers
+      // School-wide settings
       schoolSettings: schoolSettings.reduce((acc, setting) => {
         acc[setting.key] = {
           value: setting.value,
@@ -113,12 +71,12 @@ export async function GET(request) {
       
       // Class-specific settings
       classSettings: {
-        assignedClasses: classNames,
-        primaryClass: assignedClass || (classNames.length > 0 ? classNames[0] : null),
+        assignedClasses: assignedClasses,
+        primaryClass: assignedClasses.length > 0 ? assignedClasses[0] : null,
         classroomManagement: {
           attendanceTrackingEnabled: true,
           behaviorTrackingEnabled: true,
-          parentProgressReports: 'weekly', // 'daily', 'weekly', 'monthly'
+          parentProgressReports: 'weekly',
           performanceAlerts: {
             failingGradeThreshold: 60,
             attendanceThreshold: 85,
@@ -127,7 +85,7 @@ export async function GET(request) {
         }
       },
 
-      // Available options for dropdowns and selections
+      // Available options
       availableOptions: {
         gradingScales: ['percentage', 'letter', 'points'],
         reportFrequencies: ['daily', 'weekly', 'monthly'],
@@ -136,12 +94,12 @@ export async function GET(request) {
       },
 
       teacherInfo: {
-        id: classTeacher.id,
-        name: `${classTeacher.firstName} ${classTeacher.lastName}`,
-        email: classTeacher.email,
-        employeeId: classTeacher.teacherProfile?.employeeId,
-        department: classTeacher.teacherProfile?.department,
-        joiningDate: classTeacher.teacherProfile?.joiningDate
+        id: user.id,
+        name: `${user.firstName} ${user.lastName}`,
+        email: user.email,
+        employeeId: teacherProfile?.employeeId,
+        department: teacherProfile?.department,
+        joiningDate: teacherProfile?.joiningDate
       }
     };
 
@@ -152,14 +110,6 @@ export async function GET(request) {
 
   } catch (error) {
     console.error('Class teacher settings GET error:', error);
-    
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (error.message === 'Access denied') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-    
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -167,17 +117,13 @@ export async function GET(request) {
 // PUT - Update class teacher settings
 export async function PUT(request) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get('auth_token')?.value;
-    
-    const classTeacher = await verifyClassTeacherAccess(token);
+    const user = await requireAuth(['class_teacher']);
     const body = await request.json();
     const { settingType, settingKey, value, settings } = body;
 
     // Handle bulk settings update
     if (settings && typeof settings === 'object') {
-      // TODO: In production, you'd store these in a user_settings table
-      // For now, we'll simulate the update
+      // TODO: In production, store these in a user_settings table
       
       return NextResponse.json({
         success: true,
@@ -213,11 +159,10 @@ export async function PUT(request) {
     }
 
     // TODO: In production, implement actual setting storage
-    // For now, simulate the update
     const updateResult = {
       settingType,
       settingKey,
-      oldValue: null, // Would be fetched from database
+      oldValue: null,
       newValue: value,
       updatedAt: new Date()
     };
@@ -230,14 +175,6 @@ export async function PUT(request) {
 
   } catch (error) {
     console.error('Class teacher settings PUT error:', error);
-    
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (error.message === 'Access denied') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-    
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -245,15 +182,11 @@ export async function PUT(request) {
 // POST - Reset settings to default
 export async function POST(request) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get('auth_token')?.value;
-    
-    const classTeacher = await verifyClassTeacherAccess(token);
+    const user = await requireAuth(['class_teacher']);
     const body = await request.json();
-    const { resetType = 'all' } = body; // 'all', 'personal', 'class', 'communication'
+    const { resetType = 'all' } = body;
 
     // TODO: In production, implement actual reset functionality
-    // This would clear user-specific settings and restore defaults
 
     const resetResult = {
       resetType,
@@ -301,14 +234,6 @@ export async function POST(request) {
 
   } catch (error) {
     console.error('Class teacher settings reset error:', error);
-    
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (error.message === 'Access denied') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-    
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

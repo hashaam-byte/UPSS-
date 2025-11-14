@@ -2,68 +2,38 @@
 import { requireAuth } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { cookies } from 'next/headers';
-import jwt from 'jsonwebtoken';
 
-// Helper function to verify class teacher access
-async function verifyClassTeacherAccess(token) {
-  if (!token) {
-    throw new Error('Unauthorized');
+// Helper function to determine current term
+function getCurrentTerm(date) {
+  const month = date.getMonth() + 1;
+  
+  if (month >= 9 && month <= 12) {
+    return 'First Term';
+  } else if (month >= 1 && month <= 4) {
+    return 'Second Term';
+  } else {
+    return 'Third Term';
   }
-
-  const decoded = jwt.verify(token, process.env.JWT_SECRET);
-  const user = await prisma.user.findUnique({
-    where: { id: decoded.userId },
-    include: { 
-      teacherProfile: {
-        include: {
-          teacherSubjects: {
-            include: {
-              subject: true
-            }
-          }
-        }
-      }, 
-      school: true 
-    }
-  });
-
-  if (!user || user.role !== 'teacher' || user.teacherProfile?.department !== 'class_teacher') {
-    throw new Error('Access denied');
-  }
-
-  return user;
 }
 
 export async function GET(request) {
   try {
-    await requireAuth(['class_teacher']);
-
-    const cookieStore = await cookies();
-    const token = cookieStore.get('auth_token')?.value;
-    
-    const classTeacher = await verifyClassTeacherAccess(token);
+    const user = await requireAuth(['class_teacher']);
     const { searchParams } = new URL(request.url);
     const subject = searchParams.get('subject');
     const performance = searchParams.get('performance');
     const sortBy = searchParams.get('sortBy') || 'overall';
     const search = searchParams.get('search') || '';
 
-    // Get assigned classes
-    const assignedClass = classTeacher.teacherProfile?.coordinatorClass;
-    let classNames = [];
+    // Get teacher profile and assigned classes
+    const teacherProfile = await prisma.teacherProfile.findUnique({
+      where: { userId: user.id },
+      include: { teacherSubjects: true }
+    });
     
-    if (assignedClass) {
-      classNames = [assignedClass];
-    } else {
-      // If no coordinator class, get classes from teacher subjects
-      const teacherSubjects = classTeacher.teacherProfile?.teacherSubjects || [];
-      classNames = [...new Set(
-        teacherSubjects.flatMap(ts => ts.classes)
-      )];
-    }
+    const assignedClasses = teacherProfile.teacherSubjects.flatMap(ts => ts.classes);
 
-    if (classNames.length === 0) {
+    if (assignedClasses.length === 0) {
       return NextResponse.json({
         success: true,
         data: {
@@ -81,12 +51,12 @@ export async function GET(request) {
 
     // Build where conditions for students
     let whereConditions = {
-      schoolId: classTeacher.schoolId,
+      schoolId: user.schoolId,
       role: 'student',
       isActive: true,
       studentProfile: {
         className: {
-          in: classNames
+          in: assignedClasses
         }
       }
     };
@@ -128,8 +98,8 @@ export async function GET(request) {
         const grades = await prisma.grade.findMany({
           where: {
             studentId: student.id,
-            schoolId: classTeacher.schoolId,
-            term: currentTerm,
+            schoolId: user.schoolId,
+            termName: currentTerm,
             academicYear: academicYear
           },
           include: {
@@ -139,7 +109,7 @@ export async function GET(request) {
 
         // Calculate overall average
         const overallAverage = grades.length > 0 
-          ? grades.reduce((sum, grade) => sum + grade.percentage, 0) / grades.length
+          ? grades.reduce((sum, grade) => sum + Number(grade.percentage), 0) / grades.length
           : 0;
 
         // Get attendance data for current term (last 30 days)
@@ -149,7 +119,7 @@ export async function GET(request) {
         const attendanceRecords = await prisma.attendance.findMany({
           where: {
             studentId: student.id,
-            schoolId: classTeacher.schoolId,
+            schoolId: user.schoolId,
             date: {
               gte: thirtyDaysAgo
             }
@@ -165,7 +135,7 @@ export async function GET(request) {
         // Get assignment completion data
         const assignments = await prisma.assignment.findMany({
           where: {
-            schoolId: classTeacher.schoolId,
+            schoolId: user.schoolId,
             classes: {
               hasSome: [student.studentProfile?.className].filter(Boolean)
             },
@@ -200,7 +170,7 @@ export async function GET(request) {
             if (!subjectGrades[subjectName]) {
               subjectGrades[subjectName] = [];
             }
-            subjectGrades[subjectName].push(grade.percentage);
+            subjectGrades[subjectName].push(Number(grade.percentage));
           });
 
           Object.entries(subjectGrades).forEach(([subjectName, scores]) => {
@@ -217,7 +187,7 @@ export async function GET(request) {
         const alerts = await prisma.studentAlert.findMany({
           where: {
             studentId: student.id,
-            schoolId: classTeacher.schoolId,
+            schoolId: user.schoolId,
             status: 'active'
           },
           orderBy: {
@@ -226,7 +196,7 @@ export async function GET(request) {
           take: 5
         });
 
-        // Determine performance trend (simplified - would need more historical data)
+        // Determine performance trend
         const trend = overallAverage >= 70 ? 'stable' : 
                      overallAverage >= 50 ? 'stable' : 'declining';
 
@@ -327,9 +297,9 @@ export async function GET(request) {
           averageAttendance: Number(overview.averageAttendance.toFixed(1))
         },
         teacherInfo: {
-          id: classTeacher.id,
-          name: `${classTeacher.firstName} ${classTeacher.lastName}`,
-          assignedClasses: classNames
+          id: user.id,
+          name: `${user.firstName} ${user.lastName}`,
+          assignedClasses: assignedClasses
         },
         metadata: {
           totalStudents: studentsWithPerformance.length,
@@ -342,27 +312,6 @@ export async function GET(request) {
 
   } catch (error) {
     console.error('Class teacher performance GET error:', error);
-    
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (error.message === 'Access denied') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-    
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
-
-// Helper function to determine current term
-function getCurrentTerm(date) {
-  const month = date.getMonth() + 1; // 0-based to 1-based
-  
-  if (month >= 9 && month <= 12) {
-    return 'First Term';
-  } else if (month >= 1 && month <= 4) {
-    return 'Second Term';
-  } else {
-    return 'Third Term';
   }
 }

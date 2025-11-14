@@ -2,62 +2,20 @@
 import { requireAuth } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { cookies } from 'next/headers';
-import jwt from 'jsonwebtoken';
-
-// Helper function to verify class teacher access
-async function verifyClassTeacherAccess(token) {
-  if (!token) {
-    throw new Error('Unauthorized');
-  }
-
-  const decoded = jwt.verify(token, process.env.JWT_SECRET);
-  const user = await prisma.user.findUnique({
-    where: { id: decoded.userId },
-    include: { 
-      teacherProfile: {
-        include: {
-          teacherSubjects: {
-            include: {
-              subject: true
-            }
-          }
-        }
-      }, 
-      school: true 
-    }
-  });
-
-  if (!user || user.role !== 'teacher' || user.teacherProfile?.department !== 'class_teacher') {
-    throw new Error('Access denied');
-  }
-
-  return user;
-}
 
 export async function GET(request) {
   try {
-    await requireAuth(['class_teacher']);
+    const user = await requireAuth(['class_teacher']);
 
-    const cookieStore = await cookies();
-    const token = cookieStore.get('auth_token')?.value;
+    // Get teacher profile and assigned classes
+    const teacherProfile = await prisma.teacherProfile.findUnique({
+      where: { userId: user.id },
+      include: { teacherSubjects: true }
+    });
     
-    const classTeacher = await verifyClassTeacherAccess(token);
+    const assignedClasses = teacherProfile.teacherSubjects.flatMap(ts => ts.classes);
 
-    // Get assigned classes
-    const assignedClass = classTeacher.teacherProfile?.coordinatorClass;
-    let classNames = [];
-    
-    if (assignedClass) {
-      classNames = [assignedClass];
-    } else {
-      const teacherSubjects = classTeacher.teacherProfile?.teacherSubjects || [];
-      classNames = [...new Set(
-        teacherSubjects.flatMap(ts => ts.classes)
-      )];
-    }
-
-    if (classNames.length === 0) {
+    if (assignedClasses.length === 0) {
       return NextResponse.json({
         success: true,
         data: {
@@ -70,10 +28,10 @@ export async function GET(request) {
     // Get all subjects taught in the assigned classes
     const subjects = await prisma.subject.findMany({
       where: {
-        schoolId: classTeacher.schoolId,
+        schoolId: user.schoolId,
         isActive: true,
         classes: {
-          hasSome: classNames
+          hasSome: assignedClasses
         }
       },
       include: {
@@ -93,7 +51,7 @@ export async function GET(request) {
           },
           where: {
             classes: {
-              hasSome: classNames
+              hasSome: assignedClasses
             }
           }
         }
@@ -109,12 +67,12 @@ export async function GET(request) {
       name: subject.name,
       code: subject.code,
       category: subject.category,
-      classes: subject.classes.filter(className => classNames.includes(className)),
+      classes: subject.classes.filter(className => assignedClasses.includes(className)),
       teachers: subject.teachers.map(teacherSubject => ({
         id: teacherSubject.teacher.user.id,
         name: `${teacherSubject.teacher.user.firstName} ${teacherSubject.teacher.user.lastName}`,
         email: teacherSubject.teacher.user.email,
-        classes: teacherSubject.classes.filter(className => classNames.includes(className))
+        classes: teacherSubject.classes.filter(className => assignedClasses.includes(className))
       })),
       isActive: subject.isActive,
       createdAt: subject.createdAt,
@@ -128,26 +86,18 @@ export async function GET(request) {
         summary: {
           totalSubjects: formattedSubjects.length,
           subjectsByCategory: getSubjectsByCategory(formattedSubjects),
-          assignedClasses: classNames
+          assignedClasses: assignedClasses
         },
         teacherInfo: {
-          id: classTeacher.id,
-          name: `${classTeacher.firstName} ${classTeacher.lastName}`,
-          assignedClasses: classNames
+          id: user.id,
+          name: `${user.firstName} ${user.lastName}`,
+          assignedClasses: assignedClasses
         }
       }
     });
 
   } catch (error) {
     console.error('Class teacher subjects GET error:', error);
-    
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (error.message === 'Access denied') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-    
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

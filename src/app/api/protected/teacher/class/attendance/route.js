@@ -2,47 +2,10 @@
 import { requireAuth } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { cookies } from 'next/headers';
-import jwt from 'jsonwebtoken';
-
-// Helper function to verify class teacher access
-async function verifyClassTeacherAccess(token) {
-  if (!token) {
-    throw new Error('Unauthorized');
-  }
-
-  const decoded = jwt.verify(token, process.env.JWT_SECRET);
-  const user = await prisma.user.findUnique({
-    where: { id: decoded.userId },
-    include: { 
-      teacherProfile: {
-        include: {
-          teacherSubjects: {
-            include: {
-              subject: true
-            }
-          }
-        }
-      }, 
-      school: true 
-    }
-  });
-
-  if (!user || user.role !== 'teacher' || user.teacherProfile?.department !== 'class_teacher') {
-    throw new Error('Access denied');
-  }
-
-  return user;
-}
 
 export async function GET(request) {
   try {
-    await requireAuth(['class_teacher']);
-
-    const cookieStore = await cookies();
-    const token = cookieStore.get('auth_token')?.value;
-    
-    const classTeacher = await verifyClassTeacherAccess(token);
+    const user = await requireAuth(['class_teacher']);
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date') || new Date().toISOString().split('T')[0];
     const period = searchParams.get('period') || 'all';
@@ -50,20 +13,15 @@ export async function GET(request) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
 
-    // Get assigned classes
-    const assignedClass = classTeacher.teacherProfile?.coordinatorClass;
-    let classNames = [];
+    // Get teacher profile and assigned classes
+    const teacherProfile = await prisma.teacherProfile.findUnique({
+      where: { userId: user.id },
+      include: { teacherSubjects: true }
+    });
     
-    if (assignedClass) {
-      classNames = [assignedClass];
-    } else {
-      const teacherSubjects = classTeacher.teacherProfile?.teacherSubjects || [];
-      classNames = [...new Set(
-        teacherSubjects.flatMap(ts => ts.classes)
-      )];
-    }
+    const assignedClasses = teacherProfile.teacherSubjects.flatMap(ts => ts.classes);
 
-    if (classNames.length === 0) {
+    if (assignedClasses.length === 0) {
       return NextResponse.json({
         success: true,
         data: {
@@ -78,12 +36,12 @@ export async function GET(request) {
     // Get students in assigned classes
     const students = await prisma.user.findMany({
       where: {
-        schoolId: classTeacher.schoolId,
+        schoolId: user.schoolId,
         role: 'student',
         isActive: true,
         studentProfile: {
           className: {
-            in: classNames
+            in: assignedClasses
           }
         },
         ...(studentId && { id: studentId })
@@ -98,19 +56,16 @@ export async function GET(request) {
     });
 
     // TODO: In production, this would query an actual attendance table
-    // For now, generate mock attendance data based on the structure
+    // For now, generate mock attendance data
     const mockAttendanceData = students.map(student => {
-      // Generate attendance for the requested date(s)
       const attendanceRecords = [];
       
       if (startDate && endDate) {
-        // Generate range of dates
         const start = new Date(startDate);
         const end = new Date(endDate);
         const currentDate = new Date(start);
         
         while (currentDate <= end) {
-          // Skip weekends
           if (currentDate.getDay() !== 0 && currentDate.getDay() !== 6) {
             const status = Math.random() > 0.15 ? 'present' : 
                          Math.random() > 0.7 ? 'late' : 'absent';
@@ -122,14 +77,13 @@ export async function GET(request) {
               arrivalTime: status === 'present' ? '08:00' : 
                           status === 'late' ? '08:15' : null,
               notes: status === 'absent' ? 'No reason provided' : null,
-              markedBy: classTeacher.id,
+              markedBy: user.id,
               markedAt: new Date()
             });
           }
           currentDate.setDate(currentDate.getDate() + 1);
         }
       } else {
-        // Single date attendance
         const status = Math.random() > 0.15 ? 'present' : 
                       Math.random() > 0.7 ? 'late' : 'absent';
         
@@ -140,7 +94,7 @@ export async function GET(request) {
           arrivalTime: status === 'present' ? '08:00' : 
                       status === 'late' ? '08:15' : null,
           notes: status === 'absent' ? 'No reason provided' : null,
-          markedBy: classTeacher.id,
+          markedBy: user.id,
           markedAt: new Date()
         });
       }
@@ -198,27 +152,19 @@ export async function GET(request) {
       data: {
         date: date,
         period: period,
-        assignedClasses: classNames,
+        assignedClasses: assignedClasses,
         attendance: mockAttendanceData,
         summary: summary,
         teacherInfo: {
-          id: classTeacher.id,
-          name: `${classTeacher.firstName} ${classTeacher.lastName}`,
-          assignedClasses: classNames
+          id: user.id,
+          name: `${user.firstName} ${user.lastName}`,
+          assignedClasses: assignedClasses
         }
       }
     });
 
   } catch (error) {
     console.error('Class teacher attendance GET error:', error);
-    
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (error.message === 'Access denied') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-    
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -226,10 +172,7 @@ export async function GET(request) {
 // POST - Mark attendance for students
 export async function POST(request) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get('auth_token')?.value;
-    
-    const classTeacher = await verifyClassTeacherAccess(token);
+    const user = await requireAuth(['class_teacher']);
     const body = await request.json();
     const { date, attendanceRecords, period = 'morning' } = body;
 
@@ -247,20 +190,15 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
-    // Get assigned classes for validation
-    const assignedClass = classTeacher.teacherProfile?.coordinatorClass;
-    let classNames = [];
+    // Get teacher profile and assigned classes
+    const teacherProfile = await prisma.teacherProfile.findUnique({
+      where: { userId: user.id },
+      include: { teacherSubjects: true }
+    });
     
-    if (assignedClass) {
-      classNames = [assignedClass];
-    } else {
-      const teacherSubjects = classTeacher.teacherProfile?.teacherSubjects || [];
-      classNames = [...new Set(
-        teacherSubjects.flatMap(ts => ts.classes)
-      )];
-    }
+    const assignedClasses = teacherProfile.teacherSubjects.flatMap(ts => ts.classes);
 
-    if (classNames.length === 0) {
+    if (assignedClasses.length === 0) {
       return NextResponse.json({
         error: 'No class assigned to this class teacher'
       }, { status: 403 });
@@ -297,12 +235,12 @@ export async function POST(request) {
         const student = await prisma.user.findFirst({
           where: {
             id: studentId,
-            schoolId: classTeacher.schoolId,
+            schoolId: user.schoolId,
             role: 'student',
             isActive: true,
             studentProfile: {
               className: {
-                in: classNames
+                in: assignedClasses
               }
             }
           },
@@ -319,36 +257,7 @@ export async function POST(request) {
           continue;
         }
 
-        // TODO: In production, save to actual attendance table:
-        /*
-        const attendanceEntry = await prisma.attendance.upsert({
-          where: {
-            studentId_date_period: {
-              studentId: studentId,
-              date: attendanceDate,
-              period: period
-            }
-          },
-          update: {
-            status: status,
-            arrivalTime: arrivalTime || null,
-            notes: notes || null,
-            markedBy: classTeacher.id,
-            updatedAt: new Date()
-          },
-          create: {
-            studentId: studentId,
-            schoolId: classTeacher.schoolId,
-            date: attendanceDate,
-            period: period,
-            status: status,
-            arrivalTime: arrivalTime || null,
-            notes: notes || null,
-            markedBy: classTeacher.id
-          }
-        });
-        */
-
+        // TODO: In production, save to actual attendance table
         results.successful.push({
           studentId: studentId,
           studentName: `${student.firstName} ${student.lastName}`,
@@ -356,35 +265,6 @@ export async function POST(request) {
           arrivalTime: arrivalTime || null,
           notes: notes || null
         });
-
-        // Create notification for chronic absenteeism
-        if (status === 'absent') {
-          // TODO: Check for consecutive absences and create alert
-          /*
-          const recentAbsences = await prisma.attendance.count({
-            where: {
-              studentId: studentId,
-              status: 'absent',
-              date: {
-                gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // Last 7 days
-              }
-            }
-          });
-
-          if (recentAbsences >= 3) {
-            await prisma.notification.create({
-              data: {
-                userId: studentId,
-                schoolId: classTeacher.schoolId,
-                title: 'Attendance Alert',
-                content: `Student has been absent for ${recentAbsences} days in the past week`,
-                type: 'warning',
-                priority: 'high'
-              }
-            });
-          }
-          */
-        }
 
       } catch (error) {
         results.failed.push({
@@ -408,14 +288,6 @@ export async function POST(request) {
 
   } catch (error) {
     console.error('Mark attendance error:', error);
-    
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (error.message === 'Access denied') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-    
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -423,10 +295,7 @@ export async function POST(request) {
 // PUT - Update existing attendance record
 export async function PUT(request) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get('auth_token')?.value;
-    
-    const classTeacher = await verifyClassTeacherAccess(token);
+    const user = await requireAuth(['class_teacher']);
     const body = await request.json();
     const { studentId, date, status, arrivalTime, notes, reason } = body;
 
@@ -443,28 +312,24 @@ export async function PUT(request) {
       }, { status: 400 });
     }
 
-    // Verify student belongs to teacher's class
-    const assignedClass = classTeacher.teacherProfile?.coordinatorClass;
-    let classNames = [];
+    // Get teacher profile and assigned classes
+    const teacherProfile = await prisma.teacherProfile.findUnique({
+      where: { userId: user.id },
+      include: { teacherSubjects: true }
+    });
     
-    if (assignedClass) {
-      classNames = [assignedClass];
-    } else {
-      const teacherSubjects = classTeacher.teacherProfile?.teacherSubjects || [];
-      classNames = [...new Set(
-        teacherSubjects.flatMap(ts => ts.classes)
-      )];
-    }
+    const assignedClasses = teacherProfile.teacherSubjects.flatMap(ts => ts.classes);
 
+    // Verify student belongs to teacher's class
     const student = await prisma.user.findFirst({
       where: {
         id: studentId,
-        schoolId: classTeacher.schoolId,
+        schoolId: user.schoolId,
         role: 'student',
         isActive: true,
         studentProfile: {
           className: {
-            in: classNames
+            in: assignedClasses
           }
         }
       }
@@ -476,25 +341,7 @@ export async function PUT(request) {
       }, { status: 404 });
     }
 
-    // TODO: In production, update actual attendance record:
-    /*
-    const updatedAttendance = await prisma.attendance.update({
-      where: {
-        studentId_date: {
-          studentId: studentId,
-          date: new Date(date)
-        }
-      },
-      data: {
-        status: status,
-        arrivalTime: arrivalTime || null,
-        notes: notes || null,
-        reason: reason || null,
-        markedBy: classTeacher.id,
-        updatedAt: new Date()
-      }
-    });
-    */
+    // TODO: In production, update actual attendance record
 
     return NextResponse.json({
       success: true,
@@ -512,14 +359,6 @@ export async function PUT(request) {
 
   } catch (error) {
     console.error('Update attendance error:', error);
-    
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (error.message === 'Access denied') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-    
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

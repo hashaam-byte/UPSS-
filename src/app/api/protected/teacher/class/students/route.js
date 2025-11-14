@@ -5,44 +5,10 @@ import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
 import jwt from 'jsonwebtoken';
 
-// Helper function to verify class teacher access
-async function verifyClassTeacherAccess(token) {
-  if (!token) {
-    throw new Error('Unauthorized');
-  }
-
-  const decoded = jwt.verify(token, process.env.JWT_SECRET);
-  const user = await prisma.user.findUnique({
-    where: { id: decoded.userId },
-    include: { 
-      teacherProfile: {
-        include: {
-          teacherSubjects: {
-            include: {
-              subject: true
-            }
-          }
-        }
-      }, 
-      school: true 
-    }
-  });
-
-  if (!user || user.role !== 'teacher' || user.teacherProfile?.department !== 'class_teacher') {
-    throw new Error('Access denied');
-  }
-
-  return user;
-}
-
 export async function GET(request) {
   try {
-    await requireAuth(['class_teacher']);
-
-    const cookieStore = await cookies();
-    const token = cookieStore.get('auth_token')?.value;
+    const user = await requireAuth(['class_teacher']);
     
-    const classTeacher = await verifyClassTeacherAccess(token);
     const { searchParams } = new URL(request.url);
     const className = searchParams.get('className');
     const sortBy = searchParams.get('sortBy') || 'firstName';
@@ -50,21 +16,15 @@ export async function GET(request) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '50');
 
-    // Get assigned classes
-    const assignedClass = classTeacher.teacherProfile?.coordinatorClass;
-    let classNames = [];
+    // Get teacher profile and assigned classes - SAME AS DASHBOARD
+    const teacherProfile = await prisma.teacherProfile.findUnique({
+      where: { userId: user.id },
+      include: { teacherSubjects: true }
+    });
     
-    if (assignedClass) {
-      classNames = [assignedClass];
-    } else {
-      // If no coordinator class, get classes from teacher subjects
-      const teacherSubjects = classTeacher.teacherProfile?.teacherSubjects || [];
-      classNames = [...new Set(
-        teacherSubjects.flatMap(ts => ts.classes)
-      )];
-    }
-
-    if (classNames.length === 0) {
+    const assignedClasses = teacherProfile.teacherSubjects.flatMap(ts => ts.classes);
+    
+    if (assignedClasses.length === 0) {
       return NextResponse.json({
         success: true,
         data: {
@@ -81,14 +41,16 @@ export async function GET(request) {
       });
     }
 
+    const classNames = assignedClasses;
+
     // Build where conditions
     let whereConditions = {
-      schoolId: classTeacher.schoolId,
+      schoolId: user.schoolId, // FIXED: Use `user.schoolId` instead of `classTeacher.schoolId`
       role: 'student',
       isActive: true,
       studentProfile: {
         className: {
-          in: className ? [className] : classNames
+          in: className ? [className] : assignedClasses
         }
       }
     };
@@ -159,23 +121,6 @@ export async function GET(request) {
         parentEmail: student.studentProfile.parentEmail,
         admissionDate: student.studentProfile.admissionDate
       } : null,
-      // Note: In production, performance data would be calculated from actual tables
-      performance: {
-        overallAverage: null, // Would be calculated from grades table
-        trend: 'stable',
-        attendance: {
-          rate: null, // Would be calculated from attendance table
-          daysPresent: 0,
-          totalDays: 0
-        },
-        assignments: {
-          total: 0,
-          submitted: 0,
-          pending: 0,
-          submissionRate: 0
-        }
-      },
-      alerts: [], // Would come from alerts/flags table
       lastUpdated: student.updatedAt
     }));
 
@@ -187,10 +132,19 @@ export async function GET(request) {
     };
 
     // Group students by class
-    classNames.forEach(className => {
-      const classStudents = students.filter(s => s.studentProfile?.className === className);
-      classStats.byClass[className] = classStudents.length;
-    });
+    for (const className of classNames) {
+      const classStudentCount = await prisma.user.count({
+        where: {
+          schoolId: user.schoolId, // FIXED: Use `user.schoolId` instead of `classTeacher.schoolId`
+          role: 'student',
+          isActive: true,
+          studentProfile: {
+            className: className
+          }
+        }
+      });
+      classStats.byClass[className] = classStudentCount;
+    }
 
     return NextResponse.json({
       success: true,
@@ -205,9 +159,9 @@ export async function GET(request) {
           pages: Math.ceil(totalStudents / limit)
         },
         teacherInfo: {
-          id: classTeacher.id,
-          name: `${classTeacher.firstName} ${classTeacher.lastName}`,
-          employeeId: classTeacher.teacherProfile?.employeeId,
+          id: user.id, // FIXED: Use `user.id` instead of `classTeacher.id`
+          name: `${user.firstName} ${user.lastName}`, // FIXED: Use `user.firstName` and `user.lastName`
+          employeeId: teacherProfile?.employeeId,
           assignedClasses: classNames
         }
       }
@@ -219,11 +173,17 @@ export async function GET(request) {
     if (error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    if (error.message === 'Not a class teacher/coordinator') {
+      return NextResponse.json({ error: 'Access denied: Not a class coordinator' }, { status: 403 });
+    }
     if (error.message === 'Access denied') {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
     
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    }, { status: 500 });
   }
 }
 
@@ -243,23 +203,15 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
-    // Verify student belongs to teacher's class
-    const assignedClass = classTeacher.teacherProfile?.coordinatorClass;
-    let classNames = [];
-    
-    if (assignedClass) {
-      classNames = [assignedClass];
-    } else {
-      const teacherSubjects = classTeacher.teacherProfile?.teacherSubjects || [];
-      classNames = [...new Set(
-        teacherSubjects.flatMap(ts => ts.classes)
-      )];
-    }
+    // Get assigned class names
+    const coordinatorClasses = classTeacher.teacherProfile?.teacherClassCoordinators || [];
+    const classNames = coordinatorClasses.map(cc => cc.class.name);
 
+    // Verify student belongs to teacher's class
     const student = await prisma.user.findFirst({
       where: {
         id: studentId,
-        schoolId: classTeacher.schoolId,
+        schoolId: user.schoolId, // FIXED: Use `user.schoolId` instead of `classTeacher.schoolId`
         role: 'student',
         isActive: true,
         studentProfile: {
@@ -283,7 +235,7 @@ export async function POST(request) {
     await prisma.notification.create({
       data: {
         userId: studentId,
-        schoolId: classTeacher.schoolId,
+        schoolId: user.schoolId, // FIXED: Use `user.schoolId` instead of `classTeacher.schoolId`
         title: `Class Teacher Alert: ${alertType}`,
         content: message,
         type: priority === 'high' ? 'warning' : 'info',
@@ -291,11 +243,6 @@ export async function POST(request) {
         isRead: false
       }
     });
-
-    // TODO: In production, you might also:
-    // - Create entry in student_alerts table
-    // - Send email/SMS to parent if notifyParent is true
-    // - Log in audit trail
 
     return NextResponse.json({
       success: true,
@@ -313,6 +260,9 @@ export async function POST(request) {
     
     if (error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (error.message === 'Not a class teacher/coordinator') {
+      return NextResponse.json({ error: 'Access denied: Not a class coordinator' }, { status: 403 });
     }
     if (error.message === 'Access denied') {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });

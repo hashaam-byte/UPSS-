@@ -1,4 +1,4 @@
-// src/app/api/protected/admin/users/route.js - FIXED VERSION
+// src/app/api/protected/admin/users/route.js - COMBINED VERSION
 import { requireAuth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
@@ -133,7 +133,8 @@ export async function POST(request) {
       gender,
       teacherType,
       coordinatorClasses = [],
-      classTeacherArms = []
+      classTeacherClass,  // Single class level (e.g., "SS1")
+      classTeacherArm     // Single arm (e.g., "Silver")
     } = body;
 
     // Validate required fields
@@ -174,33 +175,44 @@ export async function POST(request) {
       );
     }
 
-    // Validate coordinator/class teacher requirements
+    // Validate teacher-specific requirements
     if (role === 'teacher') {
-      // Valid class levels
       const validClasses = ['JSS1', 'JSS2', 'JSS3', 'SS1', 'SS2', 'SS3'];
       
-      if (teacherType === 'coordinator' && coordinatorClasses.length === 0) {
-        return NextResponse.json(
-          { error: 'Coordinators must be assigned to at least one class' },
-          { status: 400 }
-        );
-      }
-      
-      if (teacherType === 'class_teacher' && classTeacherArms.length === 0) {
-        return NextResponse.json(
-          { error: 'Class teachers must be assigned to at least one class arm' },
-          { status: 400 }
-        );
-      }
-      
-      // Validate coordinator classes are valid
-      if (teacherType === 'coordinator' && coordinatorClasses.length > 0) {
+      // Validate coordinator requirements
+      if (teacherType === 'coordinator') {
+        if (coordinatorClasses.length === 0) {
+          return NextResponse.json(
+            { error: 'Coordinators must be assigned to at least one class' },
+            { status: 400 }
+          );
+        }
+        
+        // Validate coordinator classes are valid
         const normalizedClasses = coordinatorClasses.map(c => c.toUpperCase());
         const invalidClasses = normalizedClasses.filter(cn => !validClasses.includes(cn));
         
         if (invalidClasses.length > 0) {
           return NextResponse.json(
             { error: `Invalid classes: ${invalidClasses.join(', ')}. Valid classes are: ${validClasses.join(', ')}` },
+            { status: 400 }
+          );
+        }
+      }
+      
+      // Validate class teacher requirements
+      if (teacherType === 'class_teacher') {
+        if (!classTeacherClass || !classTeacherArm) {
+          return NextResponse.json(
+            { error: 'Class teachers must be assigned to a specific class and arm' },
+            { status: 400 }
+          );
+        }
+        
+        // Validate class level
+        if (!validClasses.includes(classTeacherClass.toUpperCase())) {
+          return NextResponse.json(
+            { error: `Invalid class. Valid classes are: ${validClasses.join(', ')}` },
             { status: 400 }
           );
         }
@@ -327,68 +339,67 @@ export async function POST(request) {
           });
         }
 
-        // Handle class teacher arms
-        if (teacherType === 'class_teacher' && classTeacherArms.length > 0) {
-          console.log('Setting up class teacher arms:', classTeacherArms);
+        // Handle class teacher assignment (NEW IMPROVED LOGIC)
+        if (teacherType === 'class_teacher' && classTeacherClass && classTeacherArm) {
+          console.log('Setting up class teacher assignment:', classTeacherClass, classTeacherArm);
           
-          // Process each arm
-          for (const arm of classTeacherArms) {
-            // Normalize arm name
-            const normalizedArm = arm.toUpperCase().trim();
-            // Create unique code with school suffix
-            const subjectCode = `CLASS_${normalizedArm.replace(/\s+/g, '_')}_${targetSchoolId.slice(-8)}`;
-            
-            // Try to find existing class management subject
-            let subject = await tx.subject.findFirst({
-              where: {
+          const normalizedClass = classTeacherClass.toUpperCase();
+          const normalizedArm = classTeacherArm.charAt(0).toUpperCase() + classTeacherArm.slice(1).toLowerCase();
+          const fullClassName = `${normalizedClass} ${normalizedArm}`; // e.g., "SS1 Silver"
+          
+          // Create unique code for this specific class
+          const subjectCode = `CLASS_${normalizedClass}_${normalizedArm.toUpperCase()}_${targetSchoolId.slice(-8)}`;
+          
+          // Try to find existing class management subject
+          let subject = await tx.subject.findFirst({
+            where: {
+              code: subjectCode,
+              schoolId: targetSchoolId
+            }
+          });
+
+          if (!subject) {
+            // Create new subject
+            subject = await tx.subject.create({
+              data: {
+                name: `${fullClassName} Class Management`,
                 code: subjectCode,
-                schoolId: targetSchoolId
+                category: 'CORE',
+                classes: [fullClassName],
+                schoolId: targetSchoolId,
+                isActive: true
               }
             });
-
-            if (!subject) {
-              // Create new subject
-              subject = await tx.subject.create({
-                data: {
-                  name: `${normalizedArm} Class Management`,
-                  code: subjectCode,
-                  category: 'CORE',
-                  classes: [normalizedArm],
-                  schoolId: targetSchoolId,
-                  isActive: true
+          } else {
+            // Update existing subject to include this class if not already included
+            const existingClasses = subject.classes || [];
+            if (!existingClasses.includes(fullClassName)) {
+              subject = await tx.subject.update({
+                where: { id: subject.id },
+                data: { 
+                  classes: [...existingClasses, fullClassName]
                 }
               });
-            } else {
-              // Update existing subject to include this class if not already included
-              const existingClasses = subject.classes || [];
-              if (!existingClasses.includes(normalizedArm)) {
-                subject = await tx.subject.update({
-                  where: { id: subject.id },
-                  data: { 
-                    classes: [...existingClasses, normalizedArm]
-                  }
-                });
-              }
             }
+          }
 
-            // Check if teacher-subject assignment already exists
-            const existingAssignment = await tx.teacherSubject.findFirst({
-              where: {
+          // Check if teacher-subject assignment already exists
+          const existingAssignment = await tx.teacherSubject.findFirst({
+            where: {
+              teacherId: teacherProfile.id,
+              subjectId: subject.id
+            }
+          });
+
+          if (!existingAssignment) {
+            // Create teacher-subject assignment
+            await tx.teacherSubject.create({
+              data: {
                 teacherId: teacherProfile.id,
-                subjectId: subject.id
+                subjectId: subject.id,
+                classes: [fullClassName]
               }
             });
-
-            if (!existingAssignment) {
-              // Create teacher-subject assignment
-              await tx.teacherSubject.create({
-                data: {
-                  teacherId: teacherProfile.id,
-                  subjectId: subject.id,
-                  classes: [normalizedArm]
-                }
-              });
-            }
           }
         }
       } else if (role === 'admin') {

@@ -2,47 +2,11 @@
 import { requireAuth } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { cookies } from 'next/headers';
-import jwt from 'jsonwebtoken';
-
-// Helper function to verify class teacher access
-async function verifyClassTeacherAccess(token) {
-  if (!token) {
-    throw new Error('Unauthorized');
-  }
-
-  const decoded = jwt.verify(token, process.env.JWT_SECRET);
-  const user = await prisma.user.findUnique({
-    where: { id: decoded.userId },
-    include: { 
-      teacherProfile: {
-        include: {
-          teacherSubjects: {
-            include: {
-              subject: true
-            }
-          }
-        }
-      }, 
-      school: true 
-    }
-  });
-
-  if (!user || user.role !== 'teacher' || user.teacherProfile?.department !== 'class_teacher') {
-    throw new Error('Access denied');
-  }
-
-  return user;
-}
 
 // GET - Fetch notifications for class teacher
 export async function GET(request) {
   try {
-    await requireAuth(['class_teacher']);
-    const cookieStore = await cookies();
-    const token = cookieStore.get('auth_token')?.value;
-    
-    const classTeacher = await verifyClassTeacherAccess(token);
+    const user = await requireAuth(['class_teacher']);
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || 'all';
     const isRead = searchParams.get('read');
@@ -52,8 +16,8 @@ export async function GET(request) {
 
     // Build where conditions
     let whereConditions = {
-      userId: classTeacher.id,
-      schoolId: classTeacher.schoolId
+      userId: user.id,
+      schoolId: user.schoolId
     };
 
     if (type !== 'all') {
@@ -87,8 +51,8 @@ export async function GET(request) {
     const unreadCounts = await prisma.notification.groupBy({
       by: ['type'],
       where: {
-        userId: classTeacher.id,
-        schoolId: classTeacher.schoolId,
+        userId: user.id,
+        schoolId: user.schoolId,
         isRead: false
       },
       _count: {
@@ -101,18 +65,13 @@ export async function GET(request) {
       return acc;
     }, {});
 
-    // Get assigned classes for context
-    const assignedClass = classTeacher.teacherProfile?.coordinatorClass;
-    let classNames = [];
+    // Get teacher profile and assigned classes
+    const teacherProfile = await prisma.teacherProfile.findUnique({
+      where: { userId: user.id },
+      include: { teacherSubjects: true }
+    });
     
-    if (assignedClass) {
-      classNames = [assignedClass];
-    } else {
-      const teacherSubjects = classTeacher.teacherProfile?.teacherSubjects || [];
-      classNames = [...new Set(
-        teacherSubjects.flatMap(ts => ts.classes)
-      )];
-    }
+    const assignedClasses = teacherProfile.teacherSubjects.flatMap(ts => ts.classes);
 
     return NextResponse.json({
       success: true,
@@ -147,31 +106,23 @@ export async function GET(request) {
           },
           highPriorityUnread: await prisma.notification.count({
             where: {
-              userId: classTeacher.id,
-              schoolId: classTeacher.schoolId,
+              userId: user.id,
+              schoolId: user.schoolId,
               isRead: false,
               priority: 'high'
             }
           })
         },
-        assignedClasses: classNames,
+        assignedClasses: assignedClasses,
         teacherInfo: {
-          id: classTeacher.id,
-          name: `${classTeacher.firstName} ${classTeacher.lastName}`
+          id: user.id,
+          name: `${user.firstName} ${user.lastName}`
         }
       }
     });
 
   } catch (error) {
     console.error('Class teacher notifications GET error:', error);
-    
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (error.message === 'Access denied') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-    
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -179,10 +130,7 @@ export async function GET(request) {
 // POST - Create notification (for student alerts, etc.)
 export async function POST(request) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get('auth_token')?.value;
-    
-    const classTeacher = await verifyClassTeacherAccess(token);
+    const user = await requireAuth(['class_teacher']);
     const body = await request.json();
     const { targetUserId, title, content, type = 'info', priority = 'normal', actionUrl, actionText } = body;
 
@@ -192,36 +140,29 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
-    // Verify target user (student) belongs to teacher's class
-    const assignedClass = classTeacher.teacherProfile?.coordinatorClass;
-    let classNames = [];
+    // Get teacher profile and assigned classes
+    const teacherProfile = await prisma.teacherProfile.findUnique({
+      where: { userId: user.id },
+      include: { teacherSubjects: true }
+    });
     
-    if (assignedClass) {
-      classNames = [assignedClass];
-    } else {
-      const teacherSubjects = classTeacher.teacherProfile?.teacherSubjects || [];
-      classNames = [...new Set(
-        teacherSubjects.flatMap(ts => ts.classes)
-      )];
-    }
+    const assignedClasses = teacherProfile.teacherSubjects.flatMap(ts => ts.classes);
 
+    // Verify target user (student) belongs to teacher's class
     const targetUser = await prisma.user.findFirst({
       where: {
         id: targetUserId,
-        schoolId: classTeacher.schoolId,
+        schoolId: user.schoolId,
         OR: [
-          // Can notify students in their class
           {
             role: 'student',
             studentProfile: {
               className: {
-                in: classNames
+                in: assignedClasses
               }
             }
           },
-          // Can notify school admins
           { role: 'admin' },
-          // Can notify head admin
           { role: 'headadmin' }
         ]
       }
@@ -237,7 +178,7 @@ export async function POST(request) {
     const notification = await prisma.notification.create({
       data: {
         userId: targetUserId,
-        schoolId: classTeacher.schoolId,
+        schoolId: user.schoolId,
         title: title,
         content: content,
         type: type,
@@ -264,14 +205,6 @@ export async function POST(request) {
 
   } catch (error) {
     console.error('Create notification error:', error);
-    
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (error.message === 'Access denied') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-    
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -279,10 +212,7 @@ export async function POST(request) {
 // PATCH - Update notification (mark as read/unread)
 export async function PATCH(request) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get('auth_token')?.value;
-    
-    const classTeacher = await verifyClassTeacherAccess(token);
+    const user = await requireAuth(['class_teacher']);
     const body = await request.json();
     const { notificationId, notificationIds, action } = body;
 
@@ -294,8 +224,8 @@ export async function PATCH(request) {
 
     let updateData = {};
     let whereCondition = {
-      schoolId: classTeacher.schoolId,
-      userId: classTeacher.id
+      schoolId: user.schoolId,
+      userId: user.id
     };
 
     // Handle bulk operations
@@ -324,8 +254,8 @@ export async function PATCH(request) {
         break;
       case 'mark_all_read':
         whereCondition = {
-          schoolId: classTeacher.schoolId,
-          userId: classTeacher.id,
+          schoolId: user.schoolId,
+          userId: user.id,
           isRead: false
         };
         updateData = {
@@ -355,14 +285,6 @@ export async function PATCH(request) {
 
   } catch (error) {
     console.error('Update notifications error:', error);
-    
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (error.message === 'Access denied') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-    
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -370,17 +292,14 @@ export async function PATCH(request) {
 // DELETE - Delete notifications
 export async function DELETE(request) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get('auth_token')?.value;
-    
-    const classTeacher = await verifyClassTeacherAccess(token);
+    const user = await requireAuth(['class_teacher']);
     const { searchParams } = new URL(request.url);
     const notificationId = searchParams.get('id');
     const deleteType = searchParams.get('type') || 'single';
 
     let whereCondition = {
-      schoolId: classTeacher.schoolId,
-      userId: classTeacher.id
+      schoolId: user.schoolId,
+      userId: user.id
     };
 
     if (deleteType === 'single' && notificationId) {
@@ -410,14 +329,6 @@ export async function DELETE(request) {
 
   } catch (error) {
     console.error('Delete notifications error:', error);
-    
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (error.message === 'Access denied') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-    
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

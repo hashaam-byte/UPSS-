@@ -49,7 +49,9 @@ const UserEditPage = () => {
     isActive: true,
     role: 'student',
     teacherType: '',
-    coordinatorClasses: []
+    coordinatorClasses: [],
+    classTeacherClass: '',  // NEW
+    classTeacherArm: ''     // NEW
   });
 
   const [passwordData, setPasswordData] = useState({
@@ -58,8 +60,9 @@ const UserEditPage = () => {
   });
 
   const [showPasswordSection, setShowPasswordSection] = useState(false);
-
-  const classLevels = ['JS1', 'JS2', 'JS3', 'SS1', 'SS2', 'SS3'];
+  const [availableClasses] = useState(['JSS1', 'JSS2', 'JSS3', 'SS1', 'SS2', 'SS3']);
+  const [availableArms, setAvailableArms] = useState([]); // NEW: Add availableArms state
+  const [loadingArms, setLoadingArms] = useState(false);  // NEW: Add loading state for arms
 
   useEffect(() => {
     if (userId) {
@@ -80,11 +83,25 @@ const UserEditPage = () => {
         
         setUser(userData);
         
-        // Get coordinator classes
+        // Extract coordinator classes and class teacher assignment
         let coordinatorClasses = [];
-        if (userData.role === 'teacher' && userData.teacherProfile?.department === 'coordinator') {
-          coordinatorClasses = userData.teacherProfile?.teacherSubjects?.flatMap(ts => ts.classes) || [];
-          coordinatorClasses = [...new Set(coordinatorClasses)];
+        let classTeacherClass = '';
+        let classTeacherArm = '';
+        
+        if (userData.role === 'teacher' && userData.teacherProfile) {
+          const dept = userData.teacherProfile.department;
+          
+          if (dept === 'coordinator') {
+            coordinatorClasses = userData.teacherProfile?.teacherSubjects?.flatMap(ts => ts.classes) || [];
+            coordinatorClasses = [...new Set(coordinatorClasses)];
+          } else if (dept === 'class_teacher') {
+            const classes = userData.teacherProfile?.teacherSubjects?.flatMap(ts => ts.classes) || [];
+            if (classes.length > 0) {
+              const [cls, arm] = classes[0].split(' ');
+              classTeacherClass = cls || '';
+              classTeacherArm = arm || '';
+            }
+          }
         }
 
         setFormData({
@@ -100,7 +117,9 @@ const UserEditPage = () => {
           isActive: userData.isActive,
           role: userData.role,
           teacherType: userData.teacherProfile?.department || '',
-          coordinatorClasses
+          coordinatorClasses,
+          classTeacherClass,
+          classTeacherArm
         });
       } else {
         const errorData = await response.json();
@@ -266,6 +285,34 @@ const UserEditPage = () => {
     }
     return 'from-blue-500 to-cyan-500';
   };
+
+  // Fetch available arms when needed
+  const fetchAvailableArms = async () => {
+    try {
+      setLoadingArms(true);
+      const response = await fetch('/api/protected/admin/school/arms');
+      const data = await response.json();
+
+      if (response.ok) {
+        setAvailableArms(data.arms || []);
+      } else {
+        console.error('Failed to fetch arms:', data.error);
+        setAvailableArms(['Silver', 'Diamond', 'Gold']); // Default fallback
+      }
+    } catch (error) {
+      console.error('Error fetching arms:', error);
+      setAvailableArms(['Silver', 'Diamond', 'Gold']); // Default fallback
+    } finally {
+      setLoadingArms(false);
+    }
+  };
+
+  // Trigger fetchAvailableArms when classTeacherClass changes
+  useEffect(() => {
+    if (formData.classTeacherClass) {
+      fetchAvailableArms();
+    }
+  }, [formData.classTeacherClass]);
 
   if (loading) {
     return (
@@ -571,7 +618,7 @@ const UserEditPage = () => {
                         Coordinator Classes (Select classes this coordinator will manage)
                       </label>
                       <div className="grid grid-cols-3 gap-3 p-4 bg-blue-50 rounded-xl border border-blue-200">
-                        {classLevels.map(className => (
+                        {availableClasses.map(className => (
                           <label key={className} className="flex items-center space-x-2 cursor-pointer">
                             <input
                               type="checkbox"
@@ -588,6 +635,97 @@ const UserEditPage = () => {
                           <p className="text-sm text-green-700 font-medium">
                             Selected: {formData.coordinatorClasses.join(', ')}
                           </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Class Teacher Assignment */}
+                  {formData.role === 'teacher' && formData.teacherType === 'class_teacher' && (
+                    <div className="mt-6 space-y-4">
+                      <label className="block text-sm font-bold text-gray-700 mb-3">
+                        Class Teacher Assignment * <span className="text-red-600">(Required)</span>
+                      </label>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        {/* Class Selection */}
+                        <div>
+                          <label className="block text-xs font-bold text-gray-600 mb-2">Class Level</label>
+                          <select
+                            value={formData.classTeacherClass}
+                            onChange={(e) => setFormData(prev => ({ ...prev, classTeacherClass: e.target.value }))}
+                            className={`w-full px-4 py-3 bg-white/70 border-2 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent ${
+                              !formData.classTeacherClass ? 'border-yellow-300' : 'border-green-300'
+                            }`}
+                          >
+                            <option value="">Select class...</option>
+                            {availableClasses.map(cls => (
+                              <option key={cls} value={cls}>{cls}</option>
+                            ))}
+                          </select>
+                          {!formData.classTeacherClass && (
+                            <p className="text-xs text-yellow-600 mt-1">⚠️ Class level required</p>
+                          )}
+                        </div>
+
+                        {/* Arm Selection */}
+                        <div>
+                          <label className="block text-xs font-bold text-gray-600 mb-2">Arm</label>
+                          {loadingArms ? (
+                            <div className="flex items-center justify-center h-12 bg-green-50 rounded-xl">
+                              <Loader2 className="w-4 h-4 animate-spin text-green-600" />
+                            </div>
+                          ) : (
+                            <select
+                              value={formData.classTeacherArm}
+                              onChange={(e) => setFormData(prev => ({ ...prev, classTeacherArm: e.target.value }))}
+                              className={`w-full px-4 py-3 bg-white/70 border-2 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent ${
+                                !formData.classTeacherClass ? 'opacity-50 cursor-not-allowed border-gray-300' :
+                                !formData.classTeacherArm ? 'border-yellow-300' : 'border-green-300'
+                              }`}
+                              disabled={!formData.classTeacherClass}
+                            >
+                              <option value="">Select arm...</option>
+                              {availableArms.map(arm => (
+                                <option key={arm} value={arm}>{arm}</option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Current Assignment Display */}
+                      {formData.classTeacherClass && formData.classTeacherArm ? (
+                        <div className="p-6 bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl border-2 border-green-300 shadow-lg">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <CheckCircle className="w-5 h-5 text-green-600" />
+                                <p className="text-xs font-bold text-green-600">Currently Assigned To:</p>
+                              </div>
+                              <p className="text-3xl font-black text-green-900 mb-2">
+                                {formData.classTeacherClass} {formData.classTeacherArm}
+                              </p>
+                              <p className="text-xs text-green-700">
+                                Managing all students in {formData.classTeacherClass} {formData.classTeacherArm} class
+                              </p>
+                            </div>
+                            <div className="w-16 h-16 bg-green-600 rounded-2xl flex items-center justify-center shadow-xl">
+                              <BookOpen className="w-8 h-8 text-white" />
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-4 bg-yellow-50 rounded-xl border-2 border-yellow-300">
+                          <div className="flex items-start gap-3">
+                            <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-sm text-yellow-900 font-bold">Assignment Required</p>
+                              <p className="text-xs text-yellow-700 mt-1">
+                                This class teacher must be assigned to a specific class and arm
+                              </p>
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>

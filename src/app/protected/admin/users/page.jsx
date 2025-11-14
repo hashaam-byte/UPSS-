@@ -49,6 +49,7 @@ const AdminUsersPage = () => {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [availableArms, setAvailableArms] = useState([]);
+  const [availableClasses, setAvailableClasses] = useState(['JSS1', 'JSS2', 'JSS3', 'SS1', 'SS2', 'SS3']);
   const [loadingArms, setLoadingArms] = useState(false);
   
   // CSV Import States
@@ -78,7 +79,9 @@ const AdminUsersPage = () => {
     gender: '',
     teacherType: '',
     coordinatorClasses: [],
-    classTeacherArms: []
+    classTeacherArms: [],
+    classTeacherClass: '',  // NEW: Single class selection
+    classTeacherArm: ''     // NEW: Single arm selection
   });
 
   useEffect(() => {
@@ -225,32 +228,44 @@ const AdminUsersPage = () => {
   const handleCreateUser = async (e) => {
     e.preventDefault();
     
+    // Clear previous errors
+    setError('');
+    
+    // Validate class teacher assignment
+    if (createForm.role === 'teacher' && createForm.teacherType === 'class_teacher') {
+      if (!createForm.classTeacherClass || !createForm.classTeacherArm) {
+        setError(`Please select both a class (${createForm.classTeacherClass || 'not selected'}) and an arm (${createForm.classTeacherArm || 'not selected'}) for the class teacher`);
+        return;
+      }
+    }
+    
+    // Validate coordinator
     if (createForm.teacherType === 'coordinator' && createForm.coordinatorClasses.length === 0) {
       setError('Please select at least one class for the coordinator to manage');
-      return;
-    }
-
-    if (createForm.teacherType === 'class_teacher' && createForm.classTeacherArms.length === 0) {
-      setError('Please select at least one class arm for the class teacher');
       return;
     }
     
     try {
       setIsLoading(true);
+      
+      // Prepare data - ensure we're sending the right fields
+      const userData = {
+        ...createForm,
+        ...(createForm.teacherType === 'class_teacher' && {
+          classTeacherClass: createForm.classTeacherClass.trim(),
+          classTeacherArm: createForm.classTeacherArm.trim()
+        }),
+        ...(createForm.teacherType === 'coordinator' && {
+          coordinatorClasses: createForm.coordinatorClasses
+        })
+      };
+      
       const response = await fetch('/api/protected/admin/users', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          ...createForm,
-          ...(createForm.teacherType === 'coordinator' && {
-            coordinatorClasses: createForm.coordinatorClasses
-          }),
-          ...(createForm.teacherType === 'class_teacher' && {
-            classTeacherArms: createForm.classTeacherArms
-          })
-        })
+        body: JSON.stringify(userData)
       });
 
       const data = await response.json();
@@ -271,7 +286,9 @@ const AdminUsersPage = () => {
           gender: '',
           teacherType: '',
           coordinatorClasses: [],
-          classTeacherArms: []
+          classTeacherArms: [],
+          classTeacherClass: '',  // NEW: Single class selection
+          classTeacherArm: ''     // NEW: Single arm selection
         });
         fetchUsers();
       } else {
@@ -981,7 +998,9 @@ const AdminUsersPage = () => {
                         role: e.target.value, 
                         teacherType: '', 
                         coordinatorClasses: [],
-                        classTeacherArms: []
+                        classTeacherArms: [],
+                        classTeacherClass: '',  // NEW: Reset single class selection
+                        classTeacherArm: ''     // NEW: Reset single arm selection
                       }))}
                       className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
                       required
@@ -1003,7 +1022,9 @@ const AdminUsersPage = () => {
                           ...prev, 
                           teacherType: e.target.value, 
                           coordinatorClasses: [],
-                          classTeacherArms: []
+                          classTeacherArms: [],
+                          classTeacherClass: '',  // NEW: Reset single class selection
+                          classTeacherArm: ''     // NEW: Reset single arm selection
                         }))}
                         className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
                         required
@@ -1049,35 +1070,96 @@ const AdminUsersPage = () => {
 
                 {/* Class Teacher Arms Selection */}
                 {createForm.role === 'teacher' && createForm.teacherType === 'class_teacher' && (
-                  <div>
+                  <div className="space-y-4">
                     <label className="block text-sm font-black text-gray-700 mb-3 uppercase tracking-wider">
-                      Class Teacher Arms *
+                      Assign Class Teacher To * <span className="text-red-600">(Required)</span>
                     </label>
-                    {loadingArms ? (
-                      <div className="flex items-center justify-center p-4 bg-green-50 rounded-xl border border-green-200">
-                        <Loader2 className="w-5 h-5 animate-spin text-green-600 mr-2" />
-                        <span className="text-green-700 font-medium">Loading available arms...</span>
+                    
+                    {/* Class Selection */}
+                    <div>
+                      <label className="block text-xs font-bold text-gray-600 mb-2">
+                        Step 1: Select Class Level
+                      </label>
+                      <select
+                        value={createForm.classTeacherClass}
+                        onChange={(e) => setCreateForm(prev => ({ ...prev, classTeacherClass: e.target.value }))}
+                        className={`w-full px-4 py-3 bg-gray-50 border-2 rounded-xl text-gray-900 focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all font-medium ${
+                          !createForm.classTeacherClass ? 'border-yellow-300 bg-yellow-50' : 'border-green-300 bg-green-50'
+                        }`}
+                        required
+                      >
+                        <option value="">-- Choose a class level --</option>
+                        {availableClasses.map(cls => (
+                          <option key={cls} value={cls}>{cls}</option>
+                        ))}
+                      </select>
+                      {!createForm.classTeacherClass && (
+                        <p className="text-xs text-yellow-600 mt-1 font-medium">⚠️ Please select a class level first</p>
+                      )}
+                      {createForm.classTeacherClass && (
+                        <p className="text-xs text-green-600 mt-1 font-medium">✓ Class level selected: {createForm.classTeacherClass}</p>
+                      )}
+                    </div>
+
+                    {/* Arm Selection */}
+                    <div>
+                      <label className="block text-xs font-bold text-gray-600 mb-2">
+                        Step 2: Select Arm
+                      </label>
+                      {loadingArms ? (
+                        <div className="flex items-center justify-center p-4 bg-green-50 rounded-xl border border-green-200">
+                          <Loader2 className="w-5 h-5 animate-spin text-green-600 mr-2" />
+                          <span className="text-green-700 font-medium">Loading available arms...</span>
+                        </div>
+                      ) : (
+                        <select
+                          value={createForm.classTeacherArm}
+                          onChange={(e) => setCreateForm(prev => ({ ...prev, classTeacherArm: e.target.value }))}
+                          className={`w-full px-4 py-3 bg-gray-50 border-2 rounded-xl text-gray-900 focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all font-medium ${
+                            !createForm.classTeacherClass ? 'opacity-50 cursor-not-allowed border-gray-300' : 
+                            !createForm.classTeacherArm ? 'border-yellow-300 bg-yellow-50' : 'border-green-300 bg-green-50'
+                          }`}
+                          required
+                          disabled={!createForm.classTeacherClass}
+                        >
+                          <option value="">-- Choose an arm --</option>
+                          {availableArms.map(arm => (
+                            <option key={arm} value={arm}>{arm}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+
+                    {/* Selected Assignment Display */}
+                    {createForm.classTeacherClass && createForm.classTeacherArm ? (
+                      <div className="mt-4 p-6 bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl border-2 border-green-300 shadow-lg">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <CheckCircle className="w-5 h-5 text-green-600" />
+                              <p className="text-sm font-bold text-green-800">Assignment Complete!</p>
+                            </div>
+                            <p className="text-xs text-green-600 mb-2">Class Teacher will be assigned to:</p>
+                            <p className="text-3xl font-black text-green-900">
+                              {createForm.classTeacherClass} {createForm.classTeacherArm}
+                            </p>
+                          </div>
+                          <div className="w-20 h-20 bg-green-600 rounded-2xl flex items-center justify-center shadow-xl">
+                            <BookOpen className="w-10 h-10 text-white" />
+                          </div>
+                        </div>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-4 gap-3 p-4 bg-green-50 rounded-xl border border-green-200">
-                        {availableArms.map(arm => (
-                          <label key={arm} className="flex items-center space-x-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={createForm.classTeacherArms.includes(arm)}
-                              onChange={() => handleArmToggle(arm)}
-                              className="w-4 h-4 text-green-600 bg-white border-gray-300 rounded focus:ring-green-500"
-                            />
-                            <span className="text-sm font-bold text-green-800">{arm}</span>
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                    {createForm.classTeacherArms.length > 0 && (
-                      <div className="mt-2 p-2 bg-green-100 rounded-lg">
-                        <p className="text-sm text-green-700 font-medium">
-                          Selected Arms: {createForm.classTeacherArms.join(', ')}
-                        </p>
+                      <div className="mt-4 p-4 bg-yellow-50 rounded-xl border-2 border-yellow-300">
+                        <div className="flex items-start gap-3">
+                          <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-sm text-yellow-900 font-bold mb-1">Assignment Required</p>
+                            <p className="text-xs text-yellow-700">
+                              Please complete both steps above to assign this class teacher to a specific class and arm.
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>

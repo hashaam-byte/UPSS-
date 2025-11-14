@@ -2,48 +2,11 @@
 import { requireAuth } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { cookies } from 'next/headers';
-import jwt from 'jsonwebtoken';
-
-// Helper function to verify class teacher access
-async function verifyClassTeacherAccess(token) {
-  if (!token) {
-    throw new Error('Unauthorized');
-  }
-
-  const decoded = jwt.verify(token, process.env.JWT_SECRET);
-  const user = await prisma.user.findUnique({
-    where: { id: decoded.userId },
-    include: { 
-      teacherProfile: {
-        include: {
-          teacherSubjects: {
-            include: {
-              subject: true
-            }
-          }
-        }
-      }, 
-      school: true 
-    }
-  });
-
-  if (!user || user.role !== 'teacher' || user.teacherProfile?.department !== 'class_teacher') {
-    throw new Error('Access denied');
-  }
-
-  return user;
-}
 
 // GET - Fetch assignments overview for class teacher's students
 export async function GET(request) {
   try {
-    await requireAuth(['class_teacher']);
-
-    const cookieStore = await cookies();
-    const token = cookieStore.get('auth_token')?.value;
-    
-    const classTeacher = await verifyClassTeacherAccess(token);
+    const user = await requireAuth(['class_teacher']);
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') || 'all';
     const subject = searchParams.get('subject') || 'all';
@@ -51,20 +14,15 @@ export async function GET(request) {
     const dueDate = searchParams.get('dueDate');
     const assignmentId = searchParams.get('assignmentId');
 
-    // Get assigned classes
-    const assignedClass = classTeacher.teacherProfile?.coordinatorClass;
-    let classNames = [];
+    // Get teacher profile and assigned classes
+    const teacherProfile = await prisma.teacherProfile.findUnique({
+      where: { userId: user.id },
+      include: { teacherSubjects: true }
+    });
     
-    if (assignedClass) {
-      classNames = [assignedClass];
-    } else {
-      const teacherSubjects = classTeacher.teacherProfile?.teacherSubjects || [];
-      classNames = [...new Set(
-        teacherSubjects.flatMap(ts => ts.classes)
-      )];
-    }
+    const assignedClasses = teacherProfile.teacherSubjects.flatMap(ts => ts.classes);
 
-    if (classNames.length === 0) {
+    if (assignedClasses.length === 0) {
       return NextResponse.json({
         success: true,
         data: {
@@ -78,12 +36,12 @@ export async function GET(request) {
     // Get students in assigned classes
     const students = await prisma.user.findMany({
       where: {
-        schoolId: classTeacher.schoolId,
+        schoolId: user.schoolId,
         role: 'student',
         isActive: true,
         studentProfile: {
           className: {
-            in: classNames
+            in: assignedClasses
           }
         },
         ...(studentId && { id: studentId })
@@ -218,7 +176,7 @@ export async function GET(request) {
         assignments: filteredAssignments,
         assignmentsByStudent: assignmentsByStudent,
         summary: summary,
-        assignedClasses: classNames,
+        assignedClasses: assignedClasses,
         availableSubjects: [...new Set(mockAssignments.map(a => a.subject))],
         filters: {
           status,
@@ -227,23 +185,15 @@ export async function GET(request) {
           dueDate
         },
         teacherInfo: {
-          id: classTeacher.id,
-          name: `${classTeacher.firstName} ${classTeacher.lastName}`,
-          assignedClasses: classNames
+          id: user.id,
+          name: `${user.firstName} ${user.lastName}`,
+          assignedClasses: assignedClasses
         }
       }
     });
 
   } catch (error) {
     console.error('Class teacher assignments GET error:', error);
-    
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (error.message === 'Access denied') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-    
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -251,10 +201,7 @@ export async function GET(request) {
 // POST - Create assignment reminder or flag for follow-up
 export async function POST(request) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get('auth_token')?.value;
-    
-    const classTeacher = await verifyClassTeacherAccess(token);
+    const user = await requireAuth(['class_teacher']);
     const body = await request.json();
     const { studentId, assignmentId, reminderType, message, priority = 'normal' } = body;
 
@@ -264,28 +211,24 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
-    // Verify student belongs to teacher's class
-    const assignedClass = classTeacher.teacherProfile?.coordinatorClass;
-    let classNames = [];
+    // Get teacher profile and assigned classes
+    const teacherProfile = await prisma.teacherProfile.findUnique({
+      where: { userId: user.id },
+      include: { teacherSubjects: true }
+    });
     
-    if (assignedClass) {
-      classNames = [assignedClass];
-    } else {
-      const teacherSubjects = classTeacher.teacherProfile?.teacherSubjects || [];
-      classNames = [...new Set(
-        teacherSubjects.flatMap(ts => ts.classes)
-      )];
-    }
+    const assignedClasses = teacherProfile.teacherSubjects.flatMap(ts => ts.classes);
 
+    // Verify student belongs to teacher's class
     const student = await prisma.user.findFirst({
       where: {
         id: studentId,
-        schoolId: classTeacher.schoolId,
+        schoolId: user.schoolId,
         role: 'student',
         isActive: true,
         studentProfile: {
           className: {
-            in: classNames
+            in: assignedClasses
           }
         }
       }
@@ -325,7 +268,7 @@ export async function POST(request) {
     await prisma.notification.create({
       data: {
         userId: studentId,
-        schoolId: classTeacher.schoolId,
+        schoolId: user.schoolId,
         title: notificationTitle,
         content: message || `Assignment reminder from your class teacher`,
         type: notificationType,
@@ -333,11 +276,6 @@ export async function POST(request) {
         isRead: false
       }
     });
-
-    // TODO: In production, you might also:
-    // - Send email/SMS to parent if it's a serious concern
-    // - Log the action in assignment_reminders table
-    // - Create calendar reminder for teacher
 
     return NextResponse.json({
       success: true,
@@ -353,14 +291,6 @@ export async function POST(request) {
 
   } catch (error) {
     console.error('Create assignment reminder error:', error);
-    
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (error.message === 'Access denied') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-    
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

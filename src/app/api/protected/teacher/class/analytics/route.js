@@ -1,322 +1,334 @@
-// /app/api/protected/teacher/class/analytics/route.js
+// /app/api/protected/teacher/class/notifications/route.js
 import { requireAuth } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { cookies } from 'next/headers';
-import jwt from 'jsonwebtoken';
 
-// Helper function to verify class teacher access
-async function verifyClassTeacherAccess(token) {
-  if (!token) {
-    throw new Error('Unauthorized');
-  }
-
-  const decoded = jwt.verify(token, process.env.JWT_SECRET);
-  const user = await prisma.user.findUnique({
-    where: { id: decoded.userId },
-    include: { 
-      teacherProfile: {
-        include: {
-          teacherSubjects: {
-            include: {
-              subject: true
-            }
-          }
-        }
-      }, 
-      school: true 
-    }
-  });
-
-  if (!user || user.role !== 'teacher' || user.teacherProfile?.department !== 'class_teacher') {
-    throw new Error('Access denied');
-  }
-
-  return user;
-}
-
+// GET - Fetch notifications for class teacher
 export async function GET(request) {
   try {
-    await requireAuth(['class_teacher']);
-
-    const cookieStore = await cookies();
-    const token = cookieStore.get('auth_token')?.value;
-    
-    const classTeacher = await verifyClassTeacherAccess(token);
+    const user = await requireAuth(['class_teacher']);
     const { searchParams } = new URL(request.url);
-    const period = searchParams.get('period') || 'current_term';
-    const metric = searchParams.get('metric') || 'all';
-    const subject = searchParams.get('subject') || 'all';
-    const comparison = searchParams.get('comparison') || 'none';
+    const type = searchParams.get('type') || 'all';
+    const isRead = searchParams.get('read');
+    const priority = searchParams.get('priority');
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '20');
 
-    // Get assigned classes
-    const assignedClass = classTeacher.teacherProfile?.coordinatorClass;
-    let classNames = [];
-    
-    if (assignedClass) {
-      classNames = [assignedClass];
-    } else {
-      const teacherSubjects = classTeacher.teacherProfile?.teacherSubjects || [];
-      classNames = [...new Set(
-        teacherSubjects.flatMap(ts => ts.classes)
-      )];
+    // Build where conditions
+    let whereConditions = {
+      userId: user.id,
+      schoolId: user.schoolId
+    };
+
+    if (type !== 'all') {
+      whereConditions.type = type;
     }
 
-    if (classNames.length === 0) {
-      return NextResponse.json({
-        success: true,
-        data: {
-          message: 'No class assigned to this class teacher',
-          analytics: {}
-        }
-      });
+    if (isRead !== null) {
+      whereConditions.isRead = isRead === 'true';
     }
 
-    // Get students in assigned classes
-    const students = await prisma.user.findMany({
+    if (priority) {
+      whereConditions.priority = priority;
+    }
+
+    // Get notifications
+    const notifications = await prisma.notification.findMany({
+      where: whereConditions,
+      orderBy: [
+        { priority: 'desc' },
+        { createdAt: 'desc' }
+      ],
+      skip: (page - 1) * limit,
+      take: limit
+    });
+
+    const totalNotifications = await prisma.notification.count({
+      where: whereConditions
+    });
+
+    // Get unread counts by type
+    const unreadCounts = await prisma.notification.groupBy({
+      by: ['type'],
       where: {
-        schoolId: classTeacher.schoolId,
-        role: 'student',
-        isActive: true,
-        studentProfile: {
-          className: {
-            in: classNames
-          }
-        }
+        userId: user.id,
+        schoolId: user.schoolId,
+        isRead: false
       },
-      include: {
-        studentProfile: true
+      _count: {
+        _all: true
       }
     });
 
-    // Get school subjects for reference
-    const subjects = await prisma.subject.findMany({
-      where: {
-        schoolId: classTeacher.schoolId,
-        isActive: true,
-        classes: {
-          hasSome: classNames
-        }
-      }
-    });
+    const unreadCountsMap = unreadCounts.reduce((acc, item) => {
+      acc[item.type] = item._count._all;
+      return acc;
+    }, {});
 
-    // Generate analytics data (in production, this would come from actual data tables)
-    const analytics = await generateAnalyticsData(students, subjects, period, classNames);
+    // Get teacher profile and assigned classes
+    const teacherProfile = await prisma.teacherProfile.findUnique({
+      where: { userId: user.id },
+      include: { teacherSubjects: true }
+    });
+    
+    const assignedClasses = teacherProfile.teacherSubjects.flatMap(ts => ts.classes);
 
     return NextResponse.json({
       success: true,
       data: {
-        period,
-        metric,
-        subject,
-        comparison,
-        assignedClasses: classNames,
-        analytics: analytics,
-        generatedAt: new Date(),
+        notifications: notifications.map(notification => ({
+          id: notification.id,
+          title: notification.title,
+          content: notification.content,
+          type: notification.type,
+          priority: notification.priority,
+          isRead: notification.isRead,
+          readAt: notification.readAt,
+          actionUrl: notification.actionUrl,
+          actionText: notification.actionText,
+          createdAt: notification.createdAt
+        })),
+        pagination: {
+          total: totalNotifications,
+          page: page,
+          limit: limit,
+          pages: Math.ceil(totalNotifications / limit)
+        },
+        summary: {
+          totalNotifications,
+          unreadTotal: Object.values(unreadCountsMap).reduce((sum, count) => sum + count, 0),
+          unreadByType: {
+            info: unreadCountsMap.info || 0,
+            warning: unreadCountsMap.warning || 0,
+            error: unreadCountsMap.error || 0,
+            success: unreadCountsMap.success || 0,
+            system: unreadCountsMap.system || 0
+          },
+          highPriorityUnread: await prisma.notification.count({
+            where: {
+              userId: user.id,
+              schoolId: user.schoolId,
+              isRead: false,
+              priority: 'high'
+            }
+          })
+        },
+        assignedClasses: assignedClasses,
         teacherInfo: {
-          id: classTeacher.id,
-          name: `${classTeacher.firstName} ${classTeacher.lastName}`,
-          assignedClasses: classNames
+          id: user.id,
+          name: `${user.firstName} ${user.lastName}`
         }
       }
     });
 
   } catch (error) {
-    console.error('Class teacher analytics GET error:', error);
-    
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (error.message === 'Access denied') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-    
+    console.error('Class teacher notifications GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-// Helper function to generate comprehensive analytics
-async function generateAnalyticsData(students, subjects, period, classNames) {
-  const totalStudents = students.length;
+// POST - Create notification (for student alerts, etc.)
+export async function POST(request) {
+  try {
+    const user = await requireAuth(['class_teacher']);
+    const body = await request.json();
+    const { targetUserId, title, content, type = 'info', priority = 'normal', actionUrl, actionText } = body;
 
-  // Performance Analytics
-  const performanceAnalytics = {
-    overallClassAverage: Math.floor(Math.random() * 20) + 70, // 70-90
-    subjectBreakdown: subjects.map(subject => ({
-      subject: subject.name,
-      code: subject.code,
-      average: Math.floor(Math.random() * 25) + 65,
-      passRate: Math.floor(Math.random() * 30) + 70,
-      studentsCount: Math.floor(Math.random() * totalStudents * 0.8) + Math.floor(totalStudents * 0.2),
-      trend: Math.random() > 0.5 ? 'improving' : Math.random() > 0.5 ? 'declining' : 'stable'
-    })),
-    gradeDistribution: {
-      excellent: Math.floor(totalStudents * 0.15),
-      good: Math.floor(totalStudents * 0.35),
-      average: Math.floor(totalStudents * 0.35),
-      needsImprovement: Math.floor(totalStudents * 0.15)
-    },
-    trends: {
-      thisMonth: Math.floor(Math.random() * 20) + 70,
-      lastMonth: Math.floor(Math.random() * 20) + 70,
-      improvement: Math.random() * 10 - 5 // -5 to +5
+    if (!targetUserId || !title || !content) {
+      return NextResponse.json({
+        error: 'Target user ID, title, and content are required'
+      }, { status: 400 });
     }
-  };
 
-  // Attendance Analytics
-  const attendanceAnalytics = {
-    overallAttendanceRate: Math.floor(Math.random() * 15) + 85, // 85-100%
-    chronicAbsenteeism: Math.floor(totalStudents * 0.1),
-    perfectAttendance: Math.floor(totalStudents * 0.3),
-    weeklyTrends: Array.from({ length: 4 }, (_, i) => ({
-      week: i + 1,
-      attendanceRate: Math.floor(Math.random() * 15) + 85,
-      studentsPresent: Math.floor(totalStudents * (0.85 + Math.random() * 0.15))
-    })),
-    dailyPatterns: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map(day => ({
-      day,
-      averageAttendance: Math.floor(Math.random() * 15) + 85
-    }))
-  };
+    // Get teacher profile and assigned classes
+    const teacherProfile = await prisma.teacherProfile.findUnique({
+      where: { userId: user.id },
+      include: { teacherSubjects: true }
+    });
+    
+    const assignedClasses = teacherProfile.teacherSubjects.flatMap(ts => ts.classes);
 
-  // Behavioral Analytics
-  const behavioralAnalytics = {
-    totalIncidents: Math.floor(totalStudents * 0.2),
-    resolvedIncidents: Math.floor(totalStudents * 0.15),
-    studentsWithIncidents: Math.floor(totalStudents * 0.1),
-    incidentTypes: [
-      { type: 'Late Submission', count: Math.floor(totalStudents * 0.3) },
-      { type: 'Disruptive Behavior', count: Math.floor(totalStudents * 0.1) },
-      { type: 'Incomplete Work', count: Math.floor(totalStudents * 0.2) }
-    ],
-    trends: {
-      thisWeek: Math.floor(totalStudents * 0.05),
-      lastWeek: Math.floor(totalStudents * 0.07),
-      improvement: Math.random() > 0.5 ? 'improving' : 'stable'
-    }
-  };
-
-  // Assignment Analytics
-  const assignmentAnalytics = {
-    totalAssignments: Math.floor(subjects.length * 15),
-    submissionRate: Math.floor(Math.random() * 20) + 80,
-    averageScore: Math.floor(Math.random() * 20) + 70,
-    onTimeSubmissionRate: Math.floor(Math.random() * 15) + 85,
-    subjectWiseSubmission: subjects.map(subject => ({
-      subject: subject.name,
-      totalAssignments: Math.floor(Math.random() * 8) + 7,
-      submissionRate: Math.floor(Math.random() * 20) + 80,
-      averageScore: Math.floor(Math.random() * 25) + 65
-    })),
-    weeklySubmissionTrends: Array.from({ length: 4 }, (_, i) => ({
-      week: i + 1,
-      submissionRate: Math.floor(Math.random() * 15) + 85,
-      averageScore: Math.floor(Math.random() * 15) + 70
-    }))
-  };
-
-  // Parent Engagement Analytics
-  const parentEngagementAnalytics = {
-    totalContacts: Math.floor(totalStudents * 1.5),
-    responseRate: Math.floor(Math.random() * 20) + 75,
-    meetingsScheduled: Math.floor(totalStudents * 0.4),
-    meetingsCompleted: Math.floor(totalStudents * 0.35),
-    engagementLevels: {
-      high: Math.floor(totalStudents * 0.3),
-      medium: Math.floor(totalStudents * 0.4),
-      low: Math.floor(totalStudents * 0.3)
-    },
-    contactMethods: [
-      { method: 'Email', count: Math.floor(totalStudents * 0.6) },
-      { method: 'Phone', count: Math.floor(totalStudents * 0.3) },
-      { method: 'In-Person', count: Math.floor(totalStudents * 0.4) }
-    ]
-  };
-
-  // Student Progress Analytics
-  const studentProgressAnalytics = {
-    improvingStudents: Math.floor(totalStudents * 0.4),
-    decliningStudents: Math.floor(totalStudents * 0.2),
-    stableStudents: Math.floor(totalStudents * 0.4),
-    atRiskStudents: Math.floor(totalStudents * 0.15),
-    topPerformers: Math.floor(totalStudents * 0.2),
-    progressBySubject: subjects.map(subject => ({
-      subject: subject.name,
-      improving: Math.floor(totalStudents * 0.3),
-      declining: Math.floor(totalStudents * 0.15),
-      stable: Math.floor(totalStudents * 0.55)
-    }))
-  };
-
-  // Predictive Analytics & Alerts
-  const predictiveAnalytics = {
-    riskFactors: [
-      {
-        factor: 'Low Attendance',
-        studentsAffected: Math.floor(totalStudents * 0.1),
-        riskLevel: 'high',
-        recommendation: 'Contact parents immediately'
-      },
-      {
-        factor: 'Declining Performance',
-        studentsAffected: Math.floor(totalStudents * 0.2),
-        riskLevel: 'medium',
-        recommendation: 'Provide additional support'
-      },
-      {
-        factor: 'Late Submissions',
-        studentsAffected: Math.floor(totalStudents * 0.15),
-        riskLevel: 'low',
-        recommendation: 'Send reminders and set clearer expectations'
+    // Verify target user (student) belongs to teacher's class
+    const targetUser = await prisma.user.findFirst({
+      where: {
+        id: targetUserId,
+        schoolId: user.schoolId,
+        OR: [
+          {
+            role: 'student',
+            studentProfile: {
+              className: {
+                in: assignedClasses
+              }
+            }
+          },
+          { role: 'admin' },
+          { role: 'headadmin' }
+        ]
       }
-    ],
-    interventionSuccess: {
-      totalInterventions: Math.floor(totalStudents * 0.3),
-      successfulInterventions: Math.floor(totalStudents * 0.2),
-      successRate: 67
+    });
+
+    if (!targetUser) {
+      return NextResponse.json({
+        error: 'Target user not found or access denied'
+      }, { status: 404 });
     }
-  };
 
-  // Class Comparison (if multiple classes)
-  const classComparison = classNames.length > 1 ? {
-    performanceComparison: classNames.map(className => ({
-      className,
-      averageScore: Math.floor(Math.random() * 20) + 70,
-      attendanceRate: Math.floor(Math.random() * 15) + 85,
-      studentCount: Math.floor(totalStudents / classNames.length)
-    })),
-    bestPerformingClass: classNames[0],
-    mostImprovedClass: classNames[Math.floor(Math.random() * classNames.length)]
-  } : null;
+    // Create notification
+    const notification = await prisma.notification.create({
+      data: {
+        userId: targetUserId,
+        schoolId: user.schoolId,
+        title: title,
+        content: content,
+        type: type,
+        priority: priority,
+        actionUrl: actionUrl || null,
+        actionText: actionText || null,
+        isRead: false
+      }
+    });
 
-  return {
-    overview: {
-      totalStudents,
-      totalSubjects: subjects.length,
-      assignedClasses: classNames,
-      dataPointsAnalyzed: totalStudents * subjects.length * 30 // Simulated data points
-    },
-    performance: performanceAnalytics,
-    attendance: attendanceAnalytics,
-    behavioral: behavioralAnalytics,
-    assignments: assignmentAnalytics,
-    parentEngagement: parentEngagementAnalytics,
-    studentProgress: studentProgressAnalytics,
-    predictive: predictiveAnalytics,
-    classComparison: classComparison,
-    recommendations: [
-      'Focus on improving Mathematics performance - lowest subject average',
-      'Address chronic absenteeism with 3 students',
-      'Increase parent engagement for low-performing students',
-      'Implement peer tutoring for struggling students',
-      'Consider additional homework support sessions'
-    ],
-    insights: [
-      'Performance shows steady improvement over the past month',
-      'Attendance is highest on Tuesdays and Wednesdays',
-      'Science subjects show better engagement than humanities',
-      'Parent response rate is above school average',
-      'Early intervention strategies are showing positive results'
-    ]
-  };
+    return NextResponse.json({
+      success: true,
+      message: 'Notification created successfully',
+      data: {
+        notificationId: notification.id,
+        targetUser: {
+          id: targetUser.id,
+          name: `${targetUser.firstName} ${targetUser.lastName}`,
+          role: targetUser.role
+        },
+        createdAt: notification.createdAt
+      }
+    }, { status: 201 });
+
+  } catch (error) {
+    console.error('Create notification error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// PATCH - Update notification (mark as read/unread)
+export async function PATCH(request) {
+  try {
+    const user = await requireAuth(['class_teacher']);
+    const body = await request.json();
+    const { notificationId, notificationIds, action } = body;
+
+    if (!action) {
+      return NextResponse.json({
+        error: 'Action is required'
+      }, { status: 400 });
+    }
+
+    let updateData = {};
+    let whereCondition = {
+      schoolId: user.schoolId,
+      userId: user.id
+    };
+
+    // Handle bulk operations
+    if (notificationIds && Array.isArray(notificationIds)) {
+      whereCondition.id = { in: notificationIds };
+    } else if (notificationId) {
+      whereCondition.id = notificationId;
+    } else {
+      return NextResponse.json({
+        error: 'Notification ID or IDs are required'
+      }, { status: 400 });
+    }
+
+    switch (action) {
+      case 'mark_read':
+        updateData = {
+          isRead: true,
+          readAt: new Date()
+        };
+        break;
+      case 'mark_unread':
+        updateData = {
+          isRead: false,
+          readAt: null
+        };
+        break;
+      case 'mark_all_read':
+        whereCondition = {
+          schoolId: user.schoolId,
+          userId: user.id,
+          isRead: false
+        };
+        updateData = {
+          isRead: true,
+          readAt: new Date()
+        };
+        break;
+      default:
+        return NextResponse.json({
+          error: 'Invalid action. Use: mark_read, mark_unread, or mark_all_read'
+        }, { status: 400 });
+    }
+
+    const result = await prisma.notification.updateMany({
+      where: whereCondition,
+      data: updateData
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: `${result.count} notification(s) updated successfully`,
+      data: {
+        updatedCount: result.count,
+        action: action
+      }
+    });
+
+  } catch (error) {
+    console.error('Update notifications error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// DELETE - Delete notifications
+export async function DELETE(request) {
+  try {
+    const user = await requireAuth(['class_teacher']);
+    const { searchParams } = new URL(request.url);
+    const notificationId = searchParams.get('id');
+    const deleteType = searchParams.get('type') || 'single';
+
+    let whereCondition = {
+      schoolId: user.schoolId,
+      userId: user.id
+    };
+
+    if (deleteType === 'single' && notificationId) {
+      whereCondition.id = notificationId;
+    } else if (deleteType === 'read') {
+      whereCondition.isRead = true;
+    } else if (deleteType === 'all') {
+      // Already has the base condition
+    } else if (deleteType === 'single' && !notificationId) {
+      return NextResponse.json({
+        error: 'Notification ID is required for single deletion'
+      }, { status: 400 });
+    }
+
+    const result = await prisma.notification.deleteMany({
+      where: whereCondition
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: `${result.count} notification(s) deleted successfully`,
+      data: {
+        deletedCount: result.count,
+        deleteType: deleteType
+      }
+    });
+
+  } catch (error) {
+    console.error('Delete notifications error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 }
