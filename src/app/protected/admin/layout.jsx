@@ -74,6 +74,11 @@ const AdminLayout = ({ children }) => {
       title: 'Settings',
       href: '/protected/admin/settings',
       icon: Settings
+    },
+    {
+      title: 'Arm', // Added Arm to the sidebar
+      href: '/protected/admin/arm',
+      icon: Shield
     }
   ];
 
