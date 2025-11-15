@@ -1,4 +1,3 @@
-'use client'
 import React, { useState, useEffect } from 'react';
 import {
   Users,
@@ -6,25 +5,24 @@ import {
   Filter,
   UserPlus,
   Download,
-  Upload,
   Eye,
   Edit,
-  Trash2,
   CheckCircle,
   AlertCircle,
   GraduationCap,
   Mail,
   Phone,
-  MapPin,
-  ToggleLeft, // <-- Use ToggleLeft instead of Toggle
-  BookOpen
+  ToggleLeft,
+  BookOpen,
+  X,
+  Loader2
 } from 'lucide-react';
 
 const CoordinatorStudents = () => {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [showAssigned, setShowAssigned] = useState(true); // Toggle state
+  const [showAssigned, setShowAssigned] = useState(true);
   const [filters, setFilters] = useState({
     class: '',
     arm: '',
@@ -51,13 +49,45 @@ const CoordinatorStudents = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [summary, setSummary] = useState({});
 
-  const armOptions = ['silver', 'diamond', 'mercury', 'platinum', 'gold', 'ruby'];
+  // Fetch arms from admin settings
+  const [customArms, setCustomArms] = useState([]);
+  const [loadingArms, setLoadingArms] = useState(true);
+
   const classLevels = ['JS1', 'JS2', 'JS3', 'SS1', 'SS2', 'SS3'];
   const departments = ['science', 'arts', 'social_science'];
 
   useEffect(() => {
-    fetchStudents();
-  }, [filters, pagination.currentPage, showAssigned]);
+    fetchCustomArms();
+  }, []);
+
+  useEffect(() => {
+    if (!loadingArms) {
+      fetchStudents();
+    }
+  }, [filters, pagination.currentPage, showAssigned, loadingArms]);
+
+  const fetchCustomArms = async () => {
+    try {
+      setLoadingArms(true);
+      const response = await fetch('/api/protected/admin/school/arms', {
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setCustomArms(data.arms || []);
+      } else {
+        // Fallback to default arms if fetch fails
+        setCustomArms(['silver', 'diamond', 'mercury', 'platinum', 'gold', 'ruby']);
+      }
+    } catch (error) {
+      console.error('Failed to fetch custom arms:', error);
+      // Fallback to default arms
+      setCustomArms(['silver', 'diamond', 'mercury', 'platinum', 'gold', 'ruby']);
+    } finally {
+      setLoadingArms(false);
+    }
+  };
 
   const fetchStudents = async () => {
     try {
@@ -216,7 +246,10 @@ const CoordinatorStudents = () => {
   if (loading && students.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-purple-600 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600">Loading students...</p>
+        </div>
       </div>
     );
   }
@@ -588,21 +621,23 @@ const CoordinatorStudents = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Arm *
+                  Arm * {loadingArms && <span className="text-xs text-gray-500">(Loading...)</span>}
                 </label>
                 <select
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   value={assignmentForm.arm}
                   onChange={(e) => setAssignmentForm(prev => ({ ...prev, arm: e.target.value }))}
+                  disabled={loadingArms}
                 >
                   <option value="">Select arm...</option>
-                  {armOptions.map(arm => (
-                    <option key={arm} value={arm}>{arm.charAt(0).toUpperCase() + arm.slice(1)}</option>
+                  {customArms.map(arm => (
+                    <option key={arm} value={arm.toLowerCase()}>
+                      {arm.charAt(0).toUpperCase() + arm.slice(1).toLowerCase()}
+                    </option>
                   ))}
                 </select>
               </div>
 
-              {/* Department field for SS classes only */}
               {assignmentForm.className && isSSLevel(assignmentForm.className) && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -657,7 +692,7 @@ const CoordinatorStudents = () => {
               >
                 {isProcessing ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <Loader2 className="w-4 h-4 animate-spin" />
                     <span>Assigning...</span>
                   </>
                 ) : (
@@ -704,7 +739,6 @@ const CoordinatorStudents = () => {
                 />
               </div>
 
-              {/* Department field for SS classes only */}
               {assignmentForm.className && isSSLevel(assignmentForm.className) && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -754,7 +788,7 @@ const CoordinatorStudents = () => {
               >
                 {isProcessing ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <Loader2 className="w-4 h-4 animate-spin" />
                     <span>Updating...</span>
                   </>
                 ) : (

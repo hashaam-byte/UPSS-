@@ -1,10 +1,9 @@
-// src/app/api/protected/teacher/class/dashboard/route.js - FIXED VERSION
+// src/app/api/protected/teacher/class/dashboard/route.js - FULLY FIXED VERSION
 import { requireAuth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import { cookies } from 'next/headers';
-import crypto from 'crypto';
 
 // Helper function to verify class teacher access
 async function verifyClassTeacherAccess(token) {
@@ -49,10 +48,14 @@ export async function GET(request) {
       );
     }
 
-    const classTeacher = await verifyClassTeacherAccess(token);
+    const user = await verifyClassTeacherAccess(token);
+    
+    // ✅ FIXED: Store schoolId for consistent use
+    const schoolId = user.schoolId;
+    const userId = user.id;
 
-    // Get assigned class
-    const assignedClasses = classTeacher.teacherProfile?.teacherSubjects?.flatMap(ts => ts.classes) || [];
+    // Get assigned classes
+    const assignedClasses = user.teacherProfile?.teacherSubjects?.flatMap(ts => ts.classes) || [];
     const classNames = [...new Set(assignedClasses)];
 
     if (classNames.length === 0) {
@@ -61,14 +64,16 @@ export async function GET(request) {
         data: {
           assignedClasses: [],
           students: [],
-          attendance: { present: 0, absent: 0, total: 0 },
+          attendance: { present: 0, absent: 0, total: 0, rate: 0 },
           messages: [],
           alerts: [],
           summary: {
             totalStudents: 0,
             presentToday: 0,
-            atRiskStudents: 0,
-            unreadMessages: 0
+            atRiskCount: 0,
+            unreadMessages: 0,
+            averagePerformance: 0,
+            averageAttendance: 0
           },
           message: 'No class assigned to this teacher'
         }
@@ -78,7 +83,7 @@ export async function GET(request) {
     // Get students in assigned classes
     const students = await prisma.user.findMany({
       where: {
-        schoolId: classTeacher.schoolId,
+        schoolId: schoolId, // ✅ FIXED
         role: 'student',
         isActive: true,
         studentProfile: {
@@ -104,7 +109,7 @@ export async function GET(request) {
 
     const todayAttendance = await prisma.attendance.findMany({
       where: {
-        schoolId: classTeacher.schoolId,
+        schoolId: schoolId, // ✅ FIXED
         date: {
           gte: today,
           lt: tomorrow
@@ -117,15 +122,18 @@ export async function GET(request) {
 
     const presentCount = todayAttendance.filter(a => a.status === 'present' || a.status === 'late').length;
     const absentCount = todayAttendance.filter(a => a.status === 'absent').length;
+    const attendanceRate = todayAttendance.length > 0 
+      ? Math.round((presentCount / todayAttendance.length) * 100)
+      : 0;
 
     // Get recent messages
     const recentMessages = await prisma.message.findMany({
       where: {
         OR: [
-          { toUserId: classTeacher.id },
-          { fromUserId: classTeacher.id }
+          { toUserId: userId },
+          { fromUserId: userId }
         ],
-        schoolId: classTeacher.schoolId
+        schoolId: schoolId // ✅ FIXED
       },
       include: {
         fromUser: {
@@ -150,10 +158,24 @@ export async function GET(request) {
     // Get active alerts
     const activeAlerts = await prisma.studentAlert.findMany({
       where: {
-        schoolId: classTeacher.schoolId,
+        schoolId: schoolId, // ✅ FIXED
         status: 'active',
         studentId: {
           in: students.map(s => s.id)
+        }
+      },
+      include: {
+        student: {
+          select: {
+            firstName: true,
+            lastName: true,
+            studentProfile: {
+              select: {
+                className: true,
+                studentId: true
+              }
+            }
+          }
         }
       },
       orderBy: {
@@ -165,13 +187,13 @@ export async function GET(request) {
     // Calculate at-risk students
     const atRiskStudentIds = new Set();
     
-    // Check attendance patterns
+    // Check attendance patterns (last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     
     const recentAttendance = await prisma.attendance.findMany({
       where: {
-        schoolId: classTeacher.schoolId,
+        schoolId: schoolId, // ✅ FIXED
         studentId: {
           in: students.map(s => s.id)
         },
@@ -181,7 +203,7 @@ export async function GET(request) {
       }
     });
 
-    // Group by student
+    // Group attendance by student
     const attendanceByStudent = {};
     recentAttendance.forEach(record => {
       if (!attendanceByStudent[record.studentId]) {
@@ -205,22 +227,73 @@ export async function GET(request) {
       atRiskStudentIds.add(alert.studentId);
     });
 
+    // Calculate performance metrics for students
+    const studentsWithPerformance = await Promise.all(
+      students.map(async (student) => {
+        // Get recent grades
+        const grades = await prisma.grade.findMany({
+          where: {
+            studentId: student.id,
+            schoolId: schoolId // ✅ FIXED
+          },
+          orderBy: {
+            createdAt: 'desc'
+          },
+          take: 5
+        });
+
+        const averageGrade = grades.length > 0
+          ? Math.round(grades.reduce((sum, g) => sum + Number(g.percentage), 0) / grades.length)
+          : 0;
+
+        // Get attendance rate
+        const studentAttendance = attendanceByStudent[student.id];
+        const studentAttendanceRate = studentAttendance && studentAttendance.total > 0
+          ? Math.round((studentAttendance.present / studentAttendance.total) * 100)
+          : 0;
+
+        return {
+          id: student.id,
+          firstName: student.firstName,
+          lastName: student.lastName,
+          email: student.email,
+          avatar: student.avatar,
+          isActive: student.isActive,
+          profile: student.studentProfile,
+          performance: {
+            averageGrade,
+            attendanceRate: studentAttendanceRate,
+            isAtRisk: atRiskStudentIds.has(student.id)
+          }
+        };
+      })
+    );
+
+    // Calculate overall statistics
+    const averagePerformance = studentsWithPerformance.length > 0
+      ? Math.round(
+          studentsWithPerformance.reduce((sum, s) => sum + (s.performance?.averageGrade || 0), 0) / 
+          studentsWithPerformance.length
+        )
+      : 0;
+
+    const averageAttendance = studentsWithPerformance.length > 0
+      ? Math.round(
+          studentsWithPerformance.reduce((sum, s) => sum + (s.performance?.attendanceRate || 0), 0) / 
+          studentsWithPerformance.length
+        )
+      : 0;
+
     return NextResponse.json({
       success: true,
       data: {
         assignedClasses: classNames,
-        students: students.map(s => ({
-          id: s.id,
-          firstName: s.firstName,
-          lastName: s.lastName,
-          email: s.email,
-          isActive: s.isActive,
-          profile: s.studentProfile
-        })),
+        students: studentsWithPerformance,
         attendance: {
           present: presentCount,
           absent: absentCount,
-          total: todayAttendance.length
+          total: todayAttendance.length,
+          rate: attendanceRate
         },
         messages: recentMessages.map(m => ({
           id: m.id,
@@ -231,17 +304,29 @@ export async function GET(request) {
           fromUser: m.fromUser,
           toUser: m.toUser
         })),
-        alerts: activeAlerts,
+        alerts: activeAlerts.map(alert => ({
+          id: alert.id,
+          alertType: alert.alertType,
+          title: alert.title,
+          description: alert.description,
+          priority: alert.priority,
+          status: alert.status,
+          createdAt: alert.createdAt,
+          student: alert.student
+        })),
         summary: {
           totalStudents: students.length,
           presentToday: presentCount,
-          atRiskStudents: atRiskStudentIds.size,
-          unreadMessages: recentMessages.filter(m => !m.isRead && m.toUserId === classTeacher.id).length
+          atRiskCount: atRiskStudentIds.size,
+          unreadMessages: recentMessages.filter(m => !m.isRead && m.toUserId === userId).length,
+          averagePerformance,
+          averageAttendance
         },
         teacherInfo: {
-          id: classTeacher.id,
-          name: `${classTeacher.firstName} ${classTeacher.lastName}`,
-          email: classTeacher.email
+          id: userId,
+          name: `${user.firstName} ${user.lastName}`,
+          email: user.email,
+          department: user.teacherProfile?.department
         }
       }
     });

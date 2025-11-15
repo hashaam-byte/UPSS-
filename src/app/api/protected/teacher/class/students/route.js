@@ -1,13 +1,50 @@
-// /app/api/protected/teacher/class/students/route.js
+// /app/api/protected/teacher/class/students/route.js - FULLY FIXED VERSION
 import { requireAuth } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
 import jwt from 'jsonwebtoken';
 
+// Helper function to verify class teacher access
+async function verifyClassTeacherAccess(token) {
+  if (!token) {
+    throw new Error('Unauthorized');
+  }
+
+  const decoded = jwt.verify(token, process.env.JWT_SECRET);
+  const user = await prisma.user.findUnique({
+    where: { id: decoded.userId },
+    include: { 
+      teacherProfile: {
+        include: {
+          teacherSubjects: {
+            include: {
+              subject: true
+            }
+          }
+        }
+      }, 
+      school: true 
+    }
+  });
+
+  if (!user || user.role !== 'teacher' || user.teacherProfile?.department !== 'class_teacher') {
+    throw new Error('Access denied');
+  }
+
+  return user;
+}
+
 export async function GET(request) {
   try {
-    const user = await requireAuth(['class_teacher']);
+    const cookieStore = await cookies();
+    const token = cookieStore.get('auth_token')?.value;
+    
+    const user = await verifyClassTeacherAccess(token);
+    
+    // ✅ FIXED: Store for consistent use
+    const schoolId = user.schoolId;
+    const userId = user.id;
     
     const { searchParams } = new URL(request.url);
     const className = searchParams.get('className');
@@ -16,13 +53,13 @@ export async function GET(request) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '50');
 
-    // Get teacher profile and assigned classes - SAME AS DASHBOARD
+    // Get teacher profile and assigned classes
     const teacherProfile = await prisma.teacherProfile.findUnique({
-      where: { userId: user.id },
+      where: { userId: userId },
       include: { teacherSubjects: true }
     });
     
-    const assignedClasses = teacherProfile.teacherSubjects.flatMap(ts => ts.classes);
+    const assignedClasses = teacherProfile?.teacherSubjects?.flatMap(ts => ts.classes) || [];
     
     if (assignedClasses.length === 0) {
       return NextResponse.json({
@@ -41,16 +78,16 @@ export async function GET(request) {
       });
     }
 
-    const classNames = assignedClasses;
+    const classNames = [...new Set(assignedClasses)];
 
     // Build where conditions
     let whereConditions = {
-      schoolId: user.schoolId, // FIXED: Use `user.schoolId` instead of `classTeacher.schoolId`
+      schoolId: schoolId, // ✅ FIXED
       role: 'student',
       isActive: true,
       studentProfile: {
         className: {
-          in: className ? [className] : assignedClasses
+          in: className ? [className] : classNames
         }
       }
     };
@@ -103,26 +140,76 @@ export async function GET(request) {
       take: limit
     });
 
-    // Format student data
-    const formattedStudents = students.map(student => ({
-      id: student.id,
-      firstName: student.firstName,
-      lastName: student.lastName,
-      email: student.email,
-      avatar: student.avatar,
-      isActive: student.isActive,
-      profile: student.studentProfile ? {
-        studentId: student.studentProfile.studentId,
-        className: student.studentProfile.className,
-        section: student.studentProfile.section,
-        department: student.studentProfile.department,
-        parentName: student.studentProfile.parentName,
-        parentPhone: student.studentProfile.parentPhone,
-        parentEmail: student.studentProfile.parentEmail,
-        admissionDate: student.studentProfile.admissionDate
-      } : null,
-      lastUpdated: student.updatedAt
-    }));
+    // Get performance data for each student
+    const studentsWithPerformance = await Promise.all(
+      students.map(async (student) => {
+        // Get attendance rate (last 30 days)
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        const attendanceRecords = await prisma.attendance.findMany({
+          where: {
+            studentId: student.id,
+            schoolId: schoolId, // ✅ FIXED
+            date: { gte: thirtyDaysAgo }
+          }
+        });
+
+        const attendanceRate = attendanceRecords.length > 0
+          ? Math.round(
+              (attendanceRecords.filter(a => a.status === 'present' || a.status === 'late').length / 
+              attendanceRecords.length) * 100
+            )
+          : 0;
+
+        // Get recent grades
+        const grades = await prisma.grade.findMany({
+          where: {
+            studentId: student.id,
+            schoolId: schoolId // ✅ FIXED
+          },
+          orderBy: {
+            createdAt: 'desc'
+          },
+          take: 5
+        });
+
+        const overallAverage = grades.length > 0
+          ? Math.round(grades.reduce((sum, g) => sum + Number(g.percentage), 0) / grades.length)
+          : 0;
+
+        const totalGrades = grades.length;
+
+        // Check if at risk
+        const isAtRisk = attendanceRate < 75 || overallAverage < 60;
+
+        return {
+          id: student.id,
+          firstName: student.firstName,
+          lastName: student.lastName,
+          email: student.email,
+          avatar: student.avatar,
+          isActive: student.isActive,
+          profile: student.studentProfile ? {
+            studentId: student.studentProfile.studentId,
+            className: student.studentProfile.className,
+            section: student.studentProfile.section,
+            department: student.studentProfile.department,
+            parentName: student.studentProfile.parentName,
+            parentPhone: student.studentProfile.parentPhone,
+            parentEmail: student.studentProfile.parentEmail,
+            admissionDate: student.studentProfile.admissionDate
+          } : null,
+          performance: {
+            attendanceRate,
+            overallAverage,
+            totalGrades,
+            isAtRisk
+          },
+          lastUpdated: student.updatedAt
+        };
+      })
+    );
 
     // Get class statistics
     const classStats = {
@@ -135,7 +222,7 @@ export async function GET(request) {
     for (const className of classNames) {
       const classStudentCount = await prisma.user.count({
         where: {
-          schoolId: user.schoolId, // FIXED: Use `user.schoolId` instead of `classTeacher.schoolId`
+          schoolId: schoolId, // ✅ FIXED
           role: 'student',
           isActive: true,
           studentProfile: {
@@ -149,7 +236,7 @@ export async function GET(request) {
     return NextResponse.json({
       success: true,
       data: {
-        students: formattedStudents,
+        students: studentsWithPerformance,
         assignedClasses: classNames,
         classStats: classStats,
         pagination: {
@@ -159,8 +246,8 @@ export async function GET(request) {
           pages: Math.ceil(totalStudents / limit)
         },
         teacherInfo: {
-          id: user.id, // FIXED: Use `user.id` instead of `classTeacher.id`
-          name: `${user.firstName} ${user.lastName}`, // FIXED: Use `user.firstName` and `user.lastName`
+          id: userId,
+          name: `${user.firstName} ${user.lastName}`,
           employeeId: teacherProfile?.employeeId,
           assignedClasses: classNames
         }
@@ -172,9 +259,6 @@ export async function GET(request) {
     
     if (error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (error.message === 'Not a class teacher/coordinator') {
-      return NextResponse.json({ error: 'Access denied: Not a class coordinator' }, { status: 403 });
     }
     if (error.message === 'Access denied') {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
@@ -193,7 +277,12 @@ export async function POST(request) {
     const cookieStore = await cookies();
     const token = cookieStore.get('auth_token')?.value;
     
-    const classTeacher = await verifyClassTeacherAccess(token);
+    const user = await verifyClassTeacherAccess(token);
+    
+    // ✅ FIXED: Store for consistent use
+    const schoolId = user.schoolId;
+    const userId = user.id;
+    
     const body = await request.json();
     const { studentId, alertType, message, priority = 'normal', notifyParent = false } = body;
 
@@ -203,20 +292,24 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
-    // Get assigned class names
-    const coordinatorClasses = classTeacher.teacherProfile?.teacherClassCoordinators || [];
-    const classNames = coordinatorClasses.map(cc => cc.class.name);
+    // Get assigned classes
+    const teacherProfile = await prisma.teacherProfile.findUnique({
+      where: { userId: userId },
+      include: { teacherSubjects: true }
+    });
+    
+    const assignedClasses = teacherProfile?.teacherSubjects?.flatMap(ts => ts.classes) || [];
 
     // Verify student belongs to teacher's class
     const student = await prisma.user.findFirst({
       where: {
         id: studentId,
-        schoolId: user.schoolId, // FIXED: Use `user.schoolId` instead of `classTeacher.schoolId`
+        schoolId: schoolId, // ✅ FIXED
         role: 'student',
         isActive: true,
         studentProfile: {
           className: {
-            in: classNames
+            in: assignedClasses
           }
         }
       },
@@ -231,12 +324,26 @@ export async function POST(request) {
       }, { status: 404 });
     }
 
+    // Create student alert
+    const alert = await prisma.studentAlert.create({
+      data: {
+        studentId: studentId,
+        schoolId: schoolId, // ✅ FIXED
+        createdBy: userId,
+        alertType: alertType,
+        priority: priority,
+        title: `Class Teacher Alert: ${alertType.replace(/_/g, ' ')}`,
+        description: message,
+        status: 'active'
+      }
+    });
+
     // Create notification for the student
     await prisma.notification.create({
       data: {
         userId: studentId,
-        schoolId: user.schoolId, // FIXED: Use `user.schoolId` instead of `classTeacher.schoolId`
-        title: `Class Teacher Alert: ${alertType}`,
+        schoolId: schoolId, // ✅ FIXED
+        title: `Class Teacher Alert: ${alertType.replace(/_/g, ' ')}`,
         content: message,
         type: priority === 'high' ? 'warning' : 'info',
         priority: priority,
@@ -244,14 +351,21 @@ export async function POST(request) {
       }
     });
 
+    // Optionally notify parent
+    if (notifyParent && student.studentProfile?.parentEmail) {
+      // You can implement email notification here
+      console.log(`Parent notification would be sent to: ${student.studentProfile.parentEmail}`);
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Student alert created successfully',
       data: {
+        alertId: alert.id,
         studentId: studentId,
         studentName: `${student.firstName} ${student.lastName}`,
         alertType: alertType,
-        createdAt: new Date()
+        createdAt: alert.createdAt
       }
     });
 
@@ -260,9 +374,6 @@ export async function POST(request) {
     
     if (error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (error.message === 'Not a class teacher/coordinator') {
-      return NextResponse.json({ error: 'Access denied: Not a class coordinator' }, { status: 403 });
     }
     if (error.message === 'Access denied') {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
