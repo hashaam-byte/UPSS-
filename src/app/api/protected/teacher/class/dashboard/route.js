@@ -1,4 +1,4 @@
-// src/app/api/protected/teacher/class/dashboard/route.js - FULLY FIXED VERSION
+// src/app/api/protected/teacher/class/dashboard/route.js - CASE-INSENSITIVE VERSION
 import { requireAuth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
@@ -35,6 +35,12 @@ async function verifyClassTeacherAccess(token) {
   return user;
 }
 
+// ✅ FIX: Helper function to normalize class names for comparison
+function normalizeClassName(className) {
+  if (!className) return '';
+  return className.trim().toUpperCase().replace(/\s+/g, ' ');
+}
+
 export async function GET(request) {
   try {
     // Verify authentication
@@ -50,7 +56,6 @@ export async function GET(request) {
 
     const user = await verifyClassTeacherAccess(token);
     
-    // ✅ FIXED: Store schoolId for consistent use
     const schoolId = user.schoolId;
     const userId = user.id;
 
@@ -80,15 +85,18 @@ export async function GET(request) {
       });
     }
 
-    // Get students in assigned classes
-    const students = await prisma.user.findMany({
+    // ✅ FIX: Normalize assigned classes for case-insensitive comparison
+    const normalizedAssignedClasses = assignedClasses.map(cls => normalizeClassName(cls));
+
+    // ✅ FIX: Get ALL students from school, then filter case-insensitively
+    const allStudentsInSchool = await prisma.user.findMany({
       where: {
-        schoolId: schoolId, // ✅ FIXED
+        schoolId: schoolId,
         role: 'student',
         isActive: true,
         studentProfile: {
           className: {
-            in: classNames
+            not: null
           }
         }
       },
@@ -101,6 +109,15 @@ export async function GET(request) {
       ]
     });
 
+    // Filter students by normalized class names (case-insensitive)
+    const students = allStudentsInSchool.filter(student => {
+      const studentClassName = student.studentProfile?.className;
+      if (!studentClassName) return false;
+      
+      const normalizedStudentClass = normalizeClassName(studentClassName);
+      return normalizedAssignedClasses.includes(normalizedStudentClass);
+    });
+
     // Get today's attendance
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -109,7 +126,7 @@ export async function GET(request) {
 
     const todayAttendance = await prisma.attendance.findMany({
       where: {
-        schoolId: schoolId, // ✅ FIXED
+        schoolId: schoolId,
         date: {
           gte: today,
           lt: tomorrow
@@ -133,7 +150,7 @@ export async function GET(request) {
           { toUserId: userId },
           { fromUserId: userId }
         ],
-        schoolId: schoolId // ✅ FIXED
+        schoolId: schoolId
       },
       include: {
         fromUser: {
@@ -158,7 +175,7 @@ export async function GET(request) {
     // Get active alerts
     const activeAlerts = await prisma.studentAlert.findMany({
       where: {
-        schoolId: schoolId, // ✅ FIXED
+        schoolId: schoolId,
         status: 'active',
         studentId: {
           in: students.map(s => s.id)
@@ -193,7 +210,7 @@ export async function GET(request) {
     
     const recentAttendance = await prisma.attendance.findMany({
       where: {
-        schoolId: schoolId, // ✅ FIXED
+        schoolId: schoolId,
         studentId: {
           in: students.map(s => s.id)
         },
@@ -234,7 +251,7 @@ export async function GET(request) {
         const grades = await prisma.grade.findMany({
           where: {
             studentId: student.id,
-            schoolId: schoolId // ✅ FIXED
+            schoolId: schoolId
           },
           orderBy: {
             createdAt: 'desc'
@@ -327,6 +344,11 @@ export async function GET(request) {
           name: `${user.firstName} ${user.lastName}`,
           email: user.email,
           department: user.teacherProfile?.department
+        },
+        debugInfo: {
+          normalizedAssignedClasses: normalizedAssignedClasses,
+          totalStudentsInSchool: allStudentsInSchool.length,
+          matchingStudentsCount: students.length
         }
       }
     });

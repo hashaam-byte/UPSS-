@@ -1,4 +1,4 @@
-// /app/api/protected/teacher/class/students/route.js - FULLY FIXED VERSION
+// /app/api/protected/teacher/class/students/route.js - CASE-INSENSITIVE VERSION
 import { requireAuth } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -35,6 +35,19 @@ async function verifyClassTeacherAccess(token) {
   return user;
 }
 
+// Helper function to normalize class names for comparison
+function normalizeClassName(className) {
+  if (!className) return '';
+  
+  // Convert to uppercase and remove extra spaces
+  return className.trim().toUpperCase().replace(/\s+/g, ' ');
+}
+
+// Helper function to check if two class names match (case-insensitive)
+function classNamesMatch(class1, class2) {
+  return normalizeClassName(class1) === normalizeClassName(class2);
+}
+
 export async function GET(request) {
   try {
     const cookieStore = await cookies();
@@ -42,7 +55,6 @@ export async function GET(request) {
     
     const user = await verifyClassTeacherAccess(token);
     
-    // ✅ FIXED: Store for consistent use
     const schoolId = user.schoolId;
     const userId = user.id;
     
@@ -78,71 +90,85 @@ export async function GET(request) {
       });
     }
 
-    const classNames = [...new Set(assignedClasses)];
+    // ✅ FIX: Normalize assigned classes for case-insensitive comparison
+    const normalizedAssignedClasses = assignedClasses.map(cls => normalizeClassName(cls));
+    const classNames = [...new Set(assignedClasses)]; // Keep original casing for display
 
-    // Build where conditions
-    let whereConditions = {
-      schoolId: schoolId, // ✅ FIXED
-      role: 'student',
-      isActive: true,
-      studentProfile: {
-        className: {
-          in: className ? [className] : classNames
-        }
-      }
-    };
-
-    // Add search filter
-    if (search) {
-      whereConditions.OR = [
-        { firstName: { contains: search, mode: 'insensitive' } },
-        { lastName: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } },
-        { 
-          studentProfile: {
-            studentId: { contains: search, mode: 'insensitive' }
+    // ✅ FIX: Get ALL students from the school, then filter in-memory for case-insensitive matching
+    let allStudentsInSchool = await prisma.user.findMany({
+      where: {
+        schoolId: schoolId,
+        role: 'student',
+        isActive: true,
+        studentProfile: {
+          className: {
+            not: null
           }
         }
-      ];
-    }
-
-    // Get total count
-    const totalStudents = await prisma.user.count({
-      where: whereConditions
-    });
-
-    // Build order by
-    let orderBy;
-    switch (sortBy) {
-      case 'lastName':
-        orderBy = [{ lastName: 'asc' }, { firstName: 'asc' }];
-        break;
-      case 'studentId':
-        orderBy = [{ studentProfile: { studentId: 'asc' } }];
-        break;
-      case 'className':
-        orderBy = [{ studentProfile: { className: 'asc' } }, { firstName: 'asc' }];
-        break;
-      case 'firstName':
-      default:
-        orderBy = [{ firstName: 'asc' }, { lastName: 'asc' }];
-        break;
-    }
-
-    // Get students with pagination
-    const students = await prisma.user.findMany({
-      where: whereConditions,
+      },
       include: {
         studentProfile: true
-      },
-      orderBy: orderBy,
-      skip: (page - 1) * limit,
-      take: limit
+      }
     });
+
+    // ✅ FIX: Filter students by normalized class names (case-insensitive)
+    let matchingStudents = allStudentsInSchool.filter(student => {
+      const studentClassName = student.studentProfile?.className;
+      if (!studentClassName) return false;
+      
+      const normalizedStudentClass = normalizeClassName(studentClassName);
+      
+      // Check if student's class matches any of the teacher's assigned classes (case-insensitive)
+      return normalizedAssignedClasses.includes(normalizedStudentClass);
+    });
+
+    // Apply search filter
+    if (search) {
+      matchingStudents = matchingStudents.filter(student => {
+        const searchLower = search.toLowerCase();
+        return (
+          student.firstName?.toLowerCase().includes(searchLower) ||
+          student.lastName?.toLowerCase().includes(searchLower) ||
+          student.email?.toLowerCase().includes(searchLower) ||
+          student.studentProfile?.studentId?.toLowerCase().includes(searchLower)
+        );
+      });
+    }
+
+    // Apply class name filter if specified
+    if (className) {
+      const normalizedFilterClass = normalizeClassName(className);
+      matchingStudents = matchingStudents.filter(student => {
+        return normalizeClassName(student.studentProfile?.className) === normalizedFilterClass;
+      });
+    }
+
+    const totalStudents = matchingStudents.length;
+
+    // Apply sorting
+    matchingStudents.sort((a, b) => {
+      switch (sortBy) {
+        case 'lastName':
+          return (a.lastName || '').localeCompare(b.lastName || '') || 
+                 (a.firstName || '').localeCompare(b.firstName || '');
+        case 'studentId':
+          return (a.studentProfile?.studentId || '').localeCompare(b.studentProfile?.studentId || '');
+        case 'className':
+          return (a.studentProfile?.className || '').localeCompare(b.studentProfile?.className || '') ||
+                 (a.firstName || '').localeCompare(b.firstName || '');
+        case 'firstName':
+        default:
+          return (a.firstName || '').localeCompare(b.firstName || '') || 
+                 (a.lastName || '').localeCompare(b.lastName || '');
+      }
+    });
+
+    // Apply pagination
+    const paginatedStudents = matchingStudents.slice((page - 1) * limit, page * limit);
 
     // Get performance data for each student
     const studentsWithPerformance = await Promise.all(
-      students.map(async (student) => {
+      paginatedStudents.map(async (student) => {
         // Get attendance rate (last 30 days)
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -150,7 +176,7 @@ export async function GET(request) {
         const attendanceRecords = await prisma.attendance.findMany({
           where: {
             studentId: student.id,
-            schoolId: schoolId, // ✅ FIXED
+            schoolId: schoolId,
             date: { gte: thirtyDaysAgo }
           }
         });
@@ -166,7 +192,7 @@ export async function GET(request) {
         const grades = await prisma.grade.findMany({
           where: {
             studentId: student.id,
-            schoolId: schoolId // ✅ FIXED
+            schoolId: schoolId
           },
           orderBy: {
             createdAt: 'desc'
@@ -192,7 +218,7 @@ export async function GET(request) {
           isActive: student.isActive,
           profile: student.studentProfile ? {
             studentId: student.studentProfile.studentId,
-            className: student.studentProfile.className,
+            className: student.studentProfile.className, // ✅ Return original casing
             section: student.studentProfile.section,
             department: student.studentProfile.department,
             parentName: student.studentProfile.parentName,
@@ -211,33 +237,39 @@ export async function GET(request) {
       })
     );
 
-    // Get class statistics
+    // ✅ FIX: Calculate class statistics with case-insensitive grouping
     const classStats = {
       totalStudents: totalStudents,
-      activeStudents: students.filter(s => s.isActive).length,
+      activeStudents: matchingStudents.filter(s => s.isActive).length,
       byClass: {}
     };
 
-    // Group students by class
-    for (const className of classNames) {
-      const classStudentCount = await prisma.user.count({
-        where: {
-          schoolId: schoolId, // ✅ FIXED
-          role: 'student',
-          isActive: true,
-          studentProfile: {
-            className: className
-          }
+    // Group students by normalized class name
+    const classGroups = {};
+    matchingStudents.forEach(student => {
+      const className = student.studentProfile?.className;
+      if (className) {
+        const normalized = normalizeClassName(className);
+        if (!classGroups[normalized]) {
+          classGroups[normalized] = {
+            displayName: className, // Use first occurrence for display
+            count: 0
+          };
         }
-      });
-      classStats.byClass[className] = classStudentCount;
-    }
+        classGroups[normalized].count++;
+      }
+    });
+
+    // Convert to display format
+    Object.values(classGroups).forEach(group => {
+      classStats.byClass[group.displayName] = group.count;
+    });
 
     return NextResponse.json({
       success: true,
       data: {
         students: studentsWithPerformance,
-        assignedClasses: classNames,
+        assignedClasses: classNames, // Original casing
         classStats: classStats,
         pagination: {
           total: totalStudents,
@@ -250,6 +282,11 @@ export async function GET(request) {
           name: `${user.firstName} ${user.lastName}`,
           employeeId: teacherProfile?.employeeId,
           assignedClasses: classNames
+        },
+        debugInfo: {
+          normalizedAssignedClasses: normalizedAssignedClasses,
+          totalStudentsInSchool: allStudentsInSchool.length,
+          matchingStudentsCount: matchingStudents.length
         }
       }
     });
@@ -271,7 +308,7 @@ export async function GET(request) {
   }
 }
 
-// POST - Create student alert or flag
+// POST - Create student alert or flag (unchanged)
 export async function POST(request) {
   try {
     const cookieStore = await cookies();
@@ -279,7 +316,6 @@ export async function POST(request) {
     
     const user = await verifyClassTeacherAccess(token);
     
-    // ✅ FIXED: Store for consistent use
     const schoolId = user.schoolId;
     const userId = user.id;
     
@@ -299,19 +335,15 @@ export async function POST(request) {
     });
     
     const assignedClasses = teacherProfile?.teacherSubjects?.flatMap(ts => ts.classes) || [];
+    const normalizedAssignedClasses = assignedClasses.map(cls => normalizeClassName(cls));
 
-    // Verify student belongs to teacher's class
+    // ✅ FIX: Verify student belongs to teacher's class (case-insensitive)
     const student = await prisma.user.findFirst({
       where: {
         id: studentId,
-        schoolId: schoolId, // ✅ FIXED
+        schoolId: schoolId,
         role: 'student',
-        isActive: true,
-        studentProfile: {
-          className: {
-            in: assignedClasses
-          }
-        }
+        isActive: true
       },
       include: {
         studentProfile: true
@@ -319,6 +351,16 @@ export async function POST(request) {
     });
 
     if (!student) {
+      return NextResponse.json({
+        error: 'Student not found in your school'
+      }, { status: 404 });
+    }
+
+    // Check if student's class matches teacher's assigned classes (case-insensitive)
+    const studentClassName = student.studentProfile?.className;
+    const normalizedStudentClass = normalizeClassName(studentClassName);
+    
+    if (!normalizedAssignedClasses.includes(normalizedStudentClass)) {
       return NextResponse.json({
         error: 'Student not found in your assigned class'
       }, { status: 404 });
@@ -328,7 +370,7 @@ export async function POST(request) {
     const alert = await prisma.studentAlert.create({
       data: {
         studentId: studentId,
-        schoolId: schoolId, // ✅ FIXED
+        schoolId: schoolId,
         createdBy: userId,
         alertType: alertType,
         priority: priority,
@@ -342,7 +384,7 @@ export async function POST(request) {
     await prisma.notification.create({
       data: {
         userId: studentId,
-        schoolId: schoolId, // ✅ FIXED
+        schoolId: schoolId,
         title: `Class Teacher Alert: ${alertType.replace(/_/g, ' ')}`,
         content: message,
         type: priority === 'high' ? 'warning' : 'info',
@@ -353,7 +395,6 @@ export async function POST(request) {
 
     // Optionally notify parent
     if (notifyParent && student.studentProfile?.parentEmail) {
-      // You can implement email notification here
       console.log(`Parent notification would be sent to: ${student.studentProfile.parentEmail}`);
     }
 
