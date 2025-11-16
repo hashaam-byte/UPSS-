@@ -285,7 +285,9 @@ export async function POST(request) {
     }
 
     // Construct full class name with arm
-    const fullClassName = `${baseClass} ${arm}`;
+    const normalizedClass = className.toUpperCase(); // SS2
+    const normalizedArm = arm.trim(); // Keep original casing from arms config
+    const fullClassName = `${normalizedClass} ${normalizedArm}`; // "SS2 Silver"
 
     const results = {
       successful: [],
