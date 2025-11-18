@@ -1,32 +1,25 @@
-// ===================================================================
-// FILE: src/app/api/protected/teacher/subject/online-tests/create/route.js
-// ===================================================================
+// src/app/api/protected/teacher/subject/online-tests/create/route.js - FIXED
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { 
+  getTeacherSubjects, 
+  getTeacherClasses, 
+  validateTeacherSubjectAccess,
+  mapTestTypeToAssignmentType,
+  mapStatusToAssignmentStatus 
+} from '@/lib/subject-helpers';
 
 export async function GET(request) {
   try {
     const user = await requireAuth(['teacher']);
     
-    // Get teacher's subjects and classes
-    const teacherProfile = await prisma.teacherProfile.findUnique({
-      where: { userId: user.id },
-      include: {
-        teacherSubjects: {
-          include: {
-            subject: true
-          }
-        }
-      }
-    });
-
-    const subjects = teacherProfile?.teacherSubjects || [];
-    const classes = [...new Set(subjects.flatMap(ts => ts.classes))];
+    // FIXED: Use helper to get subjects with actual Subject.id
+    const subjects = await getTeacherSubjects(user.id, user.schoolId);
+    const classes = await getTeacherClasses(user.id);
 
     return NextResponse.json({
       success: true,
-      subjects,
+      subjects, // Returns actual Subject.id
       classes
     });
   } catch (error) {
@@ -45,7 +38,7 @@ export async function POST(request) {
     const {
       title,
       description,
-      subjectId,
+      subjectId, // NOW EXPECTS ACTUAL Subject.id
       testType,
       duration,
       classes,
@@ -61,27 +54,43 @@ export async function POST(request) {
       status,
     } = data;
 
-    // Map testType and status to valid enum values
-    const validAssignmentType = testType === 'test' ? 'quiz' : testType; // Adjust mapping as needed
-    const validStatus = status === 'published' ? 'active' : status; // Map "published" to "active"
+    // FIXED: Validate teacher has access to subject
+    try {
+      await validateTeacherSubjectAccess(user.id, subjectId);
+    } catch (error) {
+      return NextResponse.json({
+        success: false,
+        error: error.message
+      }, { status: 403 });
+    }
+
+    // FIXED: Use standardized mapping functions
+    const validAssignmentType = mapTestTypeToAssignmentType(testType);
+    const validStatus = mapStatusToAssignmentStatus(status);
+
+    console.log('[Create Test] Mapped types:', {
+      testType,
+      validAssignmentType,
+      status,
+      validStatus
+    });
 
     // Create the assignment/test
     const test = await prisma.assignment.create({
       data: {
         schoolId: user.schoolId,
-        subjectId,
+        subjectId, // Actual Subject.id
         teacherId: user.id,
         title,
         description: description || '',
         instructions: instructions || '',
-        assignmentType: validAssignmentType,
+        assignmentType: validAssignmentType, // FIXED: Consistent mapping
         classes: classes || [],
         maxScore: totalMarks || 100,
         passingScore: passingMarks || 60,
-        status: validStatus, // Use the mapped value
+        status: validStatus, // FIXED: Consistent mapping
         dueDate: new Date(scheduledDate),
         availableFrom: new Date(),
-        // Store test settings and questions in attachments as JSON
         attachments: [JSON.stringify({
           isOnlineTest: true,
           duration: duration || 60,
@@ -108,7 +117,7 @@ export async function POST(request) {
     });
 
     // Create notifications for students in selected classes
-    if (status === 'published' && classes && classes.length > 0) {
+    if (validStatus === 'active' && classes && classes.length > 0) {
       const students = await prisma.user.findMany({
         where: {
           role: 'student',
@@ -134,6 +143,13 @@ export async function POST(request) {
         });
       }
     }
+
+    console.log('[Create Test] Test created successfully:', {
+      id: test.id,
+      title: test.title,
+      assignmentType: test.assignmentType,
+      status: test.status
+    });
 
     return NextResponse.json({
       success: true,

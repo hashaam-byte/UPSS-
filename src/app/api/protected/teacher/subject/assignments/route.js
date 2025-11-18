@@ -1,7 +1,8 @@
-// app/api/protected/teacher/subject/assignments/route.js
+// src/app/api/protected/teacher/subject/assignments/route.js - FIXED
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { validateTeacherSubjectAccess } from '@/lib/subject-helpers';
 
 export async function GET(request) {
   try {
@@ -15,7 +16,7 @@ export async function GET(request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const filterSubjectId = searchParams.get('subjectId'); // This is TeacherSubject.id from frontend
+    const filterSubjectId = searchParams.get('subjectId'); // NOW EXPECTS ACTUAL Subject.id
     const status = searchParams.get('status');
     const sortBy = searchParams.get('sortBy') || 'dueDate';
     const search = searchParams.get('search');
@@ -45,16 +46,9 @@ export async function GET(request) {
       schoolId: user.schoolId
     };
 
-    // Apply subject filter - convert TeacherSubject id to actual Subject id
+    // FIXED: Now directly uses Subject.id (no conversion needed)
     if (filterSubjectId && filterSubjectId !== 'all') {
-      const teacherSubject = await prisma.teacherSubject.findUnique({
-        where: { id: filterSubjectId },
-        select: { subjectId: true }
-      });
-      
-      if (teacherSubject) {
-        where.subjectId = teacherSubject.subjectId;
-      }
+      where.subjectId = filterSubjectId;
     }
 
     if (status && status !== 'all') {
@@ -186,7 +180,7 @@ export async function POST(request) {
 
     const body = await request.json();
     const {
-      subjectId,
+      subjectId, // NOW EXPECTS ACTUAL Subject.id
       title,
       description,
       instructions,
@@ -210,17 +204,12 @@ export async function POST(request) {
       );
     }
 
-    // Verify teacher teaches this subject
-    const teacherSubject = await prisma.teacherSubject.findFirst({
-      where: {
-        teacherId: user.teacherProfile.id,
-        subjectId
-      }
-    });
-
-    if (!teacherSubject) {
+    // FIXED: Verify teacher teaches this subject using actual Subject.id
+    try {
+      await validateTeacherSubjectAccess(currentUser.id, subjectId);
+    } catch (error) {
       return NextResponse.json(
-        { success: false, error: 'You are not assigned to teach this subject' },
+        { success: false, error: error.message },
         { status: 403 }
       );
     }
@@ -229,7 +218,7 @@ export async function POST(request) {
     const assignment = await prisma.assignment.create({
       data: {
         schoolId: user.schoolId,
-        subjectId,
+        subjectId, // Actual Subject.id
         teacherId: currentUser.id,
         title,
         description,

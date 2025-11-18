@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 
 const AttendanceMarkingPage = () => {
-  const [students, setStudents] = useState([]);
+  const [attendanceData, setAttendanceData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -26,7 +26,7 @@ const AttendanceMarkingPage = () => {
   const [selectedPeriod, setSelectedPeriod] = useState('full_day');
   const [searchTerm, setSearchTerm] = useState('');
   const [summary, setSummary] = useState(null);
-  const [className, setClassName] = useState('');
+  const [assignedClasses, setAssignedClasses] = useState([]);
 
   useEffect(() => {
     fetchAttendance();
@@ -53,9 +53,26 @@ const AttendanceMarkingPage = () => {
       const data = await response.json();
       
       if (data.success) {
-        setStudents(data.data.students);
+        // ✅ FIX: API returns data.data.attendance which is an array of { student, attendance }
+        const attendanceArray = data.data.attendance || [];
+        
+        // Transform to include both student info and their attendance records
+        const transformedData = attendanceArray.map(item => ({
+          id: item.student.id,
+          firstName: item.student.firstName,
+          lastName: item.student.lastName,
+          studentId: item.student.studentId,
+          className: item.student.className,
+          avatar: item.student.avatar,
+          // Get the attendance record for the selected date (last one if multiple)
+          attendance: item.attendance && item.attendance.length > 0 
+            ? item.attendance[item.attendance.length - 1] 
+            : { status: null, arrivalTime: null, notes: null }
+        }));
+        
+        setAttendanceData(transformedData);
         setSummary(data.data.summary);
-        setClassName(data.data.className);
+        setAssignedClasses(data.data.assignedClasses || []);
       } else {
         throw new Error(data.error || 'Failed to load attendance');
       }
@@ -68,8 +85,8 @@ const AttendanceMarkingPage = () => {
   };
 
   const markAttendance = (studentId, status) => {
-    setStudents(prevStudents =>
-      prevStudents.map(student =>
+    setAttendanceData(prevData =>
+      prevData.map(student =>
         student.id === studentId
           ? {
               ...student,
@@ -85,8 +102,8 @@ const AttendanceMarkingPage = () => {
   };
 
   const updateArrivalTime = (studentId, time) => {
-    setStudents(prevStudents =>
-      prevStudents.map(student =>
+    setAttendanceData(prevData =>
+      prevData.map(student =>
         student.id === studentId
           ? {
               ...student,
@@ -101,8 +118,8 @@ const AttendanceMarkingPage = () => {
   };
 
   const updateNotes = (studentId, notes) => {
-    setStudents(prevStudents =>
-      prevStudents.map(student =>
+    setAttendanceData(prevData =>
+      prevData.map(student =>
         student.id === studentId
           ? {
               ...student,
@@ -121,7 +138,7 @@ const AttendanceMarkingPage = () => {
       setSaving(true);
       setError(null);
 
-      const attendanceData = students
+      const attendanceRecords = attendanceData
         .filter(student => student.attendance?.status)
         .map(student => ({
           studentId: student.id,
@@ -130,7 +147,7 @@ const AttendanceMarkingPage = () => {
           notes: student.attendance.notes
         }));
 
-      if (attendanceData.length === 0) {
+      if (attendanceRecords.length === 0) {
         alert('Please mark attendance for at least one student');
         return;
       }
@@ -144,7 +161,7 @@ const AttendanceMarkingPage = () => {
         body: JSON.stringify({
           date: selectedDate,
           period: selectedPeriod,
-          attendanceData
+          attendanceRecords // ✅ Changed from attendanceData to attendanceRecords to match API
         })
       });
 
@@ -170,8 +187,8 @@ const AttendanceMarkingPage = () => {
   };
 
   const markAllPresent = () => {
-    setStudents(prevStudents =>
-      prevStudents.map(student => ({
+    setAttendanceData(prevData =>
+      prevData.map(student => ({
         ...student,
         attendance: {
           ...student.attendance,
@@ -196,9 +213,9 @@ const AttendanceMarkingPage = () => {
     }
   };
 
-  const filteredStudents = students.filter(student =>
-    student.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  const filteredStudents = attendanceData.filter(student =>
+    student.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    student.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     student.studentId?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -225,7 +242,7 @@ const AttendanceMarkingPage = () => {
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Mark Attendance</h1>
               <p className="text-gray-600 mt-1">
-                {className} • {new Date(selectedDate).toLocaleDateString('en-US', { 
+                {assignedClasses.length > 0 ? assignedClasses.join(', ') : 'My Classes'} • {new Date(selectedDate).toLocaleDateString('en-US', { 
                   weekday: 'long', 
                   year: 'numeric', 
                   month: 'long', 
@@ -334,24 +351,24 @@ const AttendanceMarkingPage = () => {
           {summary && (
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div className="bg-gray-50 rounded-lg p-4 text-center">
-                <div className="text-2xl font-bold text-gray-900">{summary.total}</div>
+                <div className="text-2xl font-bold text-gray-900">{summary.totalStudents || 0}</div>
                 <div className="text-sm text-gray-600">Total Students</div>
               </div>
               <div className="bg-green-50 rounded-lg p-4 text-center">
-                <div className="text-2xl font-bold text-green-600">{summary.present}</div>
+                <div className="text-2xl font-bold text-green-600">{summary.present || 0}</div>
                 <div className="text-sm text-green-600">Present</div>
               </div>
               <div className="bg-red-50 rounded-lg p-4 text-center">
-                <div className="text-2xl font-bold text-red-600">{summary.absent}</div>
+                <div className="text-2xl font-bold text-red-600">{summary.absent || 0}</div>
                 <div className="text-sm text-red-600">Absent</div>
               </div>
               <div className="bg-yellow-50 rounded-lg p-4 text-center">
-                <div className="text-2xl font-bold text-yellow-600">{summary.late}</div>
+                <div className="text-2xl font-bold text-yellow-600">{summary.late || 0}</div>
                 <div className="text-sm text-yellow-600">Late</div>
               </div>
               <div className="bg-blue-50 rounded-lg p-4 text-center">
-                <div className="text-2xl font-bold text-blue-600">{summary.excused}</div>
-                <div className="text-sm text-blue-600">Excused</div>
+                <div className="text-2xl font-bold text-blue-600">{summary.totalRecords || 0}</div>
+                <div className="text-sm text-blue-600">Records</div>
               </div>
             </div>
           )}
@@ -380,12 +397,12 @@ const AttendanceMarkingPage = () => {
                         {index + 1}. {student.firstName} {student.lastName}
                       </h3>
                       <p className="text-sm text-gray-600">
-                        Student ID: {student.studentId || 'N/A'}
+                        Student ID: {student.studentId || 'N/A'} • Class: {student.className || 'N/A'}
                       </p>
                     </div>
                   </div>
 
-                  {student.attendance && (
+                  {student.attendance?.status && (
                     <div className={`px-3 py-1 rounded-full text-sm font-medium border ${getStatusColor(student.attendance.status)}`}>
                       {student.attendance.status?.toUpperCase()}
                     </div>

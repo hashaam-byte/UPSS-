@@ -1,14 +1,18 @@
-// app/api/protected/teacher/subject/online-tests/route.js
+// src/app/api/protected/teacher/subject/online-tests/route.js - FIXED
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { 
+  mapTestTypeToAssignmentType,
+  mapStatusToAssignmentStatus 
+} from '@/lib/subject-helpers';
 
 // GET - Fetch all tests created by teacher
 export async function GET(request) {
   try {
     const user = await getCurrentUser();
     
-    if (!user || user.role !== 'teacher' || user.department !== 'subject_teacher') {
+    if (!user || user.role !== 'teacher') {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 403 }
@@ -17,18 +21,19 @@ export async function GET(request) {
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') || 'all';
-    const subjectId = searchParams.get('subjectId');
+    const subjectId = searchParams.get('subjectId'); // NOW EXPECTS ACTUAL Subject.id
 
     const where = {
       teacherId: user.id,
       schoolId: user.schoolId,
-      assignmentType: { in: ['quiz', 'exam'] } // Use valid enum values from your schema
+      assignmentType: { in: ['quiz', 'exam'] }
     };
 
     if (status !== 'all') {
-      where.status = status;
+      where.status = mapStatusToAssignmentStatus(status);
     }
 
+    // FIXED: Now directly uses Subject.id
     if (subjectId) {
       where.subjectId = subjectId;
     }
@@ -92,7 +97,7 @@ export async function POST(request) {
   try {
     const user = await getCurrentUser();
     
-    if (!user || user.role !== 'teacher' || user.department !== 'subject_teacher') {
+    if (!user || user.role !== 'teacher') {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 403 }
@@ -103,7 +108,7 @@ export async function POST(request) {
     const {
       title,
       description,
-      subjectId,
+      subjectId, // NOW EXPECTS ACTUAL Subject.id
       testType,
       duration,
       classes,
@@ -119,23 +124,26 @@ export async function POST(request) {
       status
     } = data;
 
+    // FIXED: Use standardized mapping
+    const validAssignmentType = mapTestTypeToAssignmentType(testType);
+    const validStatus = mapStatusToAssignmentStatus(status);
+
     // Create the assignment/test
     const test = await prisma.assignment.create({
       data: {
         schoolId: user.schoolId,
-        subjectId,
+        subjectId, // Actual Subject.id
         teacherId: user.id,
         title,
         description,
         instructions,
-        assignmentType: testType,
+        assignmentType: validAssignmentType,
         classes,
         maxScore: totalMarks,
         passingScore: passingMarks,
-        status: status || 'draft',
+        status: validStatus,
         dueDate: scheduledDate ? new Date(scheduledDate) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         availableFrom: scheduledDate ? new Date(scheduledDate) : new Date(),
-        // Store test settings and questions in attachments as JSON
         attachments: [JSON.stringify({
           isOnlineTest: true,
           duration,
@@ -173,7 +181,7 @@ export async function POST(request) {
       select: { id: true }
     });
 
-    if (status === 'published' && students.length > 0) {
+    if (validStatus === 'active' && students.length > 0) {
       await prisma.notification.createMany({
         data: students.map(student => ({
           userId: student.id,

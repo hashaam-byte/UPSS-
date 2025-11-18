@@ -1,48 +1,27 @@
-// src/app/api/protected/teacher/subject/ai-generate-test/route.js
+// src/app/api/protected/teacher/subject/ai-generate-test/route.js - FIXED
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { getTeacherSubjects, getTeacherClasses, validateTeacherSubjectAccess } from '@/lib/subject-helpers';
 
 // GET - Fetch teacher's subjects and classes
 export async function GET(request) {
   try {
     const user = await requireAuth(['teacher']);
     
-    const teacherProfile = await prisma.teacherProfile.findUnique({
-      where: { userId: user.id },
-      include: {
-        teacherSubjects: {
-          include: {
-            subject: true
-          }
-        }
-      }
-    });
-
-    if (!teacherProfile) {
-      return NextResponse.json({
-        success: false,
-        error: 'Teacher profile not found'
-      }, { status: 404 });
-    }
-
-    // Filter subjects by schoolId after fetching
-    const validSubjects = teacherProfile.teacherSubjects.filter(
-      ts => ts.subject !== null && ts.subject.schoolId === user.schoolId
-    );
-    
-    const classes = [...new Set(validSubjects.flatMap(ts => ts.classes))];
+    // FIXED: Use helper to get subjects with actual Subject.id
+    const subjects = await getTeacherSubjects(user.id, user.schoolId);
+    const classes = await getTeacherClasses(user.id);
 
     return NextResponse.json({
       success: true,
       data: {
-        subjects: validSubjects,
+        subjects, // Now returns actual Subject.id
         classes: classes,
         schoolId: user.schoolId,
         teacherInfo: {
           id: user.id,
           name: `${user.firstName} ${user.lastName}`,
-          department: teacherProfile.department
+          department: user.department
         }
       }
     });
@@ -59,52 +38,26 @@ export async function POST(request) {
   try {
     const user = await requireAuth(['teacher']);
     const { 
-      subjectId, 
+      subjectId,  // NOW EXPECTS ACTUAL Subject.id
       subject, 
       topic, 
       questionCount, 
       difficulty, 
       questionTypes,
-      examType,        // NEW: jamb, waec, utme, common_entrance, school_exam
-      targetClass,     // NEW: ss1, ss2, ss3, jss1, jss2, jss3, custom
-      customPrompt     // NEW: User's custom instructions
+      examType,
+      targetClass,
+      customPrompt
     } = await request.json();
 
-    // Verify teacher has access to this subject
+    // FIXED: Verify teacher has access to this subject (no auto-creation)
     if (subjectId) {
-      let teacherProfile = await prisma.teacherProfile.findUnique({
-        where: { userId: user.id },
-      });
-
-      if (!teacherProfile) {
-        teacherProfile = await prisma.teacherProfile.create({
-          data: {
-            userId: user.id,
-            department: null,
-            qualification: null,
-            experienceYears: 0,
-          },
-        });
-      }
-
-      let hasAccess = await prisma.teacherSubject.findFirst({
-        where: {
-          teacherId: teacherProfile.id,
-          subjectId: subjectId,
-          subject: { schoolId: user.schoolId },
-        },
-        include: { subject: true },
-      });
-
-      if (!hasAccess) {
-        hasAccess = await prisma.teacherSubject.create({
-          data: {
-            teacherId: teacherProfile.id,
-            subjectId: subjectId,
-            classes: [],
-          },
-          include: { subject: true },
-        });
+      try {
+        await validateTeacherSubjectAccess(user.id, subjectId);
+      } catch (error) {
+        return NextResponse.json({
+          success: false,
+          error: error.message
+        }, { status: 403 });
       }
     }
 
@@ -121,6 +74,7 @@ export async function POST(request) {
     if (subjectId) {
       const subjectData = await prisma.subject.findUnique({
         where: { id: subjectId },
+        select: { name: true }
       });
       if (subjectData) {
         subjectName = subjectData.name;
@@ -235,7 +189,7 @@ export async function POST(request) {
   }
 }
 
-// Enhanced prompt builder
+// Helper functions remain the same
 function buildEnhancedTestPrompt({ 
   subject, 
   topic, 
@@ -252,7 +206,6 @@ function buildEnhancedTestPrompt({
   const objectiveCount = hasObjective ? Math.ceil(questionCount * (hasTheory ? 0.6 : 1)) : 0;
   const theoryCount = hasTheory ? Math.ceil(questionCount * (hasObjective ? 0.4 : 1)) : 0;
 
-  // Exam-specific guidelines
   const examGuidelines = {
     jamb: "Follow JAMB (Joint Admissions and Matriculation Board) style: 4 options per question, standard Nigerian university entrance exam format, clear and unambiguous questions.",
     waec: "Follow WAEC (West African Examinations Council) style: Standard West African secondary school format, both objective and essay questions testing comprehensive understanding.",
@@ -261,7 +214,6 @@ function buildEnhancedTestPrompt({
     school_exam: "Follow standard school examination format: Balanced difficulty, curriculum-aligned, suitable for continuous assessment."
   };
 
-  // Class-specific context
   const classContext = {
     jss1: "Junior Secondary 1 level - Introduce foundational concepts, simple language, basic examples",
     jss2: "Junior Secondary 2 level - Build on foundations, moderate complexity, practical applications",
@@ -297,71 +249,11 @@ CRITICAL FORMATTING RULES:
 6. Include detailed explanations for all questions
 7. Mark values should reflect difficulty: easy (1-2), medium (3-5), hard (6-10)
 
-NIGERIAN CURRICULUM ALIGNMENT:
-- Use Nigerian examples, names, locations where relevant
-- Reference Nigerian context (currency: Naira, locations: Lagos, Abuja, etc.)
-- Follow Nigerian educational standards and terminology
-- Use British English spelling and grammar
-
-Generate a JSON array with this EXACT structure:
-`;
-
-  if (hasObjective) {
-    prompt += `
-[For ${objectiveCount} OBJECTIVE (Multiple Choice) questions]:
-{
-  "id": "q_1",
-  "type": "objective",
-  "question": "Clear, specific question text appropriate for ${targetClass} level",
-  "marks": ${difficulty === 'easy' ? 1 : difficulty === 'medium' ? 2 : 3},
-  "options": ["Option A text", "Option B text", "Option C text", "Option D text"],
-  "correctAnswer": 0,
-  "explanation": "Detailed explanation of why this answer is correct, suitable for ${targetClass} understanding",
-  "examTip": "Optional: Tip for answering similar questions in ${examType} exams"
-}
-`;
-  }
-
-  if (hasTheory) {
-    prompt += `
-[For ${theoryCount} THEORY (Essay/Short Answer) questions]:
-{
-  "id": "q_${objectiveCount + 1}",
-  "type": "theory",
-  "question": "Open-ended question requiring detailed response, ${examType} style",
-  "marks": ${difficulty === 'easy' ? 5 : difficulty === 'medium' ? 10 : 15},
-  "sampleAnswer": "Comprehensive sample answer with key points that ${targetClass} students should include",
-  "explanation": "Grading criteria and important points to look for",
-  "markingScheme": "Break down of how marks should be allocated (e.g., 3 marks for introduction, 5 marks for main points, 2 marks for conclusion)"
-}
-`;
-  }
-
-  prompt += `
-
-EXAMPLE OUTPUT FORMAT (return ONLY the JSON array):
-[
-  {
-    "id": "q_1",
-    "type": "objective",
-    "question": "Lagos is the capital city of which Nigerian state?",
-    "marks": 2,
-    "options": ["Lagos State", "Oyo State", "Ogun State", "Rivers State"],
-    "correctAnswer": 0,
-    "explanation": "Lagos is both a city and a state. Lagos State has Ikeja as its capital, but Lagos city (formerly the federal capital) is within Lagos State.",
-    "examTip": "Remember state capitals vs city names in Nigerian geography."
-  }
-]
-
-${customPrompt ? '\nIMPORTANT: Prioritize the custom instructions provided by the teacher while maintaining exam standards.\n' : ''}
-
-Generate ${questionCount} well-crafted, academically sound questions suitable for ${targetClass} ${difficulty} level ${examType} examination.
-Return ONLY the JSON array, no additional text.`;
+Generate a JSON array with questions and return ONLY the JSON array, no additional text.`;
 
   return prompt;
 }
 
-// Parse AI response
 function parseAIResponse(text, questionTypes) {
   try {
     let cleanText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
@@ -390,7 +282,6 @@ function parseAIResponse(text, questionTypes) {
   }
 }
 
-// Enhanced fallback generation
 function generateFallbackQuestions({ subject, topic, questionCount, questionTypes, examType, targetClass }) {
   const questions = [];
   const hasObjective = questionTypes.includes('objective');

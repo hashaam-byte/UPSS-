@@ -1,7 +1,7 @@
-// app/api/protected/teacher/subject/assignments/create-data/route.js
+// src/app/api/protected/teacher/subject/assignments/create-data/route.js - FIXED
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { getTeacherSubjects, getTeacherClasses } from '@/lib/subject-helpers';
 
 export async function GET(request) {
   try {
@@ -14,49 +14,11 @@ export async function GET(request) {
       );
     }
 
-    // Get teacher profile
-    const teacherProfile = await prisma.teacherProfile.findUnique({
-      where: { userId: user.id }
-    });
-
-    if (!teacherProfile) {
-      return NextResponse.json(
-        { success: false, error: 'Teacher profile not found' },
-        { status: 404 }
-      );
-    }
-
-    // Get teacher's assigned subjects
-    const teacherSubjects = await prisma.teacherSubject.findMany({
-      where: {
-        teacherId: teacherProfile.id
-      },
-      include: {
-        subject: {
-          select: {
-            id: true,
-            name: true,
-            code: true,
-            category: true,
-            classes: true
-          }
-        }
-      }
-    });
-
-    // Format subjects with their classes - use same structure as subjects API
-    const subjects = teacherSubjects.map(ts => ({
-      id: ts.id, // TeacherSubject id
-      subjectId: ts.subject.id, // Actual Subject id
-      name: ts.subject.name,
-      code: ts.subject.code,
-      category: ts.subject.category,
-      classes: ts.classes, // Classes this teacher teaches for this subject
-      isActive: ts.subject.isActive
-    }));
-
+    // FIXED: Use helper to get subjects with actual Subject.id
+    const subjects = await getTeacherSubjects(user.id, user.schoolId);
+    
     // Get all unique classes from teacher's subjects
-    const allClasses = [...new Set(teacherSubjects.flatMap(ts => ts.classes))];
+    const allClasses = await getTeacherClasses(user.id);
 
     // Get assignment types enum
     const assignmentTypes = [
@@ -74,7 +36,7 @@ export async function GET(request) {
     return NextResponse.json({
       success: true,
       data: {
-        subjects,
+        subjects, // Now returns actual Subject.id
         classes: allClasses,
         assignmentTypes
       }

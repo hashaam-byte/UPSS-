@@ -1,7 +1,13 @@
-// /app/api/protected/teacher/class/reports/route.js
+// /app/api/protected/teacher/class/reports/route.js - CASE-INSENSITIVE VERSION
 import { requireAuth } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+
+// ✅ Helper function to normalize class names for comparison
+function normalizeClassName(className) {
+  if (!className) return '';
+  return className.trim().toUpperCase().replace(/\s+/g, ' ');
+}
 
 // GET - Fetch available reports and report data
 export async function GET(request) {
@@ -85,15 +91,18 @@ export async function GET(request) {
       });
     }
 
-    // Get students for the reports
-    const students = await prisma.user.findMany({
+    // ✅ FIX: Normalize assigned classes for case-insensitive comparison
+    const normalizedAssignedClasses = assignedClasses.map(cls => normalizeClassName(cls));
+
+    // ✅ FIX: Get ALL students from school, then filter case-insensitively
+    const allStudentsInSchool = await prisma.user.findMany({
       where: {
         schoolId: user.schoolId,
         role: 'student',
         isActive: true,
         studentProfile: {
           className: {
-            in: assignedClasses
+            not: null
           }
         }
       },
@@ -104,6 +113,15 @@ export async function GET(request) {
         { firstName: 'asc' },
         { lastName: 'asc' }
       ]
+    });
+
+    // Filter students by normalized class names (case-insensitive)
+    const students = allStudentsInSchool.filter(student => {
+      const studentClassName = student.studentProfile?.className;
+      if (!studentClassName) return false;
+      
+      const normalizedStudentClass = normalizeClassName(studentClassName);
+      return normalizedAssignedClasses.includes(normalizedStudentClass);
     });
 
     let reportData = {};

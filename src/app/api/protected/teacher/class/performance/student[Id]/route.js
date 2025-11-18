@@ -1,4 +1,4 @@
-// /app/api/protected/teacher/class/performance/[studentId]/route.js
+// /app/api/protected/teacher/class/performance/[studentId]/route.js - CASE-INSENSITIVE VERSION
 import { requireAuth } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -35,6 +35,25 @@ async function verifyClassTeacherAccess(token) {
   return user;
 }
 
+// ✅ Helper function to normalize class names for comparison
+function normalizeClassName(className) {
+  if (!className) return '';
+  return className.trim().toUpperCase().replace(/\s+/g, ' ');
+}
+
+// Helper function to determine current term
+function getCurrentTerm(date) {
+  const month = date.getMonth() + 1; // 0-based to 1-based
+  
+  if (month >= 9 && month <= 12) {
+    return 'First Term';
+  } else if (month >= 1 && month <= 4) {
+    return 'Second Term';
+  } else {
+    return 'Third Term';
+  }
+}
+
 export async function GET(request, { params }) {
   try {
     await requireAuth(['class_teacher']);
@@ -64,18 +83,16 @@ export async function GET(request, { params }) {
       )];
     }
 
-    // Verify student belongs to teacher's class
+    // ✅ FIX: Normalize assigned classes for case-insensitive comparison
+    const normalizedAssignedClasses = classNames.map(cls => normalizeClassName(cls));
+
+    // ✅ FIX: Verify student belongs to teacher's class (case-insensitive)
     const student = await prisma.user.findFirst({
       where: {
         id: studentId,
         schoolId: classTeacher.schoolId,
         role: 'student',
-        isActive: true,
-        studentProfile: {
-          className: {
-            in: classNames
-          }
-        }
+        isActive: true
       },
       include: {
         studentProfile: true
@@ -83,6 +100,16 @@ export async function GET(request, { params }) {
     });
 
     if (!student) {
+      return NextResponse.json({
+        error: 'Student not found'
+      }, { status: 404 });
+    }
+
+    // Check if student's class matches teacher's assigned classes (case-insensitive)
+    const studentClassName = student.studentProfile?.className;
+    const normalizedStudentClass = normalizeClassName(studentClassName);
+    
+    if (!normalizedAssignedClasses.includes(normalizedStudentClass)) {
       return NextResponse.json({
         error: 'Student not found in your assigned class'
       }, { status: 404 });
@@ -401,18 +428,5 @@ export async function GET(request, { params }) {
     }
     
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
-
-// Helper function to determine current term
-function getCurrentTerm(date) {
-  const month = date.getMonth() + 1; // 0-based to 1-based
-  
-  if (month >= 9 && month <= 12) {
-    return 'First Term';
-  } else if (month >= 1 && month <= 4) {
-    return 'Second Term';
-  } else {
-    return 'Third Term';
   }
 }

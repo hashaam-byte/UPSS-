@@ -1,7 +1,13 @@
-// /app/api/protected/teacher/class/attendance/route.js
+// /app/api/protected/teacher/class/attendance/route.js - CASE-INSENSITIVE VERSION
 import { requireAuth } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+
+// ✅ Helper function to normalize class names for comparison
+function normalizeClassName(className) {
+  if (!className) return '';
+  return className.trim().toUpperCase().replace(/\s+/g, ' ');
+}
 
 export async function GET(request) {
   try {
@@ -33,15 +39,18 @@ export async function GET(request) {
       });
     }
 
-    // Get students in assigned classes
-    const students = await prisma.user.findMany({
+    // ✅ FIX: Normalize assigned classes for case-insensitive comparison
+    const normalizedAssignedClasses = assignedClasses.map(cls => normalizeClassName(cls));
+
+    // ✅ FIX: Get ALL students from school, then filter case-insensitively
+    const allStudentsInSchool = await prisma.user.findMany({
       where: {
         schoolId: user.schoolId,
         role: 'student',
         isActive: true,
         studentProfile: {
           className: {
-            in: assignedClasses
+            not: null
           }
         },
         ...(studentId && { id: studentId })
@@ -53,6 +62,15 @@ export async function GET(request) {
         { firstName: 'asc' },
         { lastName: 'asc' }
       ]
+    });
+
+    // Filter students by normalized class names (case-insensitive)
+    const students = allStudentsInSchool.filter(student => {
+      const studentClassName = student.studentProfile?.className;
+      if (!studentClassName) return false;
+      
+      const normalizedStudentClass = normalizeClassName(studentClassName);
+      return normalizedAssignedClasses.includes(normalizedStudentClass);
     });
 
     // TODO: In production, this would query an actual attendance table
@@ -197,6 +215,7 @@ export async function POST(request) {
     });
     
     const assignedClasses = teacherProfile.teacherSubjects.flatMap(ts => ts.classes);
+    const normalizedAssignedClasses = assignedClasses.map(cls => normalizeClassName(cls));
 
     if (assignedClasses.length === 0) {
       return NextResponse.json({
@@ -231,18 +250,13 @@ export async function POST(request) {
           continue;
         }
 
-        // Verify student belongs to teacher's class
+        // ✅ FIX: Verify student belongs to teacher's class (case-insensitive)
         const student = await prisma.user.findFirst({
           where: {
             id: studentId,
             schoolId: user.schoolId,
             role: 'student',
-            isActive: true,
-            studentProfile: {
-              className: {
-                in: assignedClasses
-              }
-            }
+            isActive: true
           },
           include: {
             studentProfile: true
@@ -250,6 +264,18 @@ export async function POST(request) {
         });
 
         if (!student) {
+          results.failed.push({
+            studentId,
+            error: 'Student not found'
+          });
+          continue;
+        }
+
+        // Check if student's class matches teacher's assigned classes (case-insensitive)
+        const studentClassName = student.studentProfile?.className;
+        const normalizedStudentClass = normalizeClassName(studentClassName);
+        
+        if (!normalizedAssignedClasses.includes(normalizedStudentClass)) {
           results.failed.push({
             studentId,
             error: 'Student not found in your assigned class'
@@ -319,23 +345,32 @@ export async function PUT(request) {
     });
     
     const assignedClasses = teacherProfile.teacherSubjects.flatMap(ts => ts.classes);
+    const normalizedAssignedClasses = assignedClasses.map(cls => normalizeClassName(cls));
 
-    // Verify student belongs to teacher's class
+    // ✅ FIX: Verify student belongs to teacher's class (case-insensitive)
     const student = await prisma.user.findFirst({
       where: {
         id: studentId,
         schoolId: user.schoolId,
         role: 'student',
-        isActive: true,
-        studentProfile: {
-          className: {
-            in: assignedClasses
-          }
-        }
+        isActive: true
+      },
+      include: {
+        studentProfile: true
       }
     });
 
     if (!student) {
+      return NextResponse.json({
+        error: 'Student not found'
+      }, { status: 404 });
+    }
+
+    // Check if student's class matches teacher's assigned classes (case-insensitive)
+    const studentClassName = student.studentProfile?.className;
+    const normalizedStudentClass = normalizeClassName(studentClassName);
+    
+    if (!normalizedAssignedClasses.includes(normalizedStudentClass)) {
       return NextResponse.json({
         error: 'Student not found in your assigned class'
       }, { status: 404 });

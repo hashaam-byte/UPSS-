@@ -1,4 +1,4 @@
-// app/protected/teacher/subject/assignments/create/page.jsx
+// app/protected/teacher/subject/assignments/create/page.jsx - FIXED
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -34,8 +34,8 @@ export default function CreateAssignment() {
       const response = await fetch('/api/protected/teacher/subject/assignments/create-data');
       if (response.ok) {
         const data = await response.json();
-        setSubjects(data.subjects || []);
-        setClasses(data.classes || []);
+        setSubjects(data.data?.subjects || []);
+        setClasses(data.data?.classes || []);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -176,7 +176,7 @@ export default function CreateAssignment() {
                   <option value="">Select subject</option>
                   {subjects.map((subject) => (
                     <option key={subject.id} value={subject.id}>
-                      {subject.name}
+                      {subject.name} ({subject.code})
                     </option>
                   ))}
                 </select>

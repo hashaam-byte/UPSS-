@@ -1,7 +1,13 @@
-// /app/api/protected/teacher/class/performance/route.js
+// /app/api/protected/teacher/class/performance/route.js - CASE-INSENSITIVE VERSION
 import { requireAuth } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+
+// ✅ Helper function to normalize class names for comparison
+function normalizeClassName(className) {
+  if (!className) return '';
+  return className.trim().toUpperCase().replace(/\s+/g, ' ');
+}
 
 // Helper function to determine current term
 function getCurrentTerm(date) {
@@ -49,34 +55,21 @@ export async function GET(request) {
       });
     }
 
-    // Build where conditions for students
-    let whereConditions = {
-      schoolId: user.schoolId,
-      role: 'student',
-      isActive: true,
-      studentProfile: {
-        className: {
-          in: assignedClasses
-        }
-      }
-    };
+    // ✅ FIX: Normalize assigned classes for case-insensitive comparison
+    const normalizedAssignedClasses = assignedClasses.map(cls => normalizeClassName(cls));
 
-    // Add search filter
-    if (search) {
-      whereConditions.OR = [
-        { firstName: { contains: search, mode: 'insensitive' } },
-        { lastName: { contains: search, mode: 'insensitive' } },
-        { 
-          studentProfile: {
-            studentId: { contains: search, mode: 'insensitive' }
+    // ✅ FIX: Get ALL students from school, then filter case-insensitively
+    const allStudentsInSchool = await prisma.user.findMany({
+      where: {
+        schoolId: user.schoolId,
+        role: 'student',
+        isActive: true,
+        studentProfile: {
+          className: {
+            not: null
           }
         }
-      ];
-    }
-
-    // Get students with their profiles
-    const students = await prisma.user.findMany({
-      where: whereConditions,
+      },
       include: {
         studentProfile: true
       },
@@ -85,6 +78,27 @@ export async function GET(request) {
         { lastName: 'asc' }
       ]
     });
+
+    // Filter students by normalized class names (case-insensitive)
+    let students = allStudentsInSchool.filter(student => {
+      const studentClassName = student.studentProfile?.className;
+      if (!studentClassName) return false;
+      
+      const normalizedStudentClass = normalizeClassName(studentClassName);
+      return normalizedAssignedClasses.includes(normalizedStudentClass);
+    });
+
+    // Add search filter
+    if (search) {
+      students = students.filter(student => {
+        const searchLower = search.toLowerCase();
+        return (
+          student.firstName?.toLowerCase().includes(searchLower) ||
+          student.lastName?.toLowerCase().includes(searchLower) ||
+          student.studentProfile?.studentId?.toLowerCase().includes(searchLower)
+        );
+      });
+    }
 
     // Get current academic year and term
     const currentDate = new Date();
