@@ -172,21 +172,32 @@ export default function AITestGenerator() {
                     <select
                       value={formData.subjectId}
                       onChange={(e) => {
-                        const selected = subjects.find(s => s.subject.id === e.target.value);
+                        const selected = subjects.find(s => {
+                          // Handle both data structures: s.subject.id or s.id
+                          const subjectId = s.subject?.id || s.id;
+                          return subjectId === e.target.value;
+                        });
                         setFormData({
                           ...formData,
                           subjectId: e.target.value,
-                          subject: selected ? selected.subject.name : ''
+                          subject: selected ? (selected.subject?.name || selected.name) : ''
                         });
                       }}
                       className="w-full px-4 py-2 border-2 border-gray-400 rounded-lg focus:ring-2 focus:ring-purple-500 font-medium text-gray-900"
                     >
                       <option value="">Select Subject</option>
-                      {subjects.map((ts) => (
-                        <option key={ts.subject.id} value={ts.subject.id}>
-                          {ts.subject.name} ({ts.subject.code})
-                        </option>
-                      ))}
+                      {subjects.map((ts) => {
+                        // Handle both data structures
+                        const subjectId = ts.subject?.id || ts.id;
+                        const subjectName = ts.subject?.name || ts.name;
+                        const subjectCode = ts.subject?.code || ts.code;
+                        
+                        return (
+                          <option key={subjectId} value={subjectId}>
+                            {subjectName} {subjectCode ? `(${subjectCode})` : ''}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
 

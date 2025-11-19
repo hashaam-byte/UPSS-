@@ -1,3 +1,4 @@
+// app/protected/teacher/subject/online-tests/[id]/edit/page.jsx - IMPROVED
 'use client';
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -17,7 +18,6 @@ export default function EditOnlineTest() {
   const [classes, setClasses] = useState([]);
   const [errors, setErrors] = useState({});
 
-  // Test Form State
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -46,20 +46,17 @@ export default function EditOnlineTest() {
     try {
       setLoading(true);
       
-      // Fetch test details
       const testResponse = await fetch(`/api/protected/teacher/subject/online-tests?status=all`);
       if (testResponse.ok) {
         const testData = await testResponse.json();
         const test = testData.tests.find(t => t.id === testId);
         
         if (test) {
-          // Parse test config
           let testConfig = null;
           if (test.attachments && test.attachments.length > 0) {
             testConfig = JSON.parse(test.attachments[0]);
           }
 
-          // Populate form
           setFormData({
             title: test.title,
             description: test.description || '',
@@ -82,7 +79,6 @@ export default function EditOnlineTest() {
         }
       }
 
-      // Fetch subjects and classes
       const subjectsResponse = await fetch('/api/protected/teacher/subject/online-tests/create');
       if (subjectsResponse.ok) {
         const data = await subjectsResponse.json();
@@ -209,31 +205,27 @@ export default function EditOnlineTest() {
     );
   }
 
-  // Calculate total marks
   const calculatedTotalMarks = questions.reduce((sum, q) => sum + (q.marks || 0), 0);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
+        <div className="bg-white rounded-2xl shadow-lg p-6 mb-6 border-2 border-gray-300">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <button
-                onClick={() => router.back()}
-                className="p-2 hover:bg-gray-100 rounded-lg"
-              >
-                <ArrowLeft className="w-5 h-5" />
+              <button onClick={() => router.back()} className="p-2 hover:bg-gray-100 rounded-lg">
+                <ArrowLeft className="w-5 h-5 text-gray-900" />
               </button>
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">Edit Test</h1>
-                <p className="text-gray-600 mt-1">Modify test details and questions</p>
+                <p className="text-gray-800 font-semibold mt-1">Modify test details and questions</p>
               </div>
             </div>
             <button
               onClick={handleSubmit}
               disabled={saving}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 font-bold border-2 border-blue-700"
             >
               {saving ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -247,48 +239,48 @@ export default function EditOnlineTest() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Information */}
-          <div className="bg-white rounded-2xl shadow-sm p-6">
-            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-300">
+            <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-gray-900">
               <Settings className="w-5 h-5" />
               Basic Information
             </h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-bold text-gray-900 mb-2">
                   Test Title *
                 </label>
                 <input
                   type="text"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border-2 border-gray-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium text-gray-900"
                   placeholder="E.g., Biology Mid-Term Exam"
                 />
-                {errors.title && <p className="text-red-500 text-sm mt-1">{errors.title}</p>}
+                {errors.title && <p className="text-red-600 text-sm mt-1 font-semibold">{errors.title}</p>}
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-bold text-gray-900 mb-2">
                   Description
                 </label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border-2 border-gray-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium text-gray-900"
                   placeholder="Brief description of the test..."
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-bold text-gray-900 mb-2">
                   Subject *
                 </label>
                 <select
                   value={formData.subjectId}
                   onChange={(e) => setFormData({ ...formData, subjectId: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border-2 border-gray-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium text-gray-900"
                 >
                   <option value="">Select Subject</option>
                   {subjects.map((subject) => (
@@ -297,17 +289,17 @@ export default function EditOnlineTest() {
                     </option>
                   ))}
                 </select>
-                {errors.subjectId && <p className="text-red-500 text-sm mt-1">{errors.subjectId}</p>}
+                {errors.subjectId && <p className="text-red-600 text-sm mt-1 font-semibold">{errors.subjectId}</p>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-bold text-gray-900 mb-2">
                   Test Type
                 </label>
                 <select
                   value={formData.testType}
                   onChange={(e) => setFormData({ ...formData, testType: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border-2 border-gray-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium text-gray-900"
                 >
                   <option value="test">Test</option>
                   <option value="quiz">Quiz</option>
@@ -316,7 +308,7 @@ export default function EditOnlineTest() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                <label className="block text-sm font-bold text-gray-900 mb-2 flex items-center gap-2">
                   <Clock className="w-4 h-4" />
                   Duration (minutes)
                 </label>
@@ -325,12 +317,12 @@ export default function EditOnlineTest() {
                   value={formData.duration}
                   onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value) })}
                   min="1"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border-2 border-gray-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-bold text-gray-900"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                <label className="block text-sm font-bold text-gray-900 mb-2 flex items-center gap-2">
                   <Calendar className="w-4 h-4" />
                   Available From
                 </label>
@@ -338,12 +330,12 @@ export default function EditOnlineTest() {
                   type="datetime-local"
                   value={formData.scheduledDate}
                   onChange={(e) => setFormData({ ...formData, scheduledDate: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border-2 border-gray-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium text-gray-900"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-bold text-gray-900 mb-2">
                   Passing Marks
                 </label>
                 <input
@@ -351,19 +343,19 @@ export default function EditOnlineTest() {
                   value={formData.passingMarks}
                   onChange={(e) => setFormData({ ...formData, passingMarks: parseInt(e.target.value) })}
                   min="0"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border-2 border-gray-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-bold text-gray-900"
                 />
-                {errors.passingMarks && <p className="text-red-500 text-sm mt-1">{errors.passingMarks}</p>}
+                {errors.passingMarks && <p className="text-red-600 text-sm mt-1 font-semibold">{errors.passingMarks}</p>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-bold text-gray-900 mb-2">
                   Status
                 </label>
                 <select
                   value={formData.status}
                   onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border-2 border-gray-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-bold text-gray-900"
                 >
                   <option value="draft">Draft</option>
                   <option value="published">Published</option>
@@ -374,7 +366,7 @@ export default function EditOnlineTest() {
 
             {/* Classes */}
             <div className="mt-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+              <label className="block text-sm font-bold text-gray-900 mb-2 flex items-center gap-2">
                 <Users className="w-4 h-4" />
                 Select Classes *
               </label>
@@ -384,36 +376,36 @@ export default function EditOnlineTest() {
                     key={className}
                     type="button"
                     onClick={() => toggleClass(className)}
-                    className={`px-4 py-2 rounded-lg border-2 transition-colors ${
+                    className={`px-4 py-2 rounded-lg border-2 transition-colors font-bold ${
                       formData.classes.includes(className)
-                        ? 'bg-blue-100 border-blue-500 text-blue-700'
-                        : 'bg-white border-gray-300 text-gray-700 hover:border-blue-300'
+                        ? 'bg-blue-100 border-blue-600 text-blue-900'
+                        : 'bg-white border-gray-400 text-gray-900 hover:border-blue-400'
                     }`}
                   >
                     {className}
                   </button>
                 ))}
               </div>
-              {errors.classes && <p className="text-red-500 text-sm mt-1">{errors.classes}</p>}
+              {errors.classes && <p className="text-red-600 text-sm mt-1 font-semibold">{errors.classes}</p>}
             </div>
 
             {/* Instructions */}
             <div className="mt-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-bold text-gray-900 mb-2">
                 Instructions
               </label>
               <textarea
                 value={formData.instructions}
                 onChange={(e) => setFormData({ ...formData, instructions: e.target.value })}
                 rows={3}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border-2 border-gray-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium text-gray-900"
                 placeholder="Special instructions for students..."
               />
             </div>
 
             {/* Settings */}
-            <div className="mt-4 pt-4 border-t">
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Test Settings</h3>
+            <div className="mt-4 pt-4 border-t-2 border-gray-300">
+              <h3 className="text-sm font-bold text-gray-900 mb-3">Test Settings</h3>
               <div className="space-y-2">
                 <label className="flex items-center gap-3">
                   <input
@@ -422,7 +414,7 @@ export default function EditOnlineTest() {
                     onChange={(e) => setFormData({ ...formData, allowRetake: e.target.checked })}
                     className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
                   />
-                  <span className="text-sm text-gray-700">Allow students to retake test</span>
+                  <span className="text-sm text-gray-900 font-bold">Allow students to retake test</span>
                 </label>
                 <label className="flex items-center gap-3">
                   <input
@@ -431,7 +423,7 @@ export default function EditOnlineTest() {
                     onChange={(e) => setFormData({ ...formData, showResultsImmediately: e.target.checked })}
                     className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
                   />
-                  <span className="text-sm text-gray-700">Show results immediately after submission</span>
+                  <span className="text-sm text-gray-900 font-bold">Show results immediately after submission</span>
                 </label>
                 <label className="flex items-center gap-3">
                   <input
@@ -440,7 +432,7 @@ export default function EditOnlineTest() {
                     onChange={(e) => setFormData({ ...formData, shuffleQuestions: e.target.checked })}
                     className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
                   />
-                  <span className="text-sm text-gray-700">Shuffle questions for each student</span>
+                  <span className="text-sm text-gray-900 font-bold">Shuffle questions for each student</span>
                 </label>
                 <label className="flex items-center gap-3">
                   <input
@@ -449,20 +441,20 @@ export default function EditOnlineTest() {
                     onChange={(e) => setFormData({ ...formData, shuffleOptions: e.target.checked })}
                     className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
                   />
-                  <span className="text-sm text-gray-700">Shuffle answer options</span>
+                  <span className="text-sm text-gray-900 font-bold">Shuffle answer options</span>
                 </label>
               </div>
             </div>
           </div>
 
           {/* Questions */}
-          <div className="bg-white rounded-2xl shadow-sm p-6">
+          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-300">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-xl font-semibold flex items-center gap-2">
+                <h2 className="text-xl font-bold flex items-center gap-2 text-gray-900">
                   Questions ({questions.length})
                 </h2>
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-sm text-gray-800 font-semibold mt-1">
                   Total Marks: {calculatedTotalMarks}
                 </p>
               </div>
@@ -470,7 +462,7 @@ export default function EditOnlineTest() {
                 <button
                   type="button"
                   onClick={() => addQuestion('objective')}
-                  className="px-4 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 flex items-center gap-2"
+                  className="px-4 py-2 bg-green-50 text-green-900 rounded-lg hover:bg-green-100 flex items-center gap-2 font-bold border-2 border-green-300"
                 >
                   <Plus className="w-4 h-4" />
                   Add Objective
@@ -478,7 +470,7 @@ export default function EditOnlineTest() {
                 <button
                   type="button"
                   onClick={() => addQuestion('theory')}
-                  className="px-4 py-2 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 flex items-center gap-2"
+                  className="px-4 py-2 bg-purple-50 text-purple-900 rounded-lg hover:bg-purple-100 flex items-center gap-2 font-bold border-2 border-purple-300"
                 >
                   <Plus className="w-4 h-4" />
                   Add Theory
@@ -487,31 +479,31 @@ export default function EditOnlineTest() {
             </div>
 
             {errors.questions && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
+              <div className="mb-4 p-3 bg-red-100 border-2 border-red-400 rounded-lg flex items-center gap-2 text-red-900">
                 <AlertCircle className="w-4 h-4" />
-                <span className="text-sm">{errors.questions}</span>
+                <span className="text-sm font-bold">{errors.questions}</span>
               </div>
             )}
 
             <div className="space-y-4">
               {questions.map((q, qIndex) => (
-                <div key={q.id} className="border rounded-lg p-4 bg-gray-50">
+                <div key={q.id} className="border-2 border-gray-300 rounded-lg p-4 bg-gray-50">
                   <div className="flex items-start gap-3">
                     <div className="flex flex-col gap-1">
                       <button
                         type="button"
                         onClick={() => moveQuestion(qIndex, 'up')}
                         disabled={qIndex === 0}
-                        className="p-1 hover:bg-gray-200 rounded disabled:opacity-30"
+                        className="p-1 hover:bg-gray-200 rounded disabled:opacity-30 font-bold text-gray-900"
                       >
                         ▲
                       </button>
-                      <GripVertical className="w-4 h-4 text-gray-400" />
+                      <GripVertical className="w-4 h-4 text-gray-700" />
                       <button
                         type="button"
                         onClick={() => moveQuestion(qIndex, 'down')}
                         disabled={qIndex === questions.length - 1}
-                        className="p-1 hover:bg-gray-200 rounded disabled:opacity-30"
+                        className="p-1 hover:bg-gray-200 rounded disabled:opacity-30 font-bold text-gray-900"
                       >
                         ▼
                       </button>
@@ -519,10 +511,10 @@ export default function EditOnlineTest() {
 
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-3">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${
                           q.type === 'objective' 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-purple-100 text-purple-800'
+                            ? 'bg-green-100 text-green-900 border-green-300' 
+                            : 'bg-purple-100 text-purple-900 border-purple-300'
                         }`}>
                           {q.type === 'objective' ? 'Objective' : 'Theory'} • Q{qIndex + 1}
                         </span>
@@ -531,14 +523,14 @@ export default function EditOnlineTest() {
                             type="number"
                             value={q.marks}
                             onChange={(e) => updateQuestion(qIndex, 'marks', parseInt(e.target.value) || 0)}
-                            className="w-16 px-2 py-1 text-sm border border-gray-300 rounded"
+                            className="w-16 px-2 py-1 text-sm border-2 border-gray-400 rounded font-bold text-gray-900"
                             min="1"
                           />
-                          <span className="text-sm text-gray-600">marks</span>
+                          <span className="text-sm text-gray-800 font-bold">marks</span>
                           <button
                             type="button"
                             onClick={() => deleteQuestion(qIndex)}
-                            className="p-1 text-red-600 hover:bg-red-50 rounded"
+                            className="p-1 text-red-700 hover:bg-red-50 rounded"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -550,7 +542,7 @@ export default function EditOnlineTest() {
                         onChange={(e) => updateQuestion(qIndex, 'question', e.target.value)}
                         placeholder="Enter question..."
                         rows={2}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-3"
+                        className="w-full px-3 py-2 border-2 border-gray-400 rounded-lg mb-3 font-semibold text-gray-900"
                       />
 
                       {q.type === 'objective' && (
@@ -564,7 +556,7 @@ export default function EditOnlineTest() {
                                 onChange={() => updateQuestion(qIndex, 'correctAnswer', optIndex)}
                                 className="w-4 h-4 text-green-600"
                               />
-                              <span className="text-sm font-medium w-6">
+                              <span className="text-sm font-bold w-6 text-gray-900">
                                 {String.fromCharCode(65 + optIndex)}.
                               </span>
                               <input
@@ -572,7 +564,7 @@ export default function EditOnlineTest() {
                                 value={opt}
                                 onChange={(e) => updateOption(qIndex, optIndex, e.target.value)}
                                 placeholder={`Option ${String.fromCharCode(65 + optIndex)}`}
-                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg"
+                                className="flex-1 px-3 py-2 border-2 border-gray-400 rounded-lg font-medium text-gray-900"
                               />
                             </div>
                           ))}
@@ -581,7 +573,7 @@ export default function EditOnlineTest() {
 
                       {q.type === 'theory' && (
                         <div className="mt-3">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block text-sm font-bold text-gray-900 mb-1">
                             Sample Answer
                           </label>
                           <textarea
@@ -589,13 +581,13 @@ export default function EditOnlineTest() {
                             onChange={(e) => updateQuestion(qIndex, 'sampleAnswer', e.target.value)}
                             placeholder="Provide a sample answer for reference..."
                             rows={3}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            className="w-full px-3 py-2 border-2 border-gray-400 rounded-lg font-medium text-gray-900"
                           />
                         </div>
                       )}
 
                       <div className="mt-3">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-bold text-gray-900 mb-1">
                           Explanation
                         </label>
                         <textarea
@@ -603,7 +595,7 @@ export default function EditOnlineTest() {
                           onChange={(e) => updateQuestion(qIndex, 'explanation', e.target.value)}
                           placeholder="Explain the correct answer..."
                           rows={2}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          className="w-full px-3 py-2 border-2 border-gray-400 rounded-lg font-medium text-gray-900"
                         />
                       </div>
                     </div>
@@ -612,9 +604,9 @@ export default function EditOnlineTest() {
               ))}
 
               {questions.length === 0 && (
-                <div className="text-center py-12 text-gray-500">
+                <div className="text-center py-12 text-gray-800 font-bold border-2 border-gray-300 rounded-lg bg-gray-100">
                   <p>No questions added yet</p>
-                  <p className="text-sm mt-1">Click the buttons above to add questions</p>
+                  <p className="text-sm mt-1 font-semibold">Click the buttons above to add questions</p>
                 </div>
               )}
             </div>
@@ -625,14 +617,14 @@ export default function EditOnlineTest() {
             <button
               type="button"
               onClick={() => router.back()}
-              className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              className="px-6 py-3 border-2 border-gray-400 text-gray-900 rounded-lg hover:bg-gray-50 font-bold"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 font-bold border-2 border-blue-700"
             >
               {saving ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

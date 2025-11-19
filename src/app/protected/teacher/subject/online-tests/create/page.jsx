@@ -302,9 +302,11 @@ export default function CreateOnlineTest() {
               >
                 <option value="">Select Subject</option>
                 {subjects.map(ts => (
-                  <option key={ts.subject.id} value={ts.subject.id}>
-                    {ts.subject.name} ({ts.subject.code})
-                  </option>
+                  ts.subject && ( // Ensure ts.subject is defined
+                    <option key={ts.subject.id} value={ts.subject.id}>
+                      {ts.subject.name} ({ts.subject.code})
+                    </option>
+                  )
                 ))}
               </select>
             </div>
