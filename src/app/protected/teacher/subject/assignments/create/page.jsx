@@ -1,4 +1,4 @@
-// app/protected/teacher/subject/assignments/create/page.jsx - FIXED
+// app/protected/teacher/subject/assignments/create/page.jsx - IMPROVED VISIBILITY
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -85,7 +85,6 @@ export default function CreateAssignment() {
     try {
       setLoading(true);
       
-      // Create FormData for file upload
       const submitData = new FormData();
       Object.keys(formData).forEach(key => {
         if (key === 'attachments') {
@@ -129,12 +128,12 @@ export default function CreateAssignment() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Create Assignment</h1>
-          <p className="text-gray-600">Create a new assignment for your students</p>
+          <h1 className="text-3xl font-bold text-gray-900">Create Assignment</h1>
+          <p className="text-gray-800 font-semibold">Create a new assignment for your students</p>
         </div>
         <button
           onClick={() => router.back()}
-          className="px-4 py-2 border rounded hover:bg-gray-50"
+          className="px-4 py-2 border-2 border-gray-400 rounded hover:bg-gray-100 font-semibold text-gray-900"
         >
           Cancel
         </button>
@@ -143,12 +142,12 @@ export default function CreateAssignment() {
       {/* Form */}
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Basic Information */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Basic Information</h2>
+        <div className="bg-white rounded-lg shadow-lg p-6 border-2 border-gray-300">
+          <h2 className="text-xl font-bold mb-4 text-gray-900">Basic Information</h2>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-2">
-                Assignment Title <span className="text-red-500">*</span>
+              <label className="block text-sm font-bold mb-2 text-gray-900">
+                Assignment Title <span className="text-red-600">*</span>
               </label>
               <input
                 type="text"
@@ -157,21 +156,21 @@ export default function CreateAssignment() {
                 onChange={handleInputChange}
                 required
                 placeholder="Enter assignment title"
-                className="w-full px-3 py-2 border rounded-md"
+                className="w-full px-3 py-2 border-2 border-gray-400 rounded-md font-medium text-gray-900 placeholder-gray-600"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-2">
-                  Subject <span className="text-red-500">*</span>
+                <label className="block text-sm font-bold mb-2 text-gray-900">
+                  Subject <span className="text-red-600">*</span>
                 </label>
                 <select
                   name="subjectId"
                   value={formData.subjectId}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-3 py-2 border rounded-md"
+                  className="w-full px-3 py-2 border-2 border-gray-400 rounded-md font-medium text-gray-900"
                 >
                   <option value="">Select subject</option>
                   {subjects.map((subject) => (
@@ -183,15 +182,15 @@ export default function CreateAssignment() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">
-                  Assignment Type <span className="text-red-500">*</span>
+                <label className="block text-sm font-bold mb-2 text-gray-900">
+                  Assignment Type <span className="text-red-600">*</span>
                 </label>
                 <select
                   name="assignmentType"
                   value={formData.assignmentType}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-3 py-2 border rounded-md"
+                  className="w-full px-3 py-2 border-2 border-gray-400 rounded-md font-medium text-gray-900"
                 >
                   <option value="homework">Homework</option>
                   <option value="project">Project</option>
@@ -207,20 +206,20 @@ export default function CreateAssignment() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Description</label>
+              <label className="block text-sm font-bold mb-2 text-gray-900">Description</label>
               <textarea
                 name="description"
                 value={formData.description}
                 onChange={handleInputChange}
                 rows={3}
                 placeholder="Brief description of the assignment"
-                className="w-full px-3 py-2 border rounded-md"
+                className="w-full px-3 py-2 border-2 border-gray-400 rounded-md font-medium text-gray-900 placeholder-gray-600"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">
-                Instructions <span className="text-red-500">*</span>
+              <label className="block text-sm font-bold mb-2 text-gray-900">
+                Instructions <span className="text-red-600">*</span>
               </label>
               <textarea
                 name="instructions"
@@ -229,55 +228,57 @@ export default function CreateAssignment() {
                 required
                 rows={5}
                 placeholder="Detailed instructions for students"
-                className="w-full px-3 py-2 border rounded-md"
+                className="w-full px-3 py-2 border-2 border-gray-400 rounded-md font-medium text-gray-900 placeholder-gray-600"
               />
             </div>
           </div>
         </div>
 
         {/* Classes Selection */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">
-            Select Classes <span className="text-red-500">*</span>
+        <div className="bg-white rounded-lg shadow-lg p-6 border-2 border-gray-300">
+          <h2 className="text-xl font-bold mb-4 text-gray-900">
+            Select Classes <span className="text-red-600">*</span>
           </h2>
           <div className="grid grid-cols-3 gap-3">
             {classes.map((className) => (
               <label
                 key={className}
-                className={`flex items-center p-3 border rounded cursor-pointer hover:bg-gray-50 ${
-                  formData.classes.includes(className) ? 'bg-blue-50 border-blue-500' : ''
+                className={`flex items-center p-3 border-2 rounded cursor-pointer hover:bg-gray-50 ${
+                  formData.classes.includes(className) 
+                    ? 'bg-blue-100 border-blue-600' 
+                    : 'border-gray-400'
                 }`}
               >
                 <input
                   type="checkbox"
                   checked={formData.classes.includes(className)}
                   onChange={() => handleClassSelection(className)}
-                  className="mr-2"
+                  className="mr-2 w-4 h-4"
                 />
-                <span>{className}</span>
+                <span className="font-bold text-gray-900">{className}</span>
               </label>
             ))}
           </div>
         </div>
 
         {/* Dates and Deadlines */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Dates & Deadlines</h2>
+        <div className="bg-white rounded-lg shadow-lg p-6 border-2 border-gray-300">
+          <h2 className="text-xl font-bold mb-4 text-gray-900">Dates & Deadlines</h2>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-2">Available From</label>
+              <label className="block text-sm font-bold mb-2 text-gray-900">Available From</label>
               <input
                 type="datetime-local"
                 name="availableFrom"
                 value={formData.availableFrom}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border rounded-md"
+                className="w-full px-3 py-2 border-2 border-gray-400 rounded-md font-medium text-gray-900"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">
-                Due Date <span className="text-red-500">*</span>
+              <label className="block text-sm font-bold mb-2 text-gray-900">
+                Due Date <span className="text-red-600">*</span>
               </label>
               <input
                 type="datetime-local"
@@ -285,19 +286,19 @@ export default function CreateAssignment() {
                 value={formData.dueDate}
                 onChange={handleInputChange}
                 required
-                className="w-full px-3 py-2 border rounded-md"
+                className="w-full px-3 py-2 border-2 border-gray-400 rounded-md font-medium text-gray-900"
               />
             </div>
           </div>
         </div>
 
         {/* Grading */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Grading</h2>
+        <div className="bg-white rounded-lg shadow-lg p-6 border-2 border-gray-300">
+          <h2 className="text-xl font-bold mb-4 text-gray-900">Grading</h2>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-2">
-                Maximum Score <span className="text-red-500">*</span>
+              <label className="block text-sm font-bold mb-2 text-gray-900">
+                Maximum Score <span className="text-red-600">*</span>
               </label>
               <input
                 type="number"
@@ -306,12 +307,12 @@ export default function CreateAssignment() {
                 onChange={handleInputChange}
                 required
                 min="1"
-                className="w-full px-3 py-2 border rounded-md"
+                className="w-full px-3 py-2 border-2 border-gray-400 rounded-md font-medium text-gray-900"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Passing Score</label>
+              <label className="block text-sm font-bold mb-2 text-gray-900">Passing Score</label>
               <input
                 type="number"
                 name="passingScore"
@@ -319,15 +320,15 @@ export default function CreateAssignment() {
                 onChange={handleInputChange}
                 min="0"
                 max={formData.maxScore}
-                className="w-full px-3 py-2 border rounded-md"
+                className="w-full px-3 py-2 border-2 border-gray-400 rounded-md font-medium text-gray-900"
               />
             </div>
           </div>
         </div>
 
         {/* Late Submission Settings */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Late Submission</h2>
+        <div className="bg-white rounded-lg shadow-lg p-6 border-2 border-gray-300">
+          <h2 className="text-xl font-bold mb-4 text-gray-900">Late Submission</h2>
           <div className="space-y-4">
             <label className="flex items-center">
               <input
@@ -335,14 +336,14 @@ export default function CreateAssignment() {
                 name="allowLateSubmission"
                 checked={formData.allowLateSubmission}
                 onChange={handleInputChange}
-                className="mr-2"
+                className="mr-2 w-4 h-4"
               />
-              <span>Allow late submissions</span>
+              <span className="font-bold text-gray-900">Allow late submissions</span>
             </label>
 
             {formData.allowLateSubmission && (
               <div>
-                <label className="block text-sm font-medium mb-2">
+                <label className="block text-sm font-bold mb-2 text-gray-900">
                   Late Submission Penalty (%)
                 </label>
                 <input
@@ -352,9 +353,9 @@ export default function CreateAssignment() {
                   onChange={handleInputChange}
                   min="0"
                   max="100"
-                  className="w-full px-3 py-2 border rounded-md"
+                  className="w-full px-3 py-2 border-2 border-gray-400 rounded-md font-medium text-gray-900"
                 />
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-sm text-gray-800 font-semibold mt-1">
                   Percentage to deduct from late submissions
                 </p>
               </div>
@@ -363,32 +364,32 @@ export default function CreateAssignment() {
         </div>
 
         {/* Attachments */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Attachments</h2>
+        <div className="bg-white rounded-lg shadow-lg p-6 border-2 border-gray-300">
+          <h2 className="text-xl font-bold mb-4 text-gray-900">Attachments</h2>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-2">Upload Files</label>
+              <label className="block text-sm font-bold mb-2 text-gray-900">Upload Files</label>
               <input
                 type="file"
                 onChange={handleFileChange}
                 multiple
-                className="w-full px-3 py-2 border rounded-md"
+                className="w-full px-3 py-2 border-2 border-gray-400 rounded-md font-medium text-gray-900"
               />
-              <p className="text-sm text-gray-600 mt-1">
+              <p className="text-sm text-gray-800 font-semibold mt-1">
                 Upload reference materials, templates, or resources
               </p>
             </div>
 
             {formData.attachments.length > 0 && (
               <div className="space-y-2">
-                <p className="text-sm font-medium">Selected Files:</p>
+                <p className="text-sm font-bold text-gray-900">Selected Files:</p>
                 {formData.attachments.map((file, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                    <span className="text-sm">{file.name}</span>
+                  <div key={index} className="flex items-center justify-between p-2 bg-gray-100 rounded border-2 border-gray-400">
+                    <span className="text-sm font-semibold text-gray-900">{file.name}</span>
                     <button
                       type="button"
                       onClick={() => removeAttachment(index)}
-                      className="text-red-500 hover:text-red-700"
+                      className="text-red-600 hover:text-red-800 font-bold"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -406,7 +407,7 @@ export default function CreateAssignment() {
           <button
             type="submit"
             disabled={loading}
-            className="flex-1 px-6 py-3 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+            className="flex-1 px-6 py-3 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 font-bold border-2 border-blue-700"
           >
             {loading ? 'Creating...' : 'Publish Assignment'}
           </button>
@@ -414,7 +415,7 @@ export default function CreateAssignment() {
             type="button"
             onClick={handleSaveAsDraft}
             disabled={loading}
-            className="flex-1 px-6 py-3 border rounded hover:bg-gray-50 disabled:opacity-50"
+            className="flex-1 px-6 py-3 border-2 border-gray-400 rounded hover:bg-gray-100 disabled:opacity-50 font-bold text-gray-900"
           >
             Save as Draft
           </button>

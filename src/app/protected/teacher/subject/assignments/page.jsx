@@ -1,4 +1,4 @@
-// /app/protected/teacher/subject/assignments/page.jsx
+// /app/protected/teacher/subject/assignments/page.jsx - IMPROVED VISIBILITY
 'use client';
 import React, { useState, useEffect } from 'react';
 import {
@@ -87,7 +87,6 @@ const SubjectTeacherAssignments = () => {
 
       const data = await response.json();
       if (data.success) {
-        // API returns subjects directly, not nested in data.data
         setSubjects(data.subjects || []);
       }
     } catch (err) {
@@ -99,12 +98,10 @@ const SubjectTeacherAssignments = () => {
     const value = e.target.value;
     setSearchTerm(value);
     
-    // Clear existing timeout
     if (searchTimeout) {
       clearTimeout(searchTimeout);
     }
     
-    // Set new timeout for debounced search
     const timeoutId = setTimeout(() => {
       fetchAssignments();
     }, 500);
@@ -164,11 +161,11 @@ const SubjectTeacherAssignments = () => {
   const getStatusColor = (status, dueDate) => {
     const isOverdue = new Date(dueDate) < new Date() && status === 'active';
     
-    if (isOverdue) return 'bg-red-100 text-red-800';
-    if (status === 'active') return 'bg-green-100 text-green-800';
-    if (status === 'closed') return 'bg-gray-100 text-gray-800';
-    if (status === 'draft') return 'bg-blue-100 text-blue-800';
-    return 'bg-gray-100 text-gray-800';
+    if (isOverdue) return 'bg-red-100 text-red-900 border-2 border-red-300';
+    if (status === 'active') return 'bg-green-100 text-green-900 border-2 border-green-300';
+    if (status === 'closed') return 'bg-gray-200 text-gray-900 border-2 border-gray-400';
+    if (status === 'draft') return 'bg-blue-100 text-blue-900 border-2 border-blue-300';
+    return 'bg-gray-200 text-gray-900 border-2 border-gray-400';
   };
 
   const getStatusIcon = (status, dueDate) => {
@@ -190,9 +187,9 @@ const SubjectTeacherAssignments = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
-        <div className="bg-white rounded-2xl shadow-xl p-8 flex items-center space-x-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 flex items-center space-x-4 border-2 border-gray-300">
           <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-          <span className="text-gray-700">Loading assignments...</span>
+          <span className="text-gray-900 font-semibold">Loading assignments...</span>
         </div>
       </div>
     );
@@ -201,13 +198,13 @@ const SubjectTeacherAssignments = () => {
   if (error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-red-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl p-8 text-center max-w-md">
-          <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+        <div className="bg-white rounded-2xl shadow-xl p-8 text-center max-w-md border-2 border-red-300">
+          <AlertTriangle className="w-12 h-12 text-red-600 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-gray-900 mb-2">Error Loading Assignments</h2>
-          <p className="text-gray-600 mb-4">{error}</p>
+          <p className="text-gray-800 font-medium mb-4">{error}</p>
           <button
             onClick={fetchAssignments}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
           >
             Try Again
           </button>
@@ -219,19 +216,19 @@ const SubjectTeacherAssignments = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200">
+      <div className="bg-white shadow-sm border-b-2 border-gray-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">My Assignments</h1>
-              <p className="text-gray-600 mt-1">
+              <p className="text-gray-800 font-medium mt-1">
                 Manage assignments across your subjects • {assignments.length} total
               </p>
             </div>
             <div className="flex items-center space-x-4">
               <button
                 onClick={() => window.location.href = '/protected/teacher/subject/assignments/create'}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2 font-semibold border-2 border-green-700"
               >
                 <Plus className="w-4 h-4" />
                 <span>Create Assignment</span>
@@ -243,18 +240,18 @@ const SubjectTeacherAssignments = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Filters and Search */}
-        <div className="bg-white rounded-2xl shadow-sm p-6 mb-8 border border-gray-100">
+        <div className="bg-white rounded-2xl shadow-sm p-6 mb-8 border-2 border-gray-300">
           <div className="flex flex-col sm:flex-row gap-4">
             {/* Search */}
             <div className="flex-1">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-700" />
                 <input
                   type="text"
                   placeholder="Search assignments by title..."
                   value={searchTerm}
                   onChange={handleSearch}
-                  className="pl-10 pr-4 py-3 w-full border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="pl-10 pr-4 py-3 w-full border-2 border-gray-400 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium text-gray-900 placeholder-gray-600"
                 />
               </div>
             </div>
@@ -264,7 +261,7 @@ const SubjectTeacherAssignments = () => {
               <select
                 value={filterSubject}
                 onChange={(e) => setFilterSubject(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border-2 border-gray-400 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium text-gray-900"
               >
                 <option value="all">All Subjects</option>
                 {subjects.map(teacherSubject => (
@@ -280,7 +277,7 @@ const SubjectTeacherAssignments = () => {
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border-2 border-gray-400 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium text-gray-900"
               >
                 <option value="all">All Status</option>
                 <option value="active">Active</option>
@@ -294,7 +291,7 @@ const SubjectTeacherAssignments = () => {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border-2 border-gray-400 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium text-gray-900"
               >
                 <option value="dueDate">Sort by Due Date</option>
                 <option value="title">Sort by Title</option>
@@ -316,12 +313,12 @@ const SubjectTeacherAssignments = () => {
                 Math.round((submissionCount / totalStudents) * 100) : 0;
               
               return (
-                <div key={assignment.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
+                <div key={assignment.id} className="bg-white rounded-2xl shadow-sm border-2 border-gray-300 p-6 hover:shadow-lg transition-shadow">
                   {/* Assignment Header */}
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2">{assignment.title}</h3>
-                      <div className="flex items-center space-x-2 text-sm text-gray-600">
+                      <h3 className="font-bold text-gray-900 mb-1 line-clamp-2 text-lg">{assignment.title}</h3>
+                      <div className="flex items-center space-x-2 text-sm text-gray-800 font-medium">
                         <BookOpen className="w-4 h-4" />
                         <span>{assignment.subject?.name || 'Unknown Subject'}</span>
                       </div>
@@ -330,7 +327,7 @@ const SubjectTeacherAssignments = () => {
 
                   {/* Assignment Type Badge */}
                   <div className="mb-3">
-                    <span className="inline-block px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full">
+                    <span className="inline-block px-3 py-1 bg-purple-100 text-purple-900 text-xs rounded-full font-bold border-2 border-purple-300">
                       {assignment.assignmentType?.replace('_', ' ').toUpperCase() || 'HOMEWORK'}
                     </span>
                   </div>
@@ -338,8 +335,8 @@ const SubjectTeacherAssignments = () => {
                   {/* Assignment Details */}
                   <div className="space-y-3 mb-4">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Due Date:</span>
-                      <span className={`font-medium ${isOverdue ? 'text-red-600' : 'text-gray-900'}`}>
+                      <span className="text-gray-800 font-semibold">Due Date:</span>
+                      <span className={`font-bold ${isOverdue ? 'text-red-700' : 'text-gray-900'}`}>
                         {new Date(assignment.dueDate).toLocaleDateString('en-US', {
                           month: 'short',
                           day: 'numeric',
@@ -349,22 +346,22 @@ const SubjectTeacherAssignments = () => {
                     </div>
                     
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Submissions:</span>
-                      <span className="font-medium text-gray-900">
+                      <span className="text-gray-800 font-semibold">Submissions:</span>
+                      <span className="font-bold text-gray-900">
                         {submissionCount}/{totalStudents}
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Max Score:</span>
-                      <span className="font-medium text-gray-900">
+                      <span className="text-gray-800 font-semibold">Max Score:</span>
+                      <span className="font-bold text-gray-900">
                         {assignment.maxScore} points
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Status:</span>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(assignment.status, assignment.dueDate)}`}>
+                      <span className="text-gray-800 font-semibold">Status:</span>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${getStatusColor(assignment.status, assignment.dueDate)}`}>
                         {getStatusIcon(assignment.status, assignment.dueDate)}
                         <span className="ml-1">
                           {getStatusLabel(assignment.status, assignment.dueDate)}
@@ -375,9 +372,9 @@ const SubjectTeacherAssignments = () => {
 
                   {/* Classes */}
                   {assignment.classes && assignment.classes.length > 0 && (
-                    <div className="mb-4">
-                      <span className="text-xs text-gray-600">Classes: </span>
-                      <span className="text-xs text-gray-900">
+                    <div className="mb-4 p-2 bg-gray-100 rounded-lg border-2 border-gray-300">
+                      <span className="text-xs text-gray-800 font-bold">Classes: </span>
+                      <span className="text-xs text-gray-900 font-semibold">
                         {assignment.classes.join(', ')}
                       </span>
                     </div>
@@ -385,13 +382,13 @@ const SubjectTeacherAssignments = () => {
 
                   {/* Progress Bar */}
                   <div className="mb-4">
-                    <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                    <div className="flex items-center justify-between text-xs text-gray-800 font-bold mb-1">
                       <span>Submission Progress</span>
                       <span>{submissionPercentage}%</span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="w-full bg-gray-300 rounded-full h-3 border-2 border-gray-400">
                       <div 
-                        className="bg-blue-600 h-2 rounded-full transition-all"
+                        className="bg-blue-600 h-full rounded-full transition-all"
                         style={{ width: `${submissionPercentage}%` }}
                       ></div>
                     </div>
@@ -401,14 +398,14 @@ const SubjectTeacherAssignments = () => {
                   <div className="flex space-x-2">
                     <button
                       onClick={() => window.location.href = `/protected/teacher/subject/assignments/${assignment.id}`}
-                      className="flex-1 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium flex items-center justify-center space-x-1"
+                      className="flex-1 px-3 py-2 bg-blue-50 text-blue-900 rounded-lg hover:bg-blue-100 transition-colors text-sm font-bold flex items-center justify-center space-x-1 border-2 border-blue-300"
                     >
                       <Eye className="w-4 h-4" />
                       <span>View</span>
                     </button>
                     <button
                       onClick={() => window.location.href = `/protected/teacher/subject/grading?assignment=${assignment.id}`}
-                      className="flex-1 px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors text-sm font-medium flex items-center justify-center space-x-1"
+                      className="flex-1 px-3 py-2 bg-green-50 text-green-900 rounded-lg hover:bg-green-100 transition-colors text-sm font-bold flex items-center justify-center space-x-1 border-2 border-green-300"
                     >
                       <CheckCircle2 className="w-4 h-4" />
                       <span>Grade</span>
@@ -419,20 +416,20 @@ const SubjectTeacherAssignments = () => {
                   <div className="flex space-x-2 mt-2">
                     <button
                       onClick={() => toggleAssignmentStatus(assignment.id, assignment.status)}
-                      className="flex-1 px-3 py-2 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors text-sm font-medium"
+                      className="flex-1 px-3 py-2 bg-gray-100 text-gray-900 rounded-lg hover:bg-gray-200 transition-colors text-sm font-bold border-2 border-gray-400"
                       disabled={assignment.status === 'draft'}
                     >
                       {assignment.status === 'active' ? 'Close' : assignment.status === 'closed' ? 'Reopen' : 'Activate'}
                     </button>
                     <button
                       onClick={() => window.location.href = `/protected/teacher/subject/assignments/${assignment.id}/edit`}
-                      className="px-3 py-2 bg-yellow-50 text-yellow-700 rounded-lg hover:bg-yellow-100 transition-colors text-sm font-medium"
+                      className="px-3 py-2 bg-yellow-50 text-yellow-900 rounded-lg hover:bg-yellow-100 transition-colors text-sm font-bold border-2 border-yellow-300"
                     >
                       <Edit className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => deleteAssignment(assignment.id)}
-                      className="px-3 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
+                      className="px-3 py-2 bg-red-50 text-red-900 rounded-lg hover:bg-red-100 transition-colors text-sm font-bold border-2 border-red-300"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -443,10 +440,10 @@ const SubjectTeacherAssignments = () => {
           </div>
         ) : (
           /* Empty State */
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
-            <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Assignments Found</h3>
-            <p className="text-gray-600 mb-6">
+          <div className="bg-white rounded-2xl shadow-sm border-2 border-gray-300 p-12 text-center">
+            <FileText className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+            <h3 className="text-lg font-bold text-gray-900 mb-2">No Assignments Found</h3>
+            <p className="text-gray-800 font-medium mb-6">
               {searchTerm || filterSubject !== 'all' || filterStatus !== 'all'
                 ? 'Try adjusting your search or filter criteria.'
                 : 'Create your first assignment to get started.'
@@ -454,7 +451,7 @@ const SubjectTeacherAssignments = () => {
             </p>
             <button
               onClick={() => window.location.href = '/protected/teacher/subject/assignments/create'}
-              className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2 mx-auto"
+              className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2 mx-auto font-bold border-2 border-green-700"
             >
               <Plus className="w-5 h-5" />
               <span>Create Assignment</span>

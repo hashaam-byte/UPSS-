@@ -1,3 +1,4 @@
+// Theory Grading Interface - IMPROVED VISIBILITY
 'use client'
 import React, { useState, useEffect } from 'react';
 import { User, CheckCircle, Save, ArrowLeft, Loader2 } from 'lucide-react';
@@ -53,7 +54,6 @@ export default function TheoryGradingInterface({ testId }) {
   const submitGrades = async () => {
     if (!selectedSubmission) return;
 
-    // Validate all questions are graded
     const allGraded = selectedSubmission.answers.every(answer => 
       grades[answer.questionId] !== undefined && grades[answer.questionId] !== ''
     );
@@ -82,7 +82,7 @@ export default function TheoryGradingInterface({ testId }) {
         alert('Grades submitted successfully!');
         setGrades({});
         setFeedback({});
-        fetchSubmissions(); // Refresh list
+        fetchSubmissions();
       } else {
         alert('Failed to submit grades');
       }
@@ -106,18 +106,18 @@ export default function TheoryGradingInterface({ testId }) {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
+        <div className="bg-white rounded-2xl shadow-lg p-6 mb-6 border-2 border-gray-300">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => window.history.back()}
                 className="p-2 hover:bg-gray-100 rounded-lg"
               >
-                <ArrowLeft className="w-5 h-5" />
+                <ArrowLeft className="w-5 h-5 text-gray-900" />
               </button>
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">Grade Theory Questions</h1>
-                <p className="text-gray-600 mt-1">
+                <p className="text-gray-800 font-semibold mt-1">
                   {submissions.length} submission{submissions.length !== 1 ? 's' : ''} need grading
                 </p>
               </div>
@@ -126,16 +126,16 @@ export default function TheoryGradingInterface({ testId }) {
         </div>
 
         {submissions.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
-            <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">All Caught Up!</h3>
-            <p className="text-gray-600">No theory questions need grading at the moment.</p>
+          <div className="bg-white rounded-2xl shadow-lg p-12 text-center border-2 border-gray-300">
+            <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
+            <h3 className="text-lg font-bold text-gray-900 mb-2">All Caught Up!</h3>
+            <p className="text-gray-800 font-semibold">No theory questions need grading at the moment.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             {/* Submissions List */}
-            <div className="lg:col-span-1 bg-white rounded-2xl shadow-sm p-4">
-              <h3 className="font-semibold text-gray-900 mb-4">Submissions</h3>
+            <div className="lg:col-span-1 bg-white rounded-2xl shadow-lg p-4 border-2 border-gray-300">
+              <h3 className="font-bold text-gray-900 mb-4">Submissions</h3>
               <div className="space-y-2">
                 {submissions.map((submission) => (
                   <button
@@ -145,23 +145,23 @@ export default function TheoryGradingInterface({ testId }) {
                       setGrades({});
                       setFeedback({});
                     }}
-                    className={`w-full text-left p-3 rounded-lg transition-colors ${
+                    className={`w-full text-left p-3 rounded-lg transition-colors border-2 ${
                       selectedSubmission?.id === submission.id
-                        ? 'bg-blue-50 border-2 border-blue-500'
-                        : 'bg-gray-50 hover:bg-gray-100'
+                        ? 'bg-blue-100 border-blue-600'
+                        : 'bg-gray-100 hover:bg-gray-200 border-gray-400'
                     }`}
                   >
                     <div className="flex items-center gap-2 mb-1">
-                      <User className="w-4 h-4 text-gray-600" />
-                      <p className="font-medium text-sm">{submission.student.name}</p>
+                      <User className="w-4 h-4 text-gray-800" />
+                      <p className="font-bold text-sm text-gray-900">{submission.student.name}</p>
                     </div>
-                    <p className="text-xs text-gray-600">{submission.student.className}</p>
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-gray-800 font-semibold">{submission.student.className}</p>
+                    <p className="text-xs text-gray-700 font-medium mt-1">
                       {submission.assignment.title}
                     </p>
                     <div className="mt-2 flex items-center justify-between text-xs">
-                      <span className="text-gray-600">Objective: {submission.objectiveScore}/{submission.objectiveMaxScore}</span>
-                      <span className="text-orange-600 font-medium">Theory: {submission.theoryMaxScore}</span>
+                      <span className="text-gray-800 font-semibold">Objective: {submission.objectiveScore}/{submission.objectiveMaxScore}</span>
+                      <span className="text-orange-700 font-bold">Theory: {submission.theoryMaxScore}</span>
                     </div>
                   </button>
                 ))}
@@ -173,36 +173,36 @@ export default function TheoryGradingInterface({ testId }) {
               {selectedSubmission && (
                 <>
                   {/* Student Info */}
-                  <div className="bg-white rounded-2xl shadow-sm p-6">
-                    <h3 className="text-xl font-semibold mb-4">Student Information</h3>
+                  <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-300">
+                    <h3 className="text-xl font-bold mb-4 text-gray-900">Student Information</h3>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <p className="text-sm text-gray-600">Student Name</p>
-                        <p className="font-medium">{selectedSubmission.student.name}</p>
+                        <p className="text-sm text-gray-800 font-bold">Student Name</p>
+                        <p className="font-bold text-gray-900">{selectedSubmission.student.name}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-600">Class</p>
-                        <p className="font-medium">{selectedSubmission.student.className}</p>
+                        <p className="text-sm text-gray-800 font-bold">Class</p>
+                        <p className="font-bold text-gray-900">{selectedSubmission.student.className}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-600">Test</p>
-                        <p className="font-medium">{selectedSubmission.assignment.title}</p>
+                        <p className="text-sm text-gray-800 font-bold">Test</p>
+                        <p className="font-bold text-gray-900">{selectedSubmission.assignment.title}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-600">Submitted</p>
-                        <p className="font-medium">{new Date(selectedSubmission.submittedAt).toLocaleString()}</p>
+                        <p className="text-sm text-gray-800 font-bold">Submitted</p>
+                        <p className="font-bold text-gray-900">{new Date(selectedSubmission.submittedAt).toLocaleString()}</p>
                       </div>
                     </div>
-                    <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                    <div className="mt-4 p-4 bg-blue-100 rounded-lg border-2 border-blue-300">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-700">Objective Score:</span>
-                        <span className="font-bold text-blue-600">
+                        <span className="text-sm text-gray-900 font-bold">Objective Score:</span>
+                        <span className="font-bold text-blue-800 text-lg">
                           {selectedSubmission.objectiveScore}/{selectedSubmission.objectiveMaxScore}
                         </span>
                       </div>
                       <div className="flex items-center justify-between mt-2">
-                        <span className="text-sm text-gray-700">Theory Total:</span>
-                        <span className="font-bold text-orange-600">
+                        <span className="text-sm text-gray-900 font-bold">Theory Total:</span>
+                        <span className="font-bold text-orange-700 text-lg">
                           {selectedSubmission.theoryMaxScore} marks
                         </span>
                       </div>
@@ -211,12 +211,12 @@ export default function TheoryGradingInterface({ testId }) {
 
                   {/* Theory Questions */}
                   {selectedSubmission.answers.map((answer, index) => (
-                    <div key={answer.questionId} className="bg-white rounded-2xl shadow-sm p-6">
+                    <div key={answer.questionId} className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-300">
                       <div className="flex items-start justify-between mb-4">
-                        <h4 className="text-lg font-semibold text-gray-900">
+                        <h4 className="text-lg font-bold text-gray-900">
                           Question {index + 1}
                         </h4>
-                        <span className="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm font-medium">
+                        <span className="px-3 py-1 bg-orange-100 text-orange-900 rounded-full text-sm font-bold border-2 border-orange-300">
                           {answer.marks} marks
                         </span>
                       </div>
@@ -224,34 +224,34 @@ export default function TheoryGradingInterface({ testId }) {
                       <div className="space-y-4">
                         {/* Question Text */}
                         <div>
-                          <p className="text-sm font-medium text-gray-700 mb-2">Question:</p>
-                          <div className="p-4 bg-gray-50 rounded-lg">
-                            <p className="text-gray-900">{answer.question}</p>
+                          <p className="text-sm font-bold text-gray-900 mb-2">Question:</p>
+                          <div className="p-4 bg-gray-100 rounded-lg border-2 border-gray-300">
+                            <p className="text-gray-900 font-semibold">{answer.question}</p>
                           </div>
                         </div>
 
                         {/* Sample Answer */}
                         {answer.sampleAnswer && (
                           <div>
-                            <p className="text-sm font-medium text-gray-700 mb-2">Expected Answer:</p>
-                            <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                              <p className="text-gray-900 whitespace-pre-wrap">{answer.sampleAnswer}</p>
+                            <p className="text-sm font-bold text-gray-900 mb-2">Expected Answer:</p>
+                            <div className="p-4 bg-green-50 rounded-lg border-2 border-green-300">
+                              <p className="text-gray-900 whitespace-pre-wrap font-medium">{answer.sampleAnswer}</p>
                             </div>
                           </div>
                         )}
 
                         {/* Student Answer */}
                         <div>
-                          <p className="text-sm font-medium text-gray-700 mb-2">Student's Answer:</p>
-                          <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                            <p className="text-gray-900 whitespace-pre-wrap">{answer.studentAnswer || 'No answer provided'}</p>
+                          <p className="text-sm font-bold text-gray-900 mb-2">Student's Answer:</p>
+                          <div className="p-4 bg-blue-50 rounded-lg border-2 border-blue-300">
+                            <p className="text-gray-900 whitespace-pre-wrap font-medium">{answer.studentAnswer || 'No answer provided'}</p>
                           </div>
                         </div>
 
                         {/* Grading Input */}
-                        <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+                        <div className="grid grid-cols-2 gap-4 pt-4 border-t-2 border-gray-300">
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <label className="block text-sm font-bold text-gray-900 mb-2">
                               Score (out of {answer.marks}) *
                             </label>
                             <input
@@ -261,19 +261,19 @@ export default function TheoryGradingInterface({ testId }) {
                               step="0.5"
                               value={grades[answer.questionId] || ''}
                               onChange={(e) => handleGradeChange(answer.questionId, e.target.value)}
-                              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                              className="w-full px-4 py-2 border-2 border-gray-400 rounded-lg focus:ring-2 focus:ring-blue-500 font-bold text-gray-900"
                               placeholder="Enter score"
                             />
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <label className="block text-sm font-bold text-gray-900 mb-2">
                               Feedback (optional)
                             </label>
                             <input
                               type="text"
                               value={feedback[answer.questionId] || ''}
                               onChange={(e) => handleFeedbackChange(answer.questionId, e.target.value)}
-                              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                              className="w-full px-4 py-2 border-2 border-gray-400 rounded-lg focus:ring-2 focus:ring-blue-500 font-medium text-gray-900"
                               placeholder="Optional feedback"
                             />
                           </div>
@@ -283,26 +283,26 @@ export default function TheoryGradingInterface({ testId }) {
                   ))}
 
                   {/* General Feedback & Submit */}
-                  <div className="bg-white rounded-2xl shadow-sm p-6">
-                    <h4 className="text-lg font-semibold text-gray-900 mb-4">Overall Feedback</h4>
+                  <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-300">
+                    <h4 className="text-lg font-bold text-gray-900 mb-4">Overall Feedback</h4>
                     <textarea
                       value={feedback.general || ''}
                       onChange={(e) => setFeedback({ ...feedback, general: e.target.value })}
-                      className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-4 py-3 border-2 border-gray-400 rounded-lg focus:ring-2 focus:ring-blue-500 font-medium text-gray-900"
                       rows={4}
                       placeholder="Provide overall feedback to the student (optional)..."
                     />
 
                     <div className="mt-6 flex items-center justify-between">
-                      <div className="text-sm text-gray-600">
-                        <p>Total Score: <span className="font-bold text-lg text-gray-900">
+                      <div className="text-sm text-gray-900">
+                        <p className="font-bold">Total Score: <span className="font-bold text-lg text-gray-900">
                           {selectedSubmission.objectiveScore + Object.values(grades).reduce((sum, val) => sum + (parseFloat(val) || 0), 0)}
                         </span> / {selectedSubmission.objectiveMaxScore + selectedSubmission.theoryMaxScore}</p>
                       </div>
                       <button
                         onClick={submitGrades}
                         disabled={saving}
-                        className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50"
+                        className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50 font-bold border-2 border-green-700"
                       >
                         {saving ? (
                           <>
