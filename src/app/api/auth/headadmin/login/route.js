@@ -33,7 +33,7 @@ export async function POST(request) {
     const user = await prisma.user.findFirst({
       where: {
         email: email.toLowerCase(),
-        role: 'headadmin',
+        role: 'HEADADMIN',
         isActive: true
       }
     });
@@ -88,7 +88,7 @@ export async function POST(request) {
     const token = jwt.sign(
       {
         userId: user.id,
-        role: 'headadmin',
+        role: 'HEADADMIN',
         email: user.email,
         isHeadAdmin: true
       },
@@ -105,10 +105,7 @@ export async function POST(request) {
       data: {
         userId: user.id,
         tokenHash: tokenHash,
-        userAgent: request.headers.get('user-agent') || null,
-        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || null,
-        expiresAt: sessionExpiry,
-        isActive: true
+        expiresAt: sessionExpiry
       }
     });
 
@@ -130,8 +127,7 @@ export async function POST(request) {
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
-        role: 'headadmin',
-        avatar: user.avatar,
+        role: 'HEADADMIN',
         isEmailVerified: user.isEmailVerified
       },
       redirectTo: '/protected/headadmin'

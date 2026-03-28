@@ -85,9 +85,8 @@ export async function POST(request) {
     });
 
     // Invalidate all existing sessions for this user
-    await prisma.userSession.updateMany({
-      where: { userId: resetTokenRecord.userId },
-      data: { isActive: false }
+    await prisma.userSession.deleteMany({
+      where: { userId: resetTokenRecord.userId }
     });
 
     return NextResponse.json({

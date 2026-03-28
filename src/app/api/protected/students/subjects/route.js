@@ -5,7 +5,7 @@ import { requireAuth } from '@/lib/auth';
 
 export async function GET(request) {
   try {
-    const user = await requireAuth(['student']);
+    const user = await requireAuth(['STUDENT']);
 
     // Get student's class
     const studentProfile = await prisma.studentProfile.findUnique({

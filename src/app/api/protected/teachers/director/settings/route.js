@@ -6,7 +6,7 @@ import bcrypt from 'bcryptjs';
 
 export async function GET(request) {
   try {
-    const user = await requireAuth(['teacher']);
+    const user = await requireAuth(['TEACHER']);
     
     if (user.department !== 'director') {
       return NextResponse.json(
@@ -40,7 +40,7 @@ export async function GET(request) {
 
 export async function PUT(request) {
   try {
-    const user = await requireAuth(['teacher']);
+    const user = await requireAuth(['TEACHER']);
     
     if (user.department !== 'director') {
       return NextResponse.json(

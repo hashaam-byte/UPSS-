@@ -61,7 +61,7 @@ const TimetableManagementPage = () => {
   const viewOptions = [
     { value: 'grid', label: 'Grid View', icon: Grid },
     { value: 'list', label: 'List View', icon: List },
-    { value: 'teacher', label: 'Teacher View', icon: Users }
+    { value: 'TEACHER', label: 'Teacher View', icon: Users }
   ];
 
   useEffect(() => {
@@ -141,7 +141,7 @@ const TimetableManagementPage = () => {
       const params = new URLSearchParams();
       if (filters.className) params.append('class', filters.className);
       if (filters.dayOfWeek) params.append('day', filters.dayOfWeek);
-      if (filters.teacherId) params.append('teacher', filters.teacherId);
+      if (filters.teacherId) params.append('TEACHER', filters.teacherId);
       params.append('view', filters.view);
 
       const response = await fetch(`/api/protected/teachers/director/timetable?${params}`, {
@@ -618,7 +618,7 @@ const TimetableManagementPage = () => {
         return renderGridView();
       case 'list':
         return renderListView();
-      case 'teacher':
+      case 'TEACHER':
         return renderTeacherView();
       default:
         return renderGridView();

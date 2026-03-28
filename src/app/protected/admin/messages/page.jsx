@@ -162,33 +162,33 @@ const AdminMessagesPage = () => {
   };
 
   const getUserRole = (user) => {
-    if (user.role === 'admin') {
+    if (user.role === 'ADMIN') {
       return user.adminProfile?.department 
         ? `Admin - ${user.adminProfile.department}` 
         : 'Administrator';
     }
-    if (user.role === 'teacher') {
+    if (user.role === 'TEACHER') {
       if (user.teacherProfile?.coordinatorClass) {
         return `Class Coordinator - ${user.teacherProfile.coordinatorClass}`;
       }
       const subjects = user.teacherProfile?.teacherSubjects?.map(ts => ts.subject?.name).filter(Boolean).join(', ');
-      return subjects ? `Teacher - ${subjects}` : 'Teacher';
+      return subjects ? `Teacher - ${subjects}` : 'TEACHER';
     }
-    if (user.role === 'student') {
+    if (user.role === 'STUDENT') {
       return user.studentProfile?.className 
         ? `Student - ${user.studentProfile.className}${user.studentProfile.section ? user.studentProfile.section : ''}` 
-        : 'Student';
+        : 'STUDENT';
     }
     return user.role;
   };
 
   const getRoleIcon = (role) => {
     switch(role) {
-      case 'admin':
+      case 'ADMIN':
         return <Crown className="w-5 h-5" />;
-      case 'teacher':
+      case 'TEACHER':
         return <UserCog className="w-5 h-5" />;
-      case 'student':
+      case 'STUDENT':
         return <GraduationCap className="w-5 h-5" />;
       default:
         return <User className="w-5 h-5" />;
@@ -197,11 +197,11 @@ const AdminMessagesPage = () => {
 
   const getRoleColor = (role) => {
     switch(role) {
-      case 'admin':
+      case 'ADMIN':
         return 'from-purple-500 to-indigo-500';
-      case 'teacher':
+      case 'TEACHER':
         return 'from-blue-500 to-cyan-500';
-      case 'student':
+      case 'STUDENT':
         return 'from-green-500 to-emerald-500';
       default:
         return 'from-gray-500 to-slate-500';

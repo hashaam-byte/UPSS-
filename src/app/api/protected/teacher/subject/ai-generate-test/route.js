@@ -6,7 +6,7 @@ import { getTeacherSubjects, getTeacherClasses, validateTeacherSubjectAccess } f
 // GET - Fetch teacher's subjects and classes
 export async function GET(request) {
   try {
-    const user = await requireAuth(['teacher']);
+    const user = await requireAuth(['TEACHER']);
     
     // FIXED: Use helper to get subjects with actual Subject.id
     const subjects = await getTeacherSubjects(user.id, user.schoolId);
@@ -36,7 +36,7 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const user = await requireAuth(['teacher']);
+    const user = await requireAuth(['TEACHER']);
     const { 
       subjectId,  // NOW EXPECTS ACTUAL Subject.id
       subject, 

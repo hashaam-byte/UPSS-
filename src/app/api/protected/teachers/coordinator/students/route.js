@@ -15,7 +15,7 @@ async function verifyCoordinatorAccess(token) {
     include: { teacherProfile: true, school: true }
   });
 
-  if (!user || user.role !== 'teacher' || user.teacherProfile?.department !== 'coordinator') {
+  if (!user || user.role !== 'TEACHER' || user.teacherProfile?.department !== 'coordinator') {
     throw new Error('Access denied');
   }
 
@@ -69,7 +69,7 @@ export async function GET(request) {
     // Build where clause for students
     let whereClause = {
       schoolId: coordinator.schoolId,
-      role: 'student',
+      role: 'STUDENT',
       isActive: true,
       studentProfile: {
         className: assignedFilter === 'false' 
@@ -129,7 +129,7 @@ export async function GET(request) {
     const allStudents = await prisma.user.findMany({
       where: {
         schoolId: coordinator.schoolId,
-        role: 'student',
+        role: 'STUDENT',
         isActive: true
       },
       include: { studentProfile: true }
@@ -301,7 +301,7 @@ export async function POST(request) {
           where: {
             id: studentId,
             schoolId: coordinator.schoolId,
-            role: 'student',
+            role: 'STUDENT',
             isActive: true
           },
           include: {
@@ -403,7 +403,7 @@ export async function PUT(request) {
       where: {
         id: studentId,
         schoolId: coordinator.schoolId,
-        role: 'student',
+        role: 'STUDENT',
         isActive: true
       },
       include: {

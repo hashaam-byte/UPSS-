@@ -5,7 +5,7 @@ import { requireAuth } from '@/lib/auth';
 
 export async function GET(request) {
   try {
-    const user = await requireAuth(['student']);
+    const user = await requireAuth(['STUDENT']);
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get('limit') || '20');
     const read = searchParams.get('read');
@@ -70,7 +70,7 @@ export async function GET(request) {
 
 export async function PUT(request) {
   try {
-    const user = await requireAuth(['student']);
+    const user = await requireAuth(['STUDENT']);
     const body = await request.json();
     const { notificationId, markAsRead } = body;
 

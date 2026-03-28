@@ -15,7 +15,7 @@ async function verifyDirectorAccess(token) {
     include: { teacherProfile: true, school: true }
   });
 
-  if (!user || user.role !== 'teacher' || user.teacherProfile?.department !== 'director') {
+  if (!user || user.role !== 'TEACHER' || user.teacherProfile?.department !== 'director') {
     throw new Error('Access denied');
   }
 
@@ -40,7 +40,7 @@ export async function GET(request, { params }) {
       where: {
         id: studentId,
         schoolId: director.schoolId, // Ensure same school
-        role: 'student'
+        role: 'STUDENT'
       },
       include: {
         studentProfile: true,
@@ -63,7 +63,7 @@ export async function GET(request, { params }) {
       where: {
         user: {
           schoolId: director.schoolId,
-          role: 'student',
+          role: 'STUDENT',
           isActive: true
         },
         className: {
@@ -185,7 +185,7 @@ export async function PUT(request, { params }) {
       where: {
         id: studentId,
         schoolId: director.schoolId, // Ensure same school
-        role: 'student'
+        role: 'STUDENT'
       },
       include: {
         studentProfile: true
@@ -352,7 +352,7 @@ export async function DELETE(request, { params }) {
       where: {
         id: studentId,
         schoolId: director.schoolId, // Ensure same school
-        role: 'student'
+        role: 'STUDENT'
       }
     });
 

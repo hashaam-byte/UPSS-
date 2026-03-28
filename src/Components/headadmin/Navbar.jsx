@@ -162,7 +162,7 @@ const Navbar = ({ onMenuClick, user, notifications = [], onLogout }) => {
                 <Crown className="w-4 h-4 text-white" />
               </div>
               <div className="hidden sm:block text-left">
-                <p className="text-sm font-medium text-gray-900 truncate max-w-32">{user?.firstName || 'Admin'}</p>
+                <p className="text-sm font-medium text-gray-900 truncate max-w-32">{user?.firstName || 'ADMIN'}</p>
                 <p className="text-xs text-gray-500">Head Admin</p>
               </div>
               <ChevronDown className="w-4 h-4 text-gray-400 hidden sm:block group-hover:rotate-180 transition-transform duration-200" />

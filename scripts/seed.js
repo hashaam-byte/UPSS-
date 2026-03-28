@@ -43,12 +43,12 @@ async function main() {
       },
       update: {},
       create: {
-        firstName: 'Admin',
+        firstName: 'ADMIN',
         lastName: 'User',
         email: 'admin@demo-school.edu',
-        username: 'admin',
+        username: 'ADMIN',
         passwordHash: passwordHash,
-        role: 'admin',
+        role: 'ADMIN',
         schoolId: school.id,
         isActive: true,
         isEmailVerified: true
@@ -83,7 +83,7 @@ async function main() {
         email: 'teacher@demo-school.edu',
         username: 'jsmith',
         passwordHash: passwordHash,
-        role: 'teacher',
+        role: 'TEACHER',
         schoolId: school.id,
         isActive: true,
         isEmailVerified: true
@@ -122,7 +122,7 @@ async function main() {
         email: 'student@demo-school.edu',
         username: 'johndoe',
         passwordHash: passwordHash,
-        role: 'student',
+        role: 'STUDENT',
         schoolId: school.id,
         isActive: true,
         isEmailVerified: true

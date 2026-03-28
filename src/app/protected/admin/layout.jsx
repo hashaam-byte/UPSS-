@@ -23,7 +23,8 @@ import {
   ChevronDown,
   Loader2,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  UserCheck // NEW ICON for teacher assignments
 } from 'lucide-react';
 
 const AdminLayout = ({ children }) => {
@@ -51,6 +52,11 @@ const AdminLayout = ({ children }) => {
       icon: Users
     },
     {
+      title: 'Teacher Assignments', // NEW MENU ITEM
+      href: '/protected/admin/teachers/assignments',
+      icon: UserCheck
+    },
+    {
       title: 'Analytics',
       href: '/protected/admin/analytics',
       icon: BarChart3
@@ -76,7 +82,7 @@ const AdminLayout = ({ children }) => {
       icon: Settings
     },
     {
-      title: 'Arm', // Added Arm to the sidebar
+      title: 'Arm',
       href: '/protected/admin/arm',
       icon: Shield
     }
@@ -105,7 +111,7 @@ const AdminLayout = ({ children }) => {
 
       const data = await response.json();
       
-      if (data.user.role !== 'admin') {
+      if (data.user.role !== 'ADMIN') {
         router.push('/auth/unauthorized');
         return;
       }

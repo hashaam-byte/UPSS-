@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server';
 
 export async function PATCH(request, { params }) {
   try {
-    const user = await requireAuth(['headadmin']);
+    const user = await requireAuth(['HEADADMIN']);
     const { id } = params;
     const body = await request.json();
     const { 
@@ -144,7 +144,7 @@ export async function PATCH(request, { params }) {
       const schoolAdmins = await prisma.user.findMany({
         where: {
           schoolId: id,
-          role: 'admin',
+          role: 'ADMIN',
           isActive: true
         },
         select: { id: true }
@@ -206,7 +206,7 @@ export async function PATCH(request, { params }) {
 
 export async function GET(request, { params }) {
   try {
-    const user = await requireAuth(['headadmin']);
+    const user = await requireAuth(['HEADADMIN']);
     const { id } = params;
 
     const school = await prisma.school.findUnique({

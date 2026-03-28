@@ -7,7 +7,7 @@ export async function GET(request) {
   try {
     const user = await getCurrentUser();
     
-    if (!user || user.role !== 'teacher' || user.department !== 'subject_teacher') {
+    if (!user || user.role !== 'TEACHER' || user.department !== 'subject_teacher') {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 403 }
@@ -29,7 +29,7 @@ export async function GET(request) {
     // Get all students in teacher's classes
     const students = await prisma.user.findMany({
       where: {
-        role: 'student',
+        role: 'STUDENT',
         schoolId: user.schoolId,
         studentProfile: {
           className: { in: allClasses }

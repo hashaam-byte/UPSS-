@@ -12,7 +12,7 @@ const keys = [
 
 export async function GET() {
   try {
-    await requireAuth(['admin']);
+    await requireAuth(['ADMIN']);
     const settings = await prisma.systemSetting.findMany({
       where: { key: { in: keys } }
     });
@@ -31,7 +31,7 @@ export async function GET() {
 
 export async function PUT(request) {
   try {
-    const user = await requireAuth(['admin']);
+    const user = await requireAuth(['ADMIN']);
     const data = await request.json();
     await Promise.all(keys.map(key =>
       prisma.systemSetting.upsert({

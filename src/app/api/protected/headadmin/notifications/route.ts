@@ -1,15 +1,16 @@
 // app/api/protected/headadmin/notifications/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { requireAuth } from '@/lib/auth';
+import { getCurrentUser } from '@/lib/auth';
+
 
 const prisma = new PrismaClient();
 
 export async function GET(request: NextRequest) {
   try {
-    const authResult = await requireAuth(['headadmin']);
+    const user = await getCurrentUser();
     
-    if (!authResult.authenticated || authResult.user?.role !== 'headadmin') {
+    if (!user || user.role !== 'HEADADMIN') {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -68,9 +69,9 @@ export async function GET(request: NextRequest) {
 // Mark notification as read
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuth(['headadmin']);
+    const user = await getCurrentUser();
     
-    if (!user || user.role !== 'headadmin') {
+    if (!user || user.role !== 'HEADADMIN') {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }

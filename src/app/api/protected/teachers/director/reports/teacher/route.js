@@ -5,7 +5,7 @@ import { requireAuth } from '@/lib/auth';
 
 export async function GET(request) {
   try {
-    const user = await requireAuth(['teacher']);
+    const user = await requireAuth(['TEACHER']);
     
     if (user.department !== 'director') {
       return NextResponse.json(
@@ -60,7 +60,7 @@ async function getSingleTeacherReport(user, teacherId, startDate) {
     where: {
       id: teacherId,
       schoolId: user.schoolId,
-      role: 'teacher',
+      role: 'TEACHER',
       isActive: true
     },
     include: {
@@ -220,7 +220,7 @@ async function getAllTeachersReport(user, startDate) {
   const teachers = await prisma.user.findMany({
     where: {
       schoolId: user.schoolId,
-      role: 'teacher',
+      role: 'TEACHER',
       isActive: true
     },
     include: {

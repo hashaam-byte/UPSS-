@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request) {
   try {
-    const user = await requireAuth(['admin']);
+    const user = await requireAuth(['ADMIN']);
 
     // Get user statistics for the admin's school
     const [totalUsers, students, teachers, admins, activeUsers] = await Promise.all([
@@ -18,21 +18,21 @@ export async function GET(request) {
       prisma.user.count({
         where: { 
           schoolId: user.school.id,
-          role: 'student',
+          role: 'STUDENT',
           isActive: true 
         }
       }),
       prisma.user.count({
         where: { 
           schoolId: user.school.id,
-          role: 'teacher',
+          role: 'TEACHER',
           isActive: true 
         }
       }),
       prisma.user.count({
         where: { 
           schoolId: user.school.id,
-          role: 'admin',
+          role: 'ADMIN',
           isActive: true 
         }
       }),

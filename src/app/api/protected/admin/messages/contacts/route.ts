@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET() {
   try {
-    const user = await requireAuth(['admin']);
+    const user = await requireAuth(['ADMIN']);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -12,7 +12,7 @@ export async function GET() {
     const teachers = await prisma.user.findMany({
       where: {
         schoolId: user.schoolId,
-        role: 'teacher',
+        role: 'TEACHER',
         isActive: true
       },
       select: {

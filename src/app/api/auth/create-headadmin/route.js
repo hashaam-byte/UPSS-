@@ -53,7 +53,7 @@ export async function POST(request) {
 
     // Check if head admin already exists
     const existingHeadAdmin = await prisma.user.findFirst({
-      where: { role: 'headadmin' }
+      where: { role: 'HEADADMIN' }
     });
     
     if (existingHeadAdmin) {
@@ -86,7 +86,7 @@ export async function POST(request) {
         lastName: lastName.trim(),
         email: email.toLowerCase().trim(),
         passwordHash: passwordHash,
-        role: 'headadmin',
+        role: 'HEADADMIN',
         isEmailVerified: true,
         isActive: true
       }

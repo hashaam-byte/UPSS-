@@ -155,15 +155,15 @@ export async function POST(request) {
         schoolId: user.schoolId,
         OR: [
           {
-            role: 'student',
+            role: 'STUDENT',
             studentProfile: {
               className: {
                 in: assignedClasses
               }
             }
           },
-          { role: 'admin' },
-          { role: 'headadmin' }
+          { role: 'ADMIN' },
+          { role: 'HEADADMIN' }
         ]
       }
     });

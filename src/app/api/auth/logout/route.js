@@ -15,14 +15,11 @@ export async function POST() {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
         
-        // Invalidate session in database
-        await prisma.userSession.updateMany({
+        // Delete session from database
+        await prisma.userSession.deleteMany({
           where: {
             userId: decoded.userId,
             tokenHash: tokenHash
-          },
-          data: {
-            isActive: false
           }
         });
       } catch (error) {

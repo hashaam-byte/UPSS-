@@ -7,9 +7,9 @@ const prisma = new PrismaClient();
 
 export async function GET() {
   try {
-    const authResult = await requireAuth(['headadmin']);
+    const authResult = await requireAuth(['HEADADMIN']);
     
-    if (!authResult.authenticated || authResult.user?.role !== 'headadmin') {
+    if (!authResult.authenticated || authResult.user?.role !== 'HEADADMIN') {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -19,7 +19,7 @@ export async function GET() {
     // Fetch all school admins with their school information
     const admins = await prisma.user.findMany({
       where: {
-        role: 'admin',
+        role: 'ADMIN',
         isActive: true
       },
       select: {

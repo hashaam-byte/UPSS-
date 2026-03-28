@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server';
 
 export async function PATCH(request, { params }) {
   try {
-    const currentUser = await requireAuth(['admin']);
+    const currentUser = await requireAuth(['ADMIN']);
     const { userId } = params;
     const { isActive } = await request.json();
 
@@ -57,9 +57,8 @@ export async function PATCH(request, { params }) {
 
     // If deactivating, invalidate all user sessions
     if (!isActive) {
-      await prisma.userSession.updateMany({
-        where: { userId: userId },
-        data: { isActive: false }
+      await prisma.userSession.deleteMany({
+        where: { userId: userId }
       });
     }
 

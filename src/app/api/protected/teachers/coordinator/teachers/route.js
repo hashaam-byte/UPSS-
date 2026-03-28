@@ -15,7 +15,7 @@ async function verifyCoordinatorAccess(token) {
     include: { teacherProfile: true, school: true }
   });
 
-  if (!user || user.role !== 'teacher' || user.teacherProfile?.department !== 'coordinator') {
+  if (!user || user.role !== 'TEACHER' || user.teacherProfile?.department !== 'coordinator') {
     throw new Error('Access denied');
   }
 
@@ -51,7 +51,7 @@ export async function GET(request) {
     // Build where clause for teachers - only subject and class teachers
     const whereClause = {
       schoolId: coordinator.schoolId,
-      role: 'teacher',
+      role: 'TEACHER',
       isActive: true,
       teacherProfile: {
         department: {
@@ -305,7 +305,7 @@ export async function POST(request) {
       where: {
         id: teacherId,
         schoolId: coordinator.schoolId,
-        role: 'teacher',
+        role: 'TEACHER',
         isActive: true,
         teacherProfile: {
           department: {

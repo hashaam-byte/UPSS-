@@ -4,7 +4,7 @@ import { requireAuth } from '@/lib/auth';
 
 export async function GET(request) {
   try {
-    const user = await requireAuth(['teacher']);
+    const user = await requireAuth(['TEACHER']);
     const { searchParams } = new URL(request.url);
     const className = searchParams.get('class');
 

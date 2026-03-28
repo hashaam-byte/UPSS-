@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuth(['admin']);
+    const user = await requireAuth(['ADMIN']);
     const { conversationId, content } = await request.json();
 
     if (!content?.trim()) {
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     // Determine toUserId based on conversationId
     let toUserId: string | null;
     
-    if (conversationId === 'headadmin') {
+    if (conversationId === 'HEADADMIN') {
       // Message to head admin (toUserId is null)
       toUserId = null;
     } else {

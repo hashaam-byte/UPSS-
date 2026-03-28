@@ -7,7 +7,7 @@ import bcrypt from 'bcryptjs';
 export async function GET(request) {
   try {
     const user = await getCurrentUser();
-    if (!user || user.role !== 'headadmin') {
+    if (!user || user.role !== 'HEADADMIN') {
       return NextResponse.json(
         { error: 'Access denied' },
         { status: 403 }
@@ -42,7 +42,7 @@ export async function GET(request) {
 export async function PUT(request) {
   try {
     const user = await getCurrentUser();
-    if (!user || user.role !== 'headadmin') {
+    if (!user || user.role !== 'HEADADMIN') {
       return NextResponse.json(
         { error: 'Access denied' },
         { status: 403 }

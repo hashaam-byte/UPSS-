@@ -138,16 +138,16 @@ const TeacherMessagesPage = () => {
   };
 
   const getRoleIcon = (role) => {
-    if (role === 'admin') return <Users className="w-5 h-5" />;
-    if (role === 'student') return <GraduationCap className="w-5 h-5" />;
+    if (role === 'ADMIN') return <Users className="w-5 h-5" />;
+    if (role === 'STUDENT') return <GraduationCap className="w-5 h-5" />;
     return <User className="w-5 h-5" />;
   };
 
   const getRoleLabel = (participant) => {
-    if (participant.role === 'admin') return 'School Admin';
-    if (participant.role === 'student') return 'Student';
+    if (participant.role === 'ADMIN') return 'School Admin';
+    if (participant.role === 'STUDENT') return 'STUDENT';
     if (participant.teacherProfile?.coordinatorClass) return 'Coordinator/Director';
-    return 'Teacher';
+    return 'TEACHER';
   };
 
   const filteredConversations = conversations.filter(conv =>

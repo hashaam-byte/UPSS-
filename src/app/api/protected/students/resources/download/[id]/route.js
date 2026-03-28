@@ -6,7 +6,7 @@ import { requireAuth } from '@/lib/auth';
 
 export async function GET(request, { params }) {
   try {
-    const user = await requireAuth(['student']);
+    const user = await requireAuth(['STUDENT']);
     const { id } = params;
 
     const resource = await prisma.resource.findFirst({

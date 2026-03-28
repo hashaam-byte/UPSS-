@@ -20,7 +20,7 @@ export async function GET(request) {
       include: { teacherProfile: true }
     });
 
-    if (!director || director.role !== 'teacher' || director.teacherProfile?.department !== 'director') {
+    if (!director || director.role !== 'TEACHER' || director.teacherProfile?.department !== 'director') {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
@@ -115,7 +115,7 @@ async function generateTeacherReport(schoolId, stage) {
   const teachers = await prisma.user.findMany({
     where: {
       schoolId,
-      role: 'teacher',
+      role: 'TEACHER',
       isActive: true,
       teacherProfile: {
         subjects: { hasSome: [stage] }
@@ -139,7 +139,7 @@ async function generateStudentReport(schoolId, stage) {
   const students = await prisma.user.findMany({
     where: {
       schoolId,
-      role: 'student',
+      role: 'STUDENT',
       isActive: true,
       studentProfile: {
         className: { startsWith: stage }

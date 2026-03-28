@@ -5,7 +5,7 @@ import { requireAuth } from '@/lib/auth';
 
 export async function GET() {
   try {
-    const user = await requireAuth(['student']);
+    const user = await requireAuth(['STUDENT']);
 
     // Get all conversations (messages where student is recipient or sender)
     const messages = await prisma.message.findMany({
@@ -90,7 +90,7 @@ export async function GET() {
     const allTeachers = await prisma.user.findMany({
       where: {
         schoolId: user.schoolId,
-        role: 'teacher',
+        role: 'TEACHER',
         isActive: true
       },
       select: {

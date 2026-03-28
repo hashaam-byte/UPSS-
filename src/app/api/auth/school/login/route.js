@@ -20,7 +20,7 @@ export async function POST(request) {
     }
 
     // Validate role
-    const validRoles = ['student', 'teacher', 'admin'];
+    const validRoles = ['STUDENT', 'TEACHER', 'ADMIN'];
     if (!validRoles.includes(role)) {
       return NextResponse.json(
         { error: 'Invalid role specified' },
@@ -60,9 +60,9 @@ export async function POST(request) {
       },
       include: {
         school: true,
-        studentProfile: role === 'student',
-        teacherProfile: role === 'teacher', 
-        adminProfile: role === 'admin' ? {
+        studentProfile: role === 'STUDENT',
+        teacherProfile: role === 'TEACHER', 
+        adminProfile: role === 'ADMIN' ? {
           include: {
             permissions: true
           }
@@ -117,7 +117,7 @@ export async function POST(request) {
 
     // Determine actual user role for JWT - important for teachers!
     let jwtRole = user.role;
-    if (user.role === 'teacher' && user.teacherProfile?.department) {
+    if (user.role === 'TEACHER' && user.teacherProfile?.department) {
       // Use the specific teacher department as the role in JWT
       jwtRole = user.teacherProfile.department;
     }
@@ -146,10 +146,7 @@ export async function POST(request) {
       data: {
         userId: user.id,
         tokenHash: tokenHash,
-        userAgent: request.headers.get('user-agent') || null,
-        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || null,
-        expiresAt: sessionExpiry,
-        isActive: true
+        expiresAt: sessionExpiry
       }
     });
 
@@ -166,11 +163,11 @@ export async function POST(request) {
     // Determine redirect URL based on role
     let redirectTo = '/protected/dashboard';
 
-    if (user.role === 'student') {
+    if (user.role === 'STUDENT') {
       redirectTo = '/protected/students/dashboard';
-    } else if (user.role === 'admin') {
+    } else if (user.role === 'ADMIN') {
       redirectTo = '/protected/admin';
-    } else if (user.role === 'teacher') {
+    } else if (user.role === 'TEACHER') {
       // Always check the latest teacherProfile from DB for department
       const teacherProfile = await prisma.teacherProfile.findUnique({
         where: { userId: user.id }

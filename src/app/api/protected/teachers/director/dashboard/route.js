@@ -4,7 +4,7 @@ import { requireAuth } from '@/lib/auth';
 
 export async function GET(request) {
   try {
-    const user = await requireAuth(['teacher']);
+    const user = await requireAuth(['TEACHER']);
     
     // Ensure user is a director
     const director = await prisma.user.findFirst({
@@ -40,7 +40,7 @@ export async function GET(request) {
       // Total students in these classes
       prisma.user.count({
         where: {
-          role: 'student',
+          role: 'STUDENT',
           schoolId: user.schoolId,
           studentProfile: {
             className: {
@@ -53,7 +53,7 @@ export async function GET(request) {
       // Active students (logged in within last 7 days)
       prisma.user.count({
         where: {
-          role: 'student',
+          role: 'STUDENT',
           schoolId: user.schoolId,
           studentProfile: {
             className: {
@@ -69,7 +69,7 @@ export async function GET(request) {
       // Total teachers in the school
       prisma.user.count({
         where: {
-          role: 'teacher',
+          role: 'TEACHER',
           schoolId: user.schoolId,
           teacherProfile: {
             NOT: {
@@ -86,7 +86,7 @@ export async function GET(request) {
             schoolId: user.schoolId,
             OR: [
               {
-                role: 'teacher',
+                role: 'TEACHER',
                 teacherProfile: {
                   department: {
                     not: 'director'
@@ -94,7 +94,7 @@ export async function GET(request) {
                 }
               },
               {
-                role: 'student',
+                role: 'STUDENT',
                 studentProfile: {
                   className: {
                     in: uniqueClasses
@@ -125,7 +125,7 @@ export async function GET(request) {
       uniqueClasses.map(async (className) => {
         const studentCount = await prisma.user.count({
           where: {
-            role: 'student',
+            role: 'STUDENT',
             schoolId: user.schoolId,
             studentProfile: {
               className

@@ -19,8 +19,7 @@ export async function getCurrentUser() {
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     const session = await prisma.userSession.findFirst({
       where: {
-        tokenHash,
-        isActive: true,
+        tokenHash: tokenHash,
         expiresAt: { gt: new Date() }
       }
     });
@@ -30,7 +29,7 @@ export async function getCurrentUser() {
     }
 
     // Special case: Head Admin doesn't need school relations
-    if (decoded.role === 'headadmin') {
+    if (decoded.role === 'HEADADMIN') {
       const user = await prisma.user.findUnique({
         where: { id: decoded.userId },
         select: {
@@ -38,9 +37,7 @@ export async function getCurrentUser() {
           firstName: true,
           lastName: true,
           email: true,
-          username: true,
           role: true,
-          avatar: true,
           isEmailVerified: true,
           isActive: true,
           schoolId: true
@@ -63,14 +60,14 @@ export async function getCurrentUser() {
     };
 
     // Determine what to include based on token role or fallback to user role
-    const isTeacherRole = decoded.role === 'teacher' || 
+    const isTeacherRole = decoded.role === 'TEACHER' || 
                          ['director', 'coordinator', 'class_teacher', 'subject_teacher'].includes(decoded.role);
     
-    if (decoded.role === 'student') {
+    if (decoded.role === 'STUDENT') {
       includeOptions.studentProfile = true;
     } else if (isTeacherRole) {
       includeOptions.teacherProfile = true;
-    } else if (decoded.role === 'admin') {
+    } else if (decoded.role === 'ADMIN') {
       includeOptions.adminProfile = { include: { permissions: true } };
     }
 
@@ -84,7 +81,7 @@ export async function getCurrentUser() {
     }
 
     // IMPORTANT: Ensure school data is always returned for non-head admins
-    if (!user.school && decoded.role !== 'headadmin') {
+    if (!user.school && decoded.role !== 'HEADADMIN') {
       console.error(`User ${user.id} has no school association but is not head admin`);
       return null;
     }
@@ -124,7 +121,7 @@ export async function requireAuth(allowedRoles = []) {
   }
 
   // For non-head admin users, ensure they have a school association
-  if (user.role !== 'headadmin' && !user.schoolId) {
+  if (user.role !== 'HEADADMIN' && !user.schoolId) {
     throw new Error('User not associated with any school');
   }
 
@@ -231,22 +228,22 @@ export const rateLimiter = new RateLimiter();
 
 // Helper for login redirect
 export function getRedirectPathForUser(user) {
-  if (user.role === 'teacher' && user.department === 'coordinator') {
+  if (user.role === 'TEACHER' && user.department === 'coordinator') {
     return '/protected/teacher/coordinator';
   }
-  if (user.role === 'teacher' && user.department === 'director') {
+  if (user.role === 'TEACHER' && user.department === 'director') {
     return '/protected/teacher/director';
   }
-  if (user.role === 'teacher') {
+  if (user.role === 'TEACHER') {
     return '/protected/teacher';
   }
-  if (user.role === 'student') {
+  if (user.role === 'STUDENT') {
     return '/protected/student';
   }
-  if (user.role === 'admin') {
+  if (user.role === 'ADMIN') {
     return '/protected/admin';
   }
-  if (user.role === 'headadmin') {
+  if (user.role === 'HEADADMIN') {
     return '/protected/headadmin';
   }
   return '/login';

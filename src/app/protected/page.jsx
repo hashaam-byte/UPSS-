@@ -132,7 +132,7 @@ const ContactSupportModal = ({ isOpen, onClose }) => {
 };
 
 const LoginPage = () => {
-  const [selectedRole, setSelectedRole] = useState('student');
+  const [selectedRole, setSelectedRole] = useState('STUDENT');
   const [showPassword, setShowPassword] = useState(false);
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [schools, setSchools] = useState([]);
@@ -148,8 +148,8 @@ const LoginPage = () => {
 
   const roles = [
     {
-      id: 'student',
-      title: 'Student',
+      id: 'STUDENT',
+      title: 'STUDENT',
       subtitle: 'Access your timetable, assignments & results',
       icon: GraduationCap,
       gradient: 'from-blue-500 to-blue-600',
@@ -159,8 +159,8 @@ const LoginPage = () => {
       route: '/protected/students'
     },
     {
-      id: 'teacher',
-      title: 'Teacher', 
+      id: 'TEACHER',
+      title: 'TEACHER', 
       subtitle: 'Manage classes, assignments & student progress',
       icon: UserCheck,
       gradient: 'from-emerald-500 to-emerald-600',
@@ -170,8 +170,8 @@ const LoginPage = () => {
       route: '/protected/Teachers'
     },
     {
-      id: 'admin',
-      title: 'Admin',
+      id: 'ADMIN',
+      title: 'ADMIN',
       subtitle: 'Oversee school operations & manage users',
       icon: Shield,
       gradient: 'from-purple-500 to-purple-600', 
@@ -181,7 +181,7 @@ const LoginPage = () => {
       route: '/protected/Admin'
     },
     {
-      id: 'headadmin',
+      id: 'HEADADMIN',
       title: 'Head Admin',
       subtitle: 'Full system access & premium management',
       icon: Crown,
@@ -205,7 +205,7 @@ const LoginPage = () => {
       setSelectedRole(role);
     }
     
-    if (selectedRole !== 'headadmin') {
+    if (selectedRole !== 'HEADADMIN') {
       fetchSchools();
     }
   }, [selectedRole]);
@@ -268,12 +268,12 @@ const LoginPage = () => {
       return 'Password must be at least 6 characters long';
     }
     
-    if (selectedRole !== 'headadmin' && !formData.schoolSlug) {
+    if (selectedRole !== 'HEADADMIN' && !formData.schoolSlug) {
       return 'Please select your school';
     }
     
     // Email validation for head admin
-    if (selectedRole === 'headadmin') {
+    if (selectedRole === 'HEADADMIN') {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(formData.identifier)) {
         return 'Please enter a valid email address';
@@ -300,7 +300,7 @@ const LoginPage = () => {
       let apiUrl = '';
       let payload = {};
 
-      if (selectedRole === 'headadmin') {
+      if (selectedRole === 'HEADADMIN') {
         apiUrl = '/api/auth/headadmin/login';
         payload = {
           email: formData.identifier.trim(),
@@ -366,8 +366,8 @@ const LoginPage = () => {
   };
 
   const handleForgotPassword = () => {
-    const resetType = selectedRole === 'headadmin' ? 'headadmin' : 'school';
-    const schoolParam = selectedRole !== 'headadmin' && formData.schoolSlug 
+    const resetType = selectedRole === 'HEADADMIN' ? 'HEADADMIN' : 'school';
+    const schoolParam = selectedRole !== 'HEADADMIN' && formData.schoolSlug 
       ? `&school=${formData.schoolSlug}` 
       : '';
     window.location.href = `/auth/reset-password?type=${resetType}${schoolParam}`;
@@ -533,7 +533,7 @@ const LoginPage = () => {
                 {/* Login Form Fields */}
                 <div className="space-y-6">
                   {/* School Selection for non-head-admin */}
-                  {selectedRole !== 'headadmin' && (
+                  {selectedRole !== 'HEADADMIN' && (
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">
                         Select School <span className="text-red-400">*</span>
@@ -562,7 +562,7 @@ const LoginPage = () => {
                   {/* Username/Email Input */}
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">
-                      {selectedRole === 'headadmin' ? 'Email' : 'Username or Email'} <span className="text-red-400">*</span>
+                      {selectedRole === 'HEADADMIN' ? 'Email' : 'Username or Email'} <span className="text-red-400">*</span>
                     </label>
                     <div className="relative">
                       <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -572,7 +572,7 @@ const LoginPage = () => {
                         value={formData.identifier}
                         onChange={handleInputChange}
                         className="w-full pl-12 pr-4 py-4 bg-white/5 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all duration-200 placeholder-gray-400 backdrop-blur-sm"
-                        placeholder={selectedRole === 'headadmin' ? "admin@upss.edu" : selectedRole === 'student' ? "student123 or john@student.upss.edu" : `${currentRole ? currentRole.title.toLowerCase() : ''}@upss.edu`}
+                        placeholder={selectedRole === 'HEADADMIN' ? "admin@upss.edu" : selectedRole === 'STUDENT' ? "student123 or john@student.upss.edu" : `${currentRole ? currentRole.title.toLowerCase() : ''}@upss.edu`}
                         required
                         disabled={isLoading}
                         autoComplete="username"
@@ -657,7 +657,7 @@ const LoginPage = () => {
                   </button>
 
                   {/* Create Head Admin Account Button */}
-                  {selectedRole === 'headadmin' && (
+                  {selectedRole === 'HEADADMIN' && (
                     <div className="mt-6 flex justify-center">
                       <button
                         type="button"

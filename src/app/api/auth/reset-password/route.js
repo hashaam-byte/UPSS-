@@ -38,11 +38,11 @@ export async function POST(request) {
 
     let user;
 
-    if (type === 'headadmin') {
+    if (type === 'HEADADMIN') {
       user = await prisma.user.findFirst({
         where: {
           email: email.toLowerCase(),
-          role: 'headadmin',
+          role: 'HEADADMIN',
           isActive: true
         }
       });

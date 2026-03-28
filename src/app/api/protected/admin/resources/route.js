@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request) {
   try {
-    const user = await requireAuth(['admin']);
+    const user = await requireAuth(['ADMIN']);
     const { searchParams } = new URL(request.url);
 
     const folderId = searchParams.get('folderId');

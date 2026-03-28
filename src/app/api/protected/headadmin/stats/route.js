@@ -7,7 +7,7 @@ export async function GET() {
   try {
     const user = await getCurrentUser();
     
-    if (!user || user.role !== 'headadmin') {
+    if (!user || user.role !== 'HEADADMIN') {
       return NextResponse.json(
         { error: 'Access denied' },
         { status: 403 }
@@ -38,7 +38,7 @@ export async function GET() {
       // Total users across all schools
       prisma.user.count({
         where: {
-          role: { in: ['admin', 'teacher', 'student'] }
+          role: { in: ['ADMIN', 'TEACHER', 'STUDENT'] }
         }
       }),
       

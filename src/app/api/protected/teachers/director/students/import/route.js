@@ -16,7 +16,7 @@ async function verifyDirectorAccess(token) {
     include: { teacherProfile: true, school: true }
   });
 
-  if (!user || user.role !== 'teacher' || user.teacherProfile?.department !== 'director') {
+  if (!user || user.role !== 'TEACHER' || user.teacherProfile?.department !== 'director') {
     throw new Error('Access denied');
   }
 
@@ -47,7 +47,7 @@ export async function GET(request) {
     const students = await prisma.user.findMany({
       where: {
         schoolId: user.schoolId, // CRITICAL: Only students from director's school
-        role: 'student',
+        role: 'STUDENT',
         isActive: true,
         OR: [
           {
@@ -81,7 +81,7 @@ export async function GET(request) {
     const allStudentsWithClasses = await prisma.user.findMany({
       where: {
         schoolId: user.schoolId,
-        role: 'student',
+        role: 'STUDENT',
         studentProfile: {
           className: {
             not: null,
@@ -108,14 +108,14 @@ export async function GET(request) {
     const totalStudents = await prisma.user.count({
       where: {
         schoolId: user.schoolId,
-        role: 'student'
+        role: 'STUDENT'
       }
     });
 
     const recentImports = await prisma.user.count({
       where: {
         schoolId: user.schoolId,
-        role: 'student',
+        role: 'STUDENT',
         createdAt: {
           gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // Last 30 days
         }
@@ -125,7 +125,7 @@ export async function GET(request) {
     const assignedStudents = await prisma.user.count({
       where: {
         schoolId: user.schoolId,
-        role: 'student',
+        role: 'STUDENT',
         studentProfile: {
           className: {
             not: null,
@@ -499,7 +499,7 @@ export async function PUT(request) {
       where: {
         id: studentId,
         schoolId: user.schoolId,
-        role: 'student'
+        role: 'STUDENT'
       },
       include: {
         studentProfile: true

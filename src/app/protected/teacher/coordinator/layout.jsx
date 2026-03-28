@@ -71,7 +71,7 @@ const CoordinatorLayout = ({ children }) => {
         const data = await response.json();
         
         // Verify user is a coordinator
-        if (data.user.role !== 'teacher' || data.user.department !== 'coordinator') {
+        if (data.user.role !== 'TEACHER' || data.user.department !== 'coordinator') {
           router.push('/auth/unauthorized');
           return;
         }
@@ -141,6 +141,13 @@ const CoordinatorLayout = ({ children }) => {
       icon: Home,
       label: 'Dashboard',
       description: 'Overview and quick actions',
+      badge: null
+    },
+    {
+      href: '/protected/teacher/coordinator/class-manager',
+      icon: BookOpen,
+      label: 'Class Manager',
+      description: 'Manage classes and subject assignments',
       badge: null
     },
     {

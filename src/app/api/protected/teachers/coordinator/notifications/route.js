@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request) {
   try {
-    const user = await requireAuth(['teacher']);
+    const user = await requireAuth(['TEACHER']);
     
     // Verify user is a coordinator
     const coordinator = await prisma.user.findFirst({
@@ -57,7 +57,7 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const user = await requireAuth(['teacher']);
+    const user = await requireAuth(['TEACHER']);
     const { action, notificationIds } = await request.json();
 
     // Verify user is a coordinator
@@ -111,7 +111,7 @@ export async function POST(request) {
 
 export async function DELETE(request) {
   try {
-    const user = await requireAuth(['teacher']);
+    const user = await requireAuth(['TEACHER']);
     const { notificationIds } = await request.json();
 
     // Verify user is a coordinator

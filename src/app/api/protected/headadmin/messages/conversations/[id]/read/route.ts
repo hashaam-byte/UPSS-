@@ -1,7 +1,8 @@
 // app/api/protected/headadmin/messages/conversations/[id]/read/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { requireAuth } from '@/lib/auth';
+import { getCurrentUser } from '@/lib/auth';
+
 
 const prisma = new PrismaClient();
 
@@ -13,9 +14,9 @@ export async function POST(
     // Await params in Next.js 15+
     const { id } = await params;
     
-    const authResult = await requireAuth(['headadmin']);
+    const user = await getCurrentUser();
     
-    if (!authResult.authenticated || authResult.user?.role !== 'headadmin') {
+    if (!user || user.role !== 'HEADADMIN') {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }

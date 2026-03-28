@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    const user = await requireAuth(['admin']);
+    const user = await requireAuth(['ADMIN']);
     const school = await prisma.school.findUnique({
       where: { id: user.school.id },
       select: {
@@ -21,7 +21,7 @@ export async function GET() {
       allowTeacherRegistration: school.allowTeacherRegistration,
       requireEmailVerification: school.requireEmailVerification,
       maxStudentsPerClass: school.maxStudents,
-      defaultUserRole: 'student'
+      defaultUserRole: 'STUDENT'
     };
     return NextResponse.json({ settings });
   } catch (error) {
@@ -31,7 +31,7 @@ export async function GET() {
 
 export async function PUT(request) {
   try {
-    const user = await requireAuth(['admin']);
+    const user = await requireAuth(['ADMIN']);
     const data = await request.json();
     await prisma.school.update({
       where: { id: user.school.id },

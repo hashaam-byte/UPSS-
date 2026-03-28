@@ -6,7 +6,7 @@ import { join } from 'path';
 
 export async function DELETE(request, { params }) {
   try {
-    const user = await requireAuth(['admin']);
+    const user = await requireAuth(['ADMIN']);
     const { resourceId } = params;
 
     // Find the resource

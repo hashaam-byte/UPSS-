@@ -141,7 +141,7 @@ const StudentMessagesPage = () => {
       return `Class Teacher - ${teacher.teacherProfile.coordinatorClass}`;
     }
     const subjects = teacher.teacherProfile?.teacherSubjects?.map(ts => ts.subject?.name).filter(Boolean).join(', ');
-    return subjects ? `Subject Teacher - ${subjects}` : 'Teacher';
+    return subjects ? `Subject Teacher - ${subjects}` : 'TEACHER';
   };
 
   const filteredConversations = conversations.filter(conv =>

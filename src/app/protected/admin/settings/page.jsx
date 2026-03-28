@@ -52,7 +52,7 @@ const AdminSettingsPage = () => {
     allowTeacherRegistration: false,
     requireEmailVerification: true,
     maxStudentsPerClass: 30,
-    defaultUserRole: 'student'
+    defaultUserRole: 'STUDENT'
   });
 
   const [securitySettings, setSecuritySettings] = useState({

@@ -5,7 +5,7 @@ import { requireAuth } from '@/lib/auth';
 
 export async function GET(request) {
   try {
-    const user = await requireAuth(['student']);
+    const user = await requireAuth(['STUDENT']);
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
     const subject = searchParams.get('subject');
@@ -132,7 +132,7 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const user = await requireAuth(['student']);
+    const user = await requireAuth(['STUDENT']);
     const body = await request.json();
     const { assignmentId, content, attachments } = body;
 

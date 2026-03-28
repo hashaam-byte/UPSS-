@@ -11,7 +11,7 @@ import {
 
 export async function GET(request) {
   try {
-    const user = await requireAuth(['teacher']);
+    const user = await requireAuth(['TEACHER']);
     
     // FIXED: Use helper to get subjects with actual Subject.id
     const subjects = await getTeacherSubjects(user.id, user.schoolId);
@@ -33,7 +33,7 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const user = await requireAuth(['teacher']);
+    const user = await requireAuth(['TEACHER']);
     const data = await request.json();
     const {
       title,
@@ -120,7 +120,7 @@ export async function POST(request) {
     if (validStatus === 'active' && classes && classes.length > 0) {
       const students = await prisma.user.findMany({
         where: {
-          role: 'student',
+          role: 'STUDENT',
           schoolId: user.schoolId,
           studentProfile: {
             className: { in: classes }

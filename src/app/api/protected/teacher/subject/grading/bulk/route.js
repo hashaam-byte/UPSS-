@@ -8,7 +8,7 @@ export async function POST(request) {
   try {
     const user = await getCurrentUser();
     
-    if (!user || user.role !== 'teacher') {
+    if (!user || user.role !== 'TEACHER') {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 403 }

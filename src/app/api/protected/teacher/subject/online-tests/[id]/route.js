@@ -13,7 +13,7 @@ import {
 // PUT - Update test - FIXED
 export async function PUT(request, { params }) {
   try {
-    const user = await requireAuth(['teacher']);
+    const user = await requireAuth(['TEACHER']);
     const testId = params.id;
     
     const data = await request.json();
@@ -148,7 +148,7 @@ export async function PUT(request, { params }) {
     if (validStatus === 'active' && existingTest.status !== 'active' && classes && classes.length > 0) {
       const students = await prisma.user.findMany({
         where: {
-          role: 'student',
+          role: 'STUDENT',
           schoolId: user.schoolId,
           studentProfile: {
             className: { in: classes }

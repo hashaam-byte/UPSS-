@@ -8,7 +8,7 @@ export async function POST(request) {
   try {
     const user = await getCurrentUser();
     
-    if (!user || user.role !== 'headadmin') {
+    if (!user || user.role !== 'HEADADMIN') {
       return NextResponse.json(
         { error: 'Access denied' },
         { status: 403 }
@@ -148,7 +148,7 @@ export async function POST(request) {
           email: adminEmail.toLowerCase().trim(),
           phone: adminPhone?.trim() || null,
           passwordHash,
-          role: 'admin',
+          role: 'ADMIN',
           schoolId: newSchool.id,
           isEmailVerified: true,
           isActive: true

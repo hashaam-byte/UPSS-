@@ -7,7 +7,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request) {
   try {
-    const user = await requireAuth(['admin']);
+    const user = await requireAuth(['ADMIN']);
 
     // Get notifications for the user and school
     const notifications = await prisma.notification.findMany({

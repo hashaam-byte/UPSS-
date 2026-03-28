@@ -8,7 +8,7 @@ export async function PATCH(
   context: { params: Promise<{ notificationId: string }> }
 ) {
   try {
-    const user = await requireAuth(['admin']);
+    const user = await requireAuth(['ADMIN']);
     const { notificationId } = await context.params;
 
     // Update notification as read
@@ -42,7 +42,7 @@ export async function PATCH(
 // Mark all notifications as read
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuth(['admin']);
+    const user = await requireAuth(['ADMIN']);
 
     await prisma.notification.updateMany({
       where: {

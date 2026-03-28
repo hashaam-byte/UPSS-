@@ -21,7 +21,6 @@ export async function GET(request) {
     const session = await prisma.userSession.findFirst({
       where: {
         tokenHash: tokenHash,
-        isActive: true,
         expiresAt: {
           gt: new Date()
         }

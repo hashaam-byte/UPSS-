@@ -9,7 +9,7 @@ export async function POST(request, { params }) {
   try {
     user = await getCurrentUser();
     
-    if (!user || user.role !== 'headadmin') {
+    if (!user || user.role !== 'HEADADMIN') {
       return NextResponse.json(
         { error: 'Access denied' },
         { status: 403 }
@@ -69,7 +69,7 @@ export async function POST(request, { params }) {
     const schoolAdmins = await prisma.user.findMany({
       where: {
         schoolId: schoolId,
-        role: 'admin',
+        role: 'ADMIN',
         isActive: true
       },
       select: { id: true }

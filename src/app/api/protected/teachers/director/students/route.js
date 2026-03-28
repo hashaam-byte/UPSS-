@@ -25,7 +25,7 @@ export async function GET(request) {
       }
     });
 
-    if (!director || director.role !== 'teacher' || director.teacherProfile?.department !== 'director') {
+    if (!director || director.role !== 'TEACHER' || director.teacherProfile?.department !== 'director') {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
@@ -58,7 +58,7 @@ export async function GET(request) {
     // Build where clause for students - Use top-level AND for complex conditions
     let whereClause = {
       schoolId: director.schoolId,
-      role: 'student',
+      role: 'STUDENT',
       isActive: true,
       AND: [
         // Student must have a profile
@@ -134,7 +134,7 @@ export async function GET(request) {
           {
             user: {
               schoolId: director.schoolId,
-              role: 'student',
+              role: 'STUDENT',
               isActive: true
             }
           },
@@ -227,7 +227,7 @@ export async function GET(request) {
     const pendingStudents = await prisma.user.count({
       where: {
         schoolId: director.schoolId,
-        role: 'student',
+        role: 'STUDENT',
         isActive: true,
         OR: [
           {

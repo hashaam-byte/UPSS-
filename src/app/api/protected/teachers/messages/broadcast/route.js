@@ -5,7 +5,7 @@ export async function POST(request) {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
     const decoded = await verifyJWT(token);
     
-    const teacherRoles = ['teacher', 'director', 'coordinator', 'class_teacher', 'subject_teacher'];
+    const teacherRoles = ['TEACHER', 'director', 'coordinator', 'class_teacher', 'subject_teacher'];
     if (!teacherRoles.includes(decoded.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
@@ -29,7 +29,7 @@ export async function POST(request) {
       targetUsers = await prisma.user.findMany({
         where: {
           schoolId: userSchool.schoolId,
-          role: 'student',
+          role: 'STUDENT',
           id: { in: targetStudents }
         },
         select: { id: true }
@@ -39,7 +39,7 @@ export async function POST(request) {
       targetUsers = await prisma.user.findMany({
         where: {
           schoolId: userSchool.schoolId,
-          role: 'student',
+          role: 'STUDENT',
           studentProfile: {
             className: { in: targetClasses }
           }

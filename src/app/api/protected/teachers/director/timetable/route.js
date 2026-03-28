@@ -28,7 +28,7 @@ async function verifyDirectorAccess(token) {
     include: { teacherProfile: true, school: true }
   });
 
-  if (!user || user.role !== 'teacher' || user.teacherProfile?.department !== 'director') {
+  if (!user || user.role !== 'TEACHER' || user.teacherProfile?.department !== 'director') {
     throw new Error('Access denied');
   }
 
@@ -45,7 +45,7 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const className = searchParams.get('class');
     const dayOfWeek = searchParams.get('day');
-    const teacherId = searchParams.get('teacher');
+    const teacherId = searchParams.get('TEACHER');
     const view = searchParams.get('view') || 'grid';
 
     // Build where clause
@@ -98,7 +98,7 @@ export async function GET(request) {
     const availableTeachers = await prisma.user.findMany({
       where: {
         schoolId: user.schoolId,
-        role: 'teacher',
+        role: 'TEACHER',
         isActive: true
       },
       select: {
@@ -169,7 +169,7 @@ export async function GET(request) {
           createdBy: entry.createdBy ? `${entry.createdBy.firstName} ${entry.createdBy.lastName}` : null
         });
       });
-    } else if (view === 'teacher') {
+    } else if (view === 'TEACHER') {
       // Teacher view - organize by teacher
       transformedData = {};
       timetable.forEach(entry => {
@@ -426,7 +426,7 @@ export async function POST(request) {
       where: {
         id: teacherId,
         schoolId: user.schoolId,
-        role: 'teacher',
+        role: 'TEACHER',
         isActive: true
       }
     });

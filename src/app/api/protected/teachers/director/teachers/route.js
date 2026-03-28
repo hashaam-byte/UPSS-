@@ -21,14 +21,14 @@ export async function GET(request) {
       include: { teacherProfile: true }
     });
 
-    if (!director || director.role !== 'teacher' || director.teacherProfile?.department !== 'director') {
+    if (!director || director.role !== 'TEACHER' || director.teacherProfile?.department !== 'director') {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
     // Build where clause for teachers in the same school
     const whereClause = {
       schoolId: director.schoolId,
-      role: 'teacher',
+      role: 'TEACHER',
       isActive: true,
       NOT: {
         id: director.id // Exclude the director themselves
@@ -66,7 +66,7 @@ export async function GET(request) {
     const availableDepartments = await prisma.user.findMany({
       where: {
         schoolId: director.schoolId,
-        role: 'teacher',
+        role: 'TEACHER',
         isActive: true,
         teacherProfile: {
           department: {

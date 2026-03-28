@@ -28,7 +28,7 @@ async function verifyClassTeacherAccess(token) {
     }
   });
 
-  if (!user || user.role !== 'teacher' || user.teacherProfile?.department !== 'class_teacher') {
+  if (!user || user.role !== 'TEACHER' || user.teacherProfile?.department !== 'class_teacher') {
     throw new Error('Access denied');
   }
 
@@ -91,7 +91,7 @@ export async function GET(request, { params }) {
       where: {
         id: studentId,
         schoolId: classTeacher.schoolId,
-        role: 'student',
+        role: 'STUDENT',
         isActive: true
       },
       include: {

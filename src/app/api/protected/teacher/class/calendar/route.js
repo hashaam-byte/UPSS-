@@ -242,7 +242,7 @@ export async function POST(request) {
         const students = await prisma.user.findMany({
           where: {
             schoolId: user.schoolId,
-            role: 'student',
+            role: 'STUDENT',
             isActive: true,
             studentProfile: {
               className: {

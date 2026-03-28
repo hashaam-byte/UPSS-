@@ -7,7 +7,7 @@ import bcrypt from 'bcryptjs';
 
 export async function GET(request) {
   try {
-    const user = await requireAuth(['teacher']);
+    const user = await requireAuth(['TEACHER']);
     
     // Verify user is a coordinator
     const coordinator = await prisma.user.findFirst({
@@ -62,7 +62,7 @@ export async function GET(request) {
 
 export async function PUT(request) {
   try {
-    const user = await requireAuth(['teacher']);
+    const user = await requireAuth(['TEACHER']);
     const { type, data } = await request.json();
 
     // Verify user is a coordinator
@@ -114,12 +114,14 @@ export async function PUT(request) {
       });
 
       // Invalidate all other sessions
-      await prisma.userSession.updateMany({
+      const currentToken = request.headers.get('authorization')?.split(' ')[1];
+      const currentTokenHash = currentToken ? crypto.createHash('sha256').update(currentToken).digest('hex') : null;
+      
+      await prisma.userSession.deleteMany({
         where: {
           userId: user.id,
-          NOT: { tokenHash: request.headers.get('authorization')?.split(' ')[1] }
-        },
-        data: { isActive: false }
+          NOT: { tokenHash: currentTokenHash }
+        }
       });
     }
 

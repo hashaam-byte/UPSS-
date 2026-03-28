@@ -5,7 +5,7 @@ import { requireAuth } from '@/lib/auth';
 
 export async function GET(request) {
   try {
-    const user = await requireAuth(['student']);
+    const user = await requireAuth(['STUDENT']);
     const { searchParams } = new URL(request.url);
     const folderId = searchParams.get('folderId');
     const type = searchParams.get('type');

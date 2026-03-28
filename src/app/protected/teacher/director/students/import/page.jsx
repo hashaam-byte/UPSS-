@@ -563,7 +563,7 @@ const StudentsImportPage = () => {
               <table className="w-full">
                 <thead className="bg-gradient-to-r from-gray-800/50 to-gray-700/50 border-b border-white/10">
                   <tr>
-                    {['Student', 'Student ID', 'Class Status', 'Parent Contact', 'Date Added', 'Actions'].map(header => (
+                    {['STUDENT', 'Student ID', 'Class Status', 'Parent Contact', 'Date Added', 'Actions'].map(header => (
                       <th key={header} className="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                         {header}
                       </th>

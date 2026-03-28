@@ -16,7 +16,7 @@ async function verifyCoordinatorAccess(token) {
     include: { teacherProfile: true }
   });
 
-  if (!user || user.role !== 'teacher' || user.teacherProfile?.department !== 'coordinator') {
+  if (!user || user.role !== 'TEACHER' || user.teacherProfile?.department !== 'coordinator') {
     throw new Error('Access denied');
   }
 

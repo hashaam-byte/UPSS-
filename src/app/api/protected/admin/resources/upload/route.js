@@ -11,7 +11,7 @@ cloudinary.config({
 
 export async function POST(request) {
   try {
-    const user = await requireAuth(['admin']);
+    const user = await requireAuth(['ADMIN']);
     const formData = await request.formData();
 
     const files = formData.getAll('files');

@@ -32,7 +32,7 @@ interface Conversation {
 
 export async function GET() {
   try {
-    const user = await requireAuth(['admin']);
+    const user = await requireAuth(['ADMIN']);
 
     // Get all messages involving this admin
     const messages = await prisma.message.findMany({
@@ -84,13 +84,13 @@ export async function GET() {
         // Message received by admin
         if (message.fromUserId === null) {
           // Message from head admin (system)
-          conversationId = 'headadmin';
+          conversationId = 'HEADADMIN';
           otherUser = {
-            id: 'headadmin',
+            id: 'HEADADMIN',
             firstName: 'Head',
             lastName: 'Administrator',
             email: 'system@admin.com',
-            role: 'headadmin',
+            role: 'HEADADMIN',
             avatar: null
           };
         } else {

@@ -7,12 +7,12 @@ const prisma = new PrismaClient();
 export async function GET(request) {
   try {
     // Use requireAuth to get the user object directly
-    const user = await requireAuth(['admin', 'headadmin']);
+    const user = await requireAuth(['ADMIN', 'HEADADMIN']);
 
     // For non-head admins, filter by school
     const whereClause = {
       isActive: true,
-      ...(user.role !== 'headadmin' && { schoolId: user.school.id })
+      ...(user.role !== 'HEADADMIN' && { schoolId: user.school.id })
     };
 
     const subjects = await prisma.subject.findMany({

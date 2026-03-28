@@ -5,7 +5,7 @@ export async function POST(request) {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
     const decoded = await verifyJWT(token);
     
-    if (decoded.role !== 'admin') {
+    if (decoded.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 

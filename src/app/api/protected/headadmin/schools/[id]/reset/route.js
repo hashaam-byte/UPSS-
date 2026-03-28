@@ -7,7 +7,7 @@ export async function POST(request, { params }) {
   try {
     const user = await getCurrentUser();
     
-    if (!user || user.role !== 'headadmin') {
+    if (!user || user.role !== 'HEADADMIN') {
       return NextResponse.json(
         { error: 'Access denied' },
         { status: 403 }
@@ -43,7 +43,7 @@ export async function POST(request, { params }) {
 
     // Get counts for audit logging before reset
     const counts = await prisma.$transaction([
-      prisma.user.count({ where: { schoolId, role: { not: 'admin' } } }), // Don't count admin users
+      prisma.user.count({ where: { schoolId, role: { not: 'ADMIN' } } }), // Don't count admin users
       prisma.assignment.count({ where: { schoolId } }),
       prisma.attendance.count({ where: { schoolId } }),
       prisma.grade.count({ where: { schoolId } }),
@@ -67,7 +67,7 @@ export async function POST(request, { params }) {
       await tx.user.deleteMany({
         where: {
           schoolId: schoolId,
-          role: { not: 'admin' }
+          role: { not: 'ADMIN' }
         }
       });
 
@@ -147,7 +147,7 @@ export async function POST(request, { params }) {
       const schoolAdmins = await tx.user.findMany({
         where: {
           schoolId: schoolId,
-          role: 'admin',
+          role: 'ADMIN',
           isActive: true
         },
         select: { id: true }

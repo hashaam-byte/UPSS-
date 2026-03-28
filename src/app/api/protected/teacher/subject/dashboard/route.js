@@ -7,7 +7,7 @@ export async function GET(request) {
   try {
     const user = await getCurrentUser();
     
-    if (!user || user.role !== 'teacher' || user.department !== 'subject_teacher') {
+    if (!user || user.role !== 'TEACHER' || user.department !== 'subject_teacher') {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 403 }
@@ -76,7 +76,7 @@ export async function GET(request) {
     // Get total students
     const totalStudents = await prisma.user.count({
       where: {
-        role: 'student',
+        role: 'STUDENT',
         schoolId: user.schoolId,
         studentProfile: {
           className: { in: allClasses }

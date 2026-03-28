@@ -3,7 +3,7 @@ import { requireAuth } from '@/lib/auth';
 
 export async function GET(request) {
   try {
-    await requireAuth(['teacher', 'admin']);
+    await requireAuth(['TEACHER', 'ADMIN']);
 
     if (!process.env.GEMINI_API_KEY) {
       return NextResponse.json({

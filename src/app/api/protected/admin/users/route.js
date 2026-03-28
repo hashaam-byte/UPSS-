@@ -1,4 +1,4 @@
-// src/app/api/protected/admin/users/route.js - COMBINED VERSION
+// src/app/api/protected/admin/users/route.js
 import { requireAuth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
@@ -6,39 +6,38 @@ import bcrypt from 'bcryptjs';
 
 export async function GET(request) {
   try {
-    const user = await requireAuth(['admin', 'headadmin']);
-    
+    const user = await requireAuth(['ADMIN', 'HEADADMIN']);
+
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
-    const role = searchParams.get('role') || 'all';
+    const roleFilter = searchParams.get('role') || 'all';
     const search = searchParams.get('search') || '';
     const skip = (page - 1) * limit;
 
     // Build where clause
     const where = {};
 
-    // For admin users, only show users from their school
-    if (user.role === 'admin') {
+    // Admins can only see users from their own school
+    if (user.role === 'ADMIN') {
       where.schoolId = user.schoolId;
     }
 
-    // Filter by role - only if not 'all'
-    if (role && role !== 'all') {
-      where.role = role;
+    // Role filter — accepts both lowercase (from frontend tabs) and UPPERCASE
+    if (roleFilter && roleFilter !== 'all') {
+      where.role = roleFilter.toUpperCase();
     }
 
-    // Add search filter
+    // Search filter
     if (search) {
       where.OR = [
         { firstName: { contains: search, mode: 'insensitive' } },
-        { lastName: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } },
-        { username: { contains: search, mode: 'insensitive' } }
+        { lastName:  { contains: search, mode: 'insensitive' } },
+        { email:     { contains: search, mode: 'insensitive' } },
+        { username:  { contains: search, mode: 'insensitive' } }
       ];
     }
 
-    // Fetch users with role-specific profiles
     const [users, total] = await Promise.all([
       prisma.user.findMany({
         where,
@@ -67,28 +66,27 @@ export async function GET(request) {
       prisma.user.count({ where })
     ]);
 
-    // Format response with all user details
-    const formattedUsers = users.map(user => ({
-      id: user.id,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      username: user.username,
-      role: user.role,
-      isActive: user.isActive,
-      isEmailVerified: user.isEmailVerified,
-      lastLogin: user.lastLogin,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-      phone: user.phone,
-      dateOfBirth: user.dateOfBirth,
-      address: user.address,
-      gender: user.gender,
-      profilePicture: user.profilePicture,
-      school: user.school,
-      studentProfile: user.studentProfile,
-      teacherProfile: user.teacherProfile,
-      adminProfile: user.adminProfile
+    const formattedUsers = users.map(u => ({
+      id:              u.id,
+      firstName:       u.firstName,
+      lastName:        u.lastName,
+      email:           u.email,
+      username:        u.username,
+      role:            u.role,
+      isActive:        u.isActive,
+      isEmailVerified: u.isEmailVerified,
+      lastLogin:       u.lastLogin,
+      createdAt:       u.createdAt,
+      updatedAt:       u.updatedAt,
+      phone:           u.phone,
+      dateOfBirth:     u.dateOfBirth,
+      address:         u.address,
+      gender:          u.gender,
+      avatar:          u.avatar,
+      school:          u.school,
+      studentProfile:  u.studentProfile,
+      teacherProfile:  u.teacherProfile,
+      adminProfile:    u.adminProfile
     }));
 
     return NextResponse.json({
@@ -116,9 +114,9 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const currentUser = await requireAuth(['admin', 'headadmin']);
+    const currentUser = await requireAuth(['ADMIN', 'HEADADMIN']);
     const body = await request.json();
-    
+
     const {
       firstName,
       lastName,
@@ -133,11 +131,11 @@ export async function POST(request) {
       gender,
       teacherType,
       coordinatorClasses = [],
-      classTeacherClass,  // Single class level (e.g., "SS1")
-      classTeacherArm     // Single arm (e.g., "Silver")
+      classTeacherClass,
+      classTeacherArm
     } = body;
 
-    // Validate required fields
+    // ── Validate required fields ──────────────────────────────────────────────
     if (!firstName || !lastName || !email || !password || !role) {
       return NextResponse.json(
         { error: 'Missing required fields' },
@@ -145,16 +143,16 @@ export async function POST(request) {
       );
     }
 
-    // Validate role
-    const validRoles = ['student', 'teacher', 'admin'];
-    if (!validRoles.includes(role)) {
+    // Normalise role to UPPERCASE to match Prisma enum
+    const normalisedRole = role.toUpperCase();
+    const validRoles = ['STUDENT', 'TEACHER', 'ADMIN'];
+    if (!validRoles.includes(normalisedRole)) {
       return NextResponse.json(
         { error: 'Invalid role specified' },
         { status: 400 }
       );
     }
 
-    // Validate password strength
     if (password.length < 8) {
       return NextResponse.json(
         { error: 'Password must be at least 8 characters long' },
@@ -162,9 +160,9 @@ export async function POST(request) {
       );
     }
 
-    // Determine target school FIRST
+    // ── Determine target school ───────────────────────────────────────────────
     let targetSchoolId = schoolId;
-    if (currentUser.role === 'admin') {
+    if (currentUser.role === 'ADMIN') {
       targetSchoolId = currentUser.schoolId;
     }
 
@@ -175,32 +173,27 @@ export async function POST(request) {
       );
     }
 
-    // Validate teacher-specific requirements
-    if (role === 'teacher') {
+    // ── Teacher-specific validation ───────────────────────────────────────────
+    if (normalisedRole === 'TEACHER') {
       const validClasses = ['JSS1', 'JSS2', 'JSS3', 'SS1', 'SS2', 'SS3'];
-      
-      // Validate coordinator requirements
+
       if (teacherType === 'coordinator') {
-        if (coordinatorClasses.length === 0) {
+        if (!coordinatorClasses.length) {
           return NextResponse.json(
             { error: 'Coordinators must be assigned to at least one class' },
             { status: 400 }
           );
         }
-        
-        // Validate coordinator classes are valid
-        const normalizedClasses = coordinatorClasses.map(c => c.toUpperCase());
-        const invalidClasses = normalizedClasses.filter(cn => !validClasses.includes(cn));
-        
-        if (invalidClasses.length > 0) {
+        const normalised = coordinatorClasses.map(c => c.toUpperCase());
+        const invalid = normalised.filter(c => !validClasses.includes(c));
+        if (invalid.length) {
           return NextResponse.json(
-            { error: `Invalid classes: ${invalidClasses.join(', ')}. Valid classes are: ${validClasses.join(', ')}` },
+            { error: `Invalid classes: ${invalid.join(', ')}. Valid classes are: ${validClasses.join(', ')}` },
             { status: 400 }
           );
         }
       }
-      
-      // Validate class teacher requirements
+
       if (teacherType === 'class_teacher') {
         if (!classTeacherClass || !classTeacherArm) {
           return NextResponse.json(
@@ -208,8 +201,6 @@ export async function POST(request) {
             { status: 400 }
           );
         }
-        
-        // Validate class level
         if (!validClasses.includes(classTeacherClass.toUpperCase())) {
           return NextResponse.json(
             { error: `Invalid class. Valid classes are: ${validClasses.join(', ')}` },
@@ -219,14 +210,14 @@ export async function POST(request) {
       }
     }
 
-    // Check if email or username already exists
+    // ── Duplicate check ───────────────────────────────────────────────────────
     const existingUser = await prisma.user.findFirst({
       where: {
         OR: [
           { email: email.toLowerCase().trim() },
-          { 
-            username: username?.toLowerCase().trim(), 
-            schoolId: targetSchoolId 
+          {
+            username: username?.toLowerCase().trim(),
+            schoolId: targetSchoolId
           }
         ]
       }
@@ -239,198 +230,171 @@ export async function POST(request) {
       );
     }
 
-    // Hash password BEFORE transaction
+    // Hash password outside transaction
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Create user with transaction
+    // ── Transaction ───────────────────────────────────────────────────────────
     const newUser = await prisma.$transaction(async (tx) => {
-      console.log('Transaction started - Creating user:', email);
-      
-      // Create base user
+      console.log('Transaction started — creating user:', email);
+
       const createdUser = await tx.user.create({
         data: {
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          email: email.toLowerCase().trim(),
-          username: username?.toLowerCase().trim() || email.split('@')[0],
+          firstName:       firstName.trim(),
+          lastName:        lastName.trim(),
+          email:           email.toLowerCase().trim(),
+          username:        username?.toLowerCase().trim() || email.split('@')[0],
           passwordHash,
-          role,
-          phone: phone || null,
-          dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-          address: address || null,
-          gender: gender || null,
-          schoolId: targetSchoolId,
-          isActive: true,
+          role:            normalisedRole,
+          phone:           phone   || null,
+          dateOfBirth:     dateOfBirth ? new Date(dateOfBirth) : null,
+          address:         address || null,
+          gender:          gender  || null,
+          schoolId:        targetSchoolId,
+          isActive:        true,
           isEmailVerified: false
         },
-        include: {
-          school: true
-        }
+        include: { school: true }
       });
 
-      // Create role-specific profile
-      if (role === 'student') {
+      // ── STUDENT ─────────────────────────────────────────────────────────────
+      if (normalisedRole === 'STUDENT') {
         console.log('Creating student profile for:', createdUser.id);
         await tx.studentProfile.create({
           data: {
-            userId: createdUser.id,
-            studentId: `STU${Date.now()}`,
+            userId:        createdUser.id,
+            studentId:     `STU${Date.now()}`,
             admissionDate: new Date()
           }
         });
-      } else if (role === 'teacher') {
+      }
+
+      // ── TEACHER ─────────────────────────────────────────────────────────────
+      else if (normalisedRole === 'TEACHER') {
         console.log('Creating teacher profile for:', createdUser.id);
         const teacherProfile = await tx.teacherProfile.create({
           data: {
-            userId: createdUser.id,
+            userId:     createdUser.id,
             employeeId: `TCH${Date.now()}`,
             joiningDate: new Date(),
-            department: teacherType || 'subject_teacher'
+            department:  teacherType || 'subject_teacher'
           }
         });
 
-        // Handle coordinator classes
+        // Coordinator setup
         if (teacherType === 'coordinator' && coordinatorClasses.length > 0) {
           console.log('Setting up coordinator classes:', coordinatorClasses);
-          // Remove duplicates and normalize to uppercase
           const uniqueClasses = [...new Set(coordinatorClasses.map(c => c.toUpperCase()))];
-
-          // Create unique code with school prefix to avoid conflicts
           const coordCode = `COORD_${targetSchoolId.slice(-8)}`;
 
-          // Try to find existing coordination subject first (by code AND schoolId)
           let coordinationSubject = await tx.subject.findFirst({
-            where: { 
-              code: coordCode,
-              schoolId: targetSchoolId
-            }
+            where: { code: coordCode, schoolId: targetSchoolId }
           });
 
           if (coordinationSubject) {
-            // Update existing subject with merged classes
-            const existingClasses = coordinationSubject.classes || [];
-            const mergedClasses = [...new Set([...existingClasses, ...uniqueClasses])];
-            
+            const merged = [...new Set([...(coordinationSubject.classLevel || []), ...uniqueClasses])];
             coordinationSubject = await tx.subject.update({
               where: { id: coordinationSubject.id },
-              data: { classes: mergedClasses }
+              data:  { classLevel: merged }
             });
           } else {
-            // Create new coordination subject with unique code
             coordinationSubject = await tx.subject.create({
               data: {
-                name: 'Academic Coordination',
-                code: coordCode,
-                category: 'CORE',
-                classes: uniqueClasses,
-                schoolId: targetSchoolId,
-                isActive: true
+                name:       'Academic Coordination',
+                code:       coordCode,
+                category:   'CORE',
+                classLevel: uniqueClasses,
+                schoolId:   targetSchoolId,
+                isActive:   true
               }
             });
           }
 
-          // Create teacher-subject assignment
           await tx.teacherSubject.create({
             data: {
               teacherId: teacherProfile.id,
               subjectId: coordinationSubject.id,
-              classes: uniqueClasses
+              classes:   uniqueClasses
             }
           });
         }
 
-        // Handle class teacher assignment (NEW IMPROVED LOGIC)
+        // Class teacher setup
         if (teacherType === 'class_teacher' && classTeacherClass && classTeacherArm) {
           console.log('Setting up class teacher assignment:', classTeacherClass, classTeacherArm);
-          
-          const normalizedClass = classTeacherClass.toUpperCase();
-          const normalizedArm = classTeacherArm.charAt(0).toUpperCase() + classTeacherArm.slice(1).toLowerCase();
-          const fullClassName = `${normalizedClass} ${normalizedArm}`; // e.g., "SS1 Silver"
-          
-          // Create unique code for this specific class
-          const subjectCode = `CLASS_${normalizedClass}_${normalizedArm.toUpperCase()}_${targetSchoolId.slice(-8)}`;
-          
-          // Try to find existing class management subject
+          const normClass = classTeacherClass.toUpperCase();
+          const normArm   = classTeacherArm.charAt(0).toUpperCase() + classTeacherArm.slice(1).toLowerCase();
+          const fullName  = `${normClass} ${normArm}`;
+          const subjectCode = `CLASS_${normClass}_${normArm.toUpperCase()}_${targetSchoolId.slice(-8)}`;
+
           let subject = await tx.subject.findFirst({
-            where: {
-              code: subjectCode,
-              schoolId: targetSchoolId
-            }
+            where: { code: subjectCode, schoolId: targetSchoolId }
           });
 
           if (!subject) {
-            // Create new subject
             subject = await tx.subject.create({
               data: {
-                name: `${fullClassName} Class Management`,
-                code: subjectCode,
-                category: 'CORE',
-                classes: [fullClassName],
-                schoolId: targetSchoolId,
-                isActive: true
+                name:       `${fullName} Class Management`,
+                code:       subjectCode,
+                category:   'CORE',
+                classLevel: [fullName],
+                schoolId:   targetSchoolId,
+                isActive:   true
               }
             });
           } else {
-            // Update existing subject to include this class if not already included
-            const existingClasses = subject.classes || [];
-            if (!existingClasses.includes(fullClassName)) {
+            const existing = subject.classLevel || [];
+            if (!existing.includes(fullName)) {
               subject = await tx.subject.update({
                 where: { id: subject.id },
-                data: { 
-                  classes: [...existingClasses, fullClassName]
-                }
+                data:  { classLevel: [...existing, fullName] }
               });
             }
           }
 
-          // Check if teacher-subject assignment already exists
           const existingAssignment = await tx.teacherSubject.findFirst({
-            where: {
-              teacherId: teacherProfile.id,
-              subjectId: subject.id
-            }
+            where: { teacherId: teacherProfile.id, subjectId: subject.id }
           });
 
           if (!existingAssignment) {
-            // Create teacher-subject assignment
             await tx.teacherSubject.create({
               data: {
                 teacherId: teacherProfile.id,
                 subjectId: subject.id,
-                classes: [fullClassName]
+                classes:   [fullName]
               }
             });
           }
         }
-      } else if (role === 'admin') {
+      }
+
+      // ── ADMIN ────────────────────────────────────────────────────────────────
+      else if (normalisedRole === 'ADMIN') {
         console.log('Creating admin profile for:', createdUser.id);
         await tx.adminProfile.create({
           data: {
-            userId: createdUser.id,
+            userId:     createdUser.id,
             employeeId: `ADM${Date.now()}`
           }
         });
       }
 
-      console.log('Transaction completed successfully for:', createdUser.email);
+      console.log('Transaction completed for:', createdUser.email);
       return createdUser;
-    }, {
-      maxWait: 10000,
-      timeout: 30000,
-    });
+
+    }, { maxWait: 10000, timeout: 30000 });
 
     return NextResponse.json({
       success: true,
       message: 'User created successfully',
       user: {
-        id: newUser.id,
+        id:        newUser.id,
         firstName: newUser.firstName,
-        lastName: newUser.lastName,
-        email: newUser.email,
-        username: newUser.username,
-        role: newUser.role,
-        isActive: newUser.isActive,
-        school: newUser.school
+        lastName:  newUser.lastName,
+        email:     newUser.email,
+        username:  newUser.username,
+        role:      newUser.role,
+        isActive:  newUser.isActive,
+        school:    newUser.school
       }
     });
 
@@ -441,42 +405,41 @@ export async function POST(request) {
     if (error.message === 'Access denied') {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
-    
-    // Log detailed error for debugging
+
     console.error('Create user error:', {
       message: error.message,
-      code: error.code,
-      meta: error.meta,
-      stack: error.stack
+      code:    error.code,
+      meta:    error.meta,
+      stack:   error.stack
     });
-    
-    // Handle specific Prisma errors
+
     if (error.code === 'P2002') {
-      return NextResponse.json({ 
-        error: 'A user with this email or username already exists' 
-      }, { status: 409 });
+      return NextResponse.json(
+        { error: 'A user with this email or username already exists' },
+        { status: 409 }
+      );
     }
-    
     if (error.code === 'P2023') {
-      return NextResponse.json({ 
-        error: 'Invalid data format. Please ensure all IDs are valid UUIDs and class names exist.' 
-      }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Invalid data format. Please ensure all IDs are valid UUIDs and class names exist.' },
+        { status: 400 }
+      );
     }
-    
     if (error.code === 'P2028') {
-      return NextResponse.json({ 
-        error: 'Transaction timeout. Please try again.' 
-      }, { status: 408 });
+      return NextResponse.json(
+        { error: 'Transaction timeout. Please try again.' },
+        { status: 408 }
+      );
     }
-    
     if (error.code === 'P2025') {
-      return NextResponse.json({ 
-        error: 'Required record not found. Please ensure all referenced data exists.' 
-      }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Required record not found. Please ensure all referenced data exists.' },
+        { status: 404 }
+      );
     }
-    
-    return NextResponse.json({ 
-      error: 'Failed to create user',
+
+    return NextResponse.json({
+      error:   'Failed to create user',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     }, { status: 500 });
   }

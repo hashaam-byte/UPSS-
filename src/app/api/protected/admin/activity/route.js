@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server';
 export async function GET(request) {
   try {
     // Require school admin authentication
-    const user = await requireAuth(['admin']);
+    const user = await requireAuth(['ADMIN']);
     
     // Verify school association and active status
     if (!user.school || !user.school.isActive) {
@@ -320,7 +320,7 @@ export async function GET(request) {
         userInitials: `${login.firstName.charAt(0)}${login.lastName.charAt(0)}`,
         userRole: login.role,
         userAvatar: login.avatar,
-        description: `${login.role === 'student' ? 'Student' : login.role === 'teacher' ? 'Teacher' : 'Administrator'} logged into the system`,
+        description: `${login.role === 'STUDENT' ? 'STUDENT' : login.role === 'TEACHER' ? 'TEACHER' : 'Administrator'} logged into the system`,
         timestamp: login.lastLogin,
         metadata: { 
           action: 'login',
@@ -337,7 +337,7 @@ export async function GET(request) {
         category: 'assignment',
         user: `${assignment.teacher.firstName} ${assignment.teacher.lastName}`,
         userInitials: `${assignment.teacher.firstName.charAt(0)}${assignment.teacher.lastName.charAt(0)}`,
-        userRole: 'teacher',
+        userRole: 'TEACHER',
         userAvatar: assignment.teacher.avatar,
         description: `Created assignment "${assignment.title}" for ${assignment.subject.name}`,
         timestamp: assignment.createdAt,
@@ -359,7 +359,7 @@ export async function GET(request) {
         category: 'submission',
         user: `${submission.student.firstName} ${submission.student.lastName}`,
         userInitials: `${submission.student.firstName.charAt(0)}${submission.student.lastName.charAt(0)}`,
-        userRole: 'student',
+        userRole: 'STUDENT',
         userAvatar: submission.student.avatar,
         description: `Submitted assignment "${submission.assignment.title}" for ${submission.assignment.subject.name}`,
         timestamp: submission.submittedAt,
@@ -381,7 +381,7 @@ export async function GET(request) {
         category: 'grading',
         user: `${grade.teacher.firstName} ${grade.teacher.lastName}`,
         userInitials: `${grade.teacher.firstName.charAt(0)}${grade.teacher.lastName.charAt(0)}`,
-        userRole: 'teacher',
+        userRole: 'TEACHER',
         userAvatar: grade.teacher.avatar,
         description: `Graded ${grade.student.firstName} ${grade.student.lastName} in ${grade.subject.name} - ${grade.score}/${grade.maxScore} (${grade.percentage}%)`,
         timestamp: grade.createdAt,
@@ -410,7 +410,7 @@ export async function GET(request) {
         category: 'attendance',
         user: `${attendance.marker.firstName} ${attendance.marker.lastName}`,
         userInitials: `${attendance.marker.firstName.charAt(0)}${attendance.marker.lastName.charAt(0)}`,
-        userRole: 'teacher',
+        userRole: 'TEACHER',
         userAvatar: attendance.marker.avatar,
         description: `Marked ${attendance.student.firstName} ${attendance.student.lastName} as ${statusText}`,
         timestamp: attendance.markedAt,
@@ -433,7 +433,7 @@ export async function GET(request) {
         category: 'student_alert',
         user: `${alert.creator.firstName} ${alert.creator.lastName}`,
         userInitials: `${alert.creator.firstName.charAt(0)}${alert.creator.lastName.charAt(0)}`,
-        userRole: 'teacher',
+        userRole: 'TEACHER',
         userAvatar: alert.creator.avatar,
         description: `Created ${alert.alertType.replace('_', ' ')} alert for ${alert.student.firstName} ${alert.student.lastName}: ${alert.title}`,
         timestamp: alert.createdAt,
@@ -456,7 +456,7 @@ export async function GET(request) {
         category: 'announcement',
         user: `${announcement.creator.firstName} ${announcement.creator.lastName}`,
         userInitials: `${announcement.creator.firstName.charAt(0)}${announcement.creator.lastName.charAt(0)}`,
-        userRole: 'admin',
+        userRole: 'ADMIN',
         userAvatar: announcement.creator.avatar,
         description: `Published announcement: "${announcement.title}"`,
         timestamp: announcement.createdAt,

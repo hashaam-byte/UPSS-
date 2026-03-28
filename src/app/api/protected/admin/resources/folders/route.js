@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request) {
   try {
-    const user = await requireAuth(['admin']);
+    const user = await requireAuth(['ADMIN']);
     const { searchParams } = new URL(request.url);
     const parentId = searchParams.get('parentId');
 
@@ -57,7 +57,7 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const user = await requireAuth(['admin']);
+    const user = await requireAuth(['ADMIN']);
     const { name, description, parentId } = await request.json();
 
     if (!name?.trim()) {

@@ -6,7 +6,7 @@ import bcrypt from 'bcryptjs';
 
 export async function POST(request) {
   try {
-    const user = await requireAuth(['student']);
+    const user = await requireAuth(['STUDENT']);
     const { currentPassword, newPassword } = await request.json();
 
     // Validate input

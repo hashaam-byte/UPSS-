@@ -28,7 +28,7 @@ export async function GET(request) {
       }
     });
 
-    if (!user || user.role !== 'teacher' || !user.teacherProfile) {
+    if (!user || user.role !== 'TEACHER' || !user.teacherProfile) {
       return NextResponse.json(
         { success: false, error: 'Only teachers can access resources' },
         { status: 403 }
@@ -136,7 +136,7 @@ export async function POST(request) {
       }
     });
 
-    if (!user || user.role !== 'teacher' || !user.teacherProfile) {
+    if (!user || user.role !== 'TEACHER' || !user.teacherProfile) {
       return NextResponse.json(
         { success: false, error: 'Only teachers can upload resources' },
         { status: 403 }
@@ -272,7 +272,7 @@ export async function DELETE(request) {
       }
     });
 
-    if (!user || user.role !== 'teacher' || !user.teacherProfile) {
+    if (!user || user.role !== 'TEACHER' || !user.teacherProfile) {
       return NextResponse.json(
         { success: false, error: 'Only teachers can delete resources' },
         { status: 403 }

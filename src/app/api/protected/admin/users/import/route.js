@@ -6,7 +6,7 @@ import bcrypt from 'bcryptjs';
 
 export async function POST(request) {
   try {
-    const user = await requireAuth(['admin']);
+    const user = await requireAuth(['ADMIN']);
     
     const formData = await request.formData();
     const file = formData.get('file');
@@ -101,7 +101,7 @@ export async function POST(request) {
           });
 
           // Create role-specific profile
-          if (role === 'student') {
+          if (role === 'STUDENT') {
             await tx.studentProfile.create({
               data: {
                 userId: newUser.id,
@@ -112,7 +112,7 @@ export async function POST(request) {
                 parentEmail: userData.parentEmail || null
               }
             });
-          } else if (role === 'teacher') {
+          } else if (role === 'TEACHER') {
             const teacherProfile = await tx.teacherProfile.create({
               data: {
                 userId: newUser.id,
@@ -193,7 +193,7 @@ export async function POST(request) {
                 });
               }
             }
-          } else if (role === 'admin') {
+          } else if (role === 'ADMIN') {
             await tx.adminProfile.create({
               data: {
                 userId: newUser.id

@@ -5,7 +5,7 @@ import bcrypt from 'bcryptjs';
 
 export async function GET() {
   try {
-    const user = await requireAuth(['admin']);
+    const user = await requireAuth(['ADMIN']);
     const dbUser = await prisma.user.findUnique({
       where: { id: user.id },
       select: {
@@ -23,7 +23,7 @@ export async function GET() {
 
 export async function PUT(request) {
   try {
-    const user = await requireAuth(['admin']);
+    const user = await requireAuth(['ADMIN']);
     const data = await request.json();
 
     // Update profile fields

@@ -5,7 +5,7 @@ import { requireAuth } from '@/lib/auth';
 
 export async function GET(request, { params }) {
   try {
-    const user = await requireAuth(['teacher']);
+    const user = await requireAuth(['TEACHER']);
     
     if (user.department !== 'director') {
       return NextResponse.json(
@@ -20,7 +20,7 @@ export async function GET(request, { params }) {
       where: {
         id: teacherId,
         schoolId: user.schoolId,
-        role: 'teacher',
+        role: 'TEACHER',
         isActive: true
       },
       include: {
@@ -122,7 +122,7 @@ export async function GET(request, { params }) {
 
 export async function PUT(request, { params }) {
   try {
-    const user = await requireAuth(['teacher']);
+    const user = await requireAuth(['TEACHER']);
     
     if (user.department !== 'director') {
       return NextResponse.json(
@@ -139,7 +139,7 @@ export async function PUT(request, { params }) {
       where: {
         id: teacherId,
         schoolId: user.schoolId,
-        role: 'teacher'
+        role: 'TEACHER'
       },
       include: {
         teacherProfile: true
@@ -246,7 +246,7 @@ export async function PUT(request, { params }) {
 
 export async function DELETE(request, { params }) {
   try {
-    const user = await requireAuth(['teacher']);
+    const user = await requireAuth(['TEACHER']);
     
     if (user.department !== 'director') {
       return NextResponse.json(
@@ -262,7 +262,7 @@ export async function DELETE(request, { params }) {
       where: {
         id: teacherId,
         schoolId: user.schoolId,
-        role: 'teacher'
+        role: 'TEACHER'
       }
     });
 
@@ -295,7 +295,7 @@ export async function DELETE(request, { params }) {
 // Teacher Performance Report
 export async function GET_PERFORMANCE(request, { params }) {
   try {
-    const user = await requireAuth(['teacher']);
+    const user = await requireAuth(['TEACHER']);
     
     if (user.department !== 'director') {
       return NextResponse.json(

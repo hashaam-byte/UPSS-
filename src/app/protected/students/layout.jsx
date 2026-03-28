@@ -77,7 +77,7 @@ const StudentLayout = ({ children }) => {
         return;
       }
 
-      if (data.user.role !== 'student') {
+      if (data.user.role !== 'STUDENT') {
         router.push('/auth/unauthorized');
         return;
       }

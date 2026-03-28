@@ -8,7 +8,7 @@ import { requireAuth } from '@/lib/auth';
 
 export async function GET(request, { params }) {
   try {
-    const user = await requireAuth(['student']);
+    const user = await requireAuth(['STUDENT']);
     const testId = params.id;
 
     // Get student's class

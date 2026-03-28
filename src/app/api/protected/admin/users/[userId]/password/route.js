@@ -6,7 +6,7 @@ import bcrypt from 'bcryptjs';
 
 export async function PUT(request, { params }) {
   try {
-    const currentUser = await requireAuth(['admin', 'headadmin']);
+    const currentUser = await requireAuth(['ADMIN', 'HEADADMIN']);
     const { userId } = params;
     const { newPassword } = await request.json();
 
@@ -19,7 +19,7 @@ export async function PUT(request, { params }) {
 
     // Build where clause for access control
     const where = { id: userId };
-    if (currentUser.role === 'admin') {
+    if (currentUser.role === 'ADMIN') {
       where.schoolId = currentUser.school.id;
     }
 
@@ -40,9 +40,8 @@ export async function PUT(request, { params }) {
         where: { id: userId },
         data: { passwordHash }
       }),
-      prisma.userSession.updateMany({
-        where: { userId: userId },
-        data: { isActive: false }
+      prisma.userSession.deleteMany({
+        where: { userId: userId }
       })
     ]);
 

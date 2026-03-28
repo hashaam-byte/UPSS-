@@ -6,10 +6,10 @@ import { NextResponse } from 'next/server';
 // GET - Fetch all arms
 export async function GET(request) {
   try {
-    const user = await requireAuth(['admin', 'headadmin']);
+    const user = await requireAuth(['ADMIN', 'HEADADMIN']);
 
     // Get school ID
-    const schoolId = user.role === 'admin' ? user.schoolId : null;
+    const schoolId = user.role === 'ADMIN' ? user.schoolId : null;
 
     // Try to get arms from school settings first
     let arms = [];
@@ -64,9 +64,9 @@ export async function GET(request) {
 // POST - Add, Edit, or Delete arms
 export async function POST(request) {
   try {
-    const user = await requireAuth(['admin', 'headadmin']);
+    const user = await requireAuth(['ADMIN', 'HEADADMIN']);
 
-    if (user.role !== 'admin') {
+    if (user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Only school admins can modify arms' }, { status: 403 });
     }
 

@@ -7,9 +7,9 @@ const prisma = new PrismaClient();
 
 export async function POST(request: NextRequest) {
   try {
-    const authResult = await requireAuth(['headadmin']);
+    const authResult = await requireAuth(['HEADADMIN']);
     
-    if (!authResult.authenticated || authResult.user?.role !== 'headadmin') {
+    if (!authResult.authenticated || authResult.user?.role !== 'HEADADMIN') {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
       include: {
         users: {
           where: {
-            role: 'admin',
+            role: 'ADMIN',
             isActive: true
           },
           select: {

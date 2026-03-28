@@ -26,8 +26,8 @@ const CoordinatorNotifications = () => {
     { id: 'unread', label: 'Unread', count: 0 },
     { id: 'system', label: 'System', count: 0 },
     { id: 'timetable', label: 'Timetable', count: 0 },
-    { id: 'student', label: 'Student', count: 0 },
-    { id: 'teacher', label: 'Teacher', count: 0 }
+    { id: 'STUDENT', label: 'STUDENT', count: 0 },
+    { id: 'TEACHER', label: 'TEACHER', count: 0 }
   ];
 
   useEffect(() => {
@@ -180,8 +180,8 @@ const CoordinatorNotifications = () => {
   const unreadCount = notifications.filter(n => !n.isRead).length;
   const systemCount = notifications.filter(n => n.type === 'system').length;
   const timetableCount = notifications.filter(n => n.title.toLowerCase().includes('timetable')).length;
-  const studentCount = notifications.filter(n => n.title.toLowerCase().includes('student')).length;
-  const teacherCount = notifications.filter(n => n.title.toLowerCase().includes('teacher')).length;
+  const studentCount = notifications.filter(n => n.title.toLowerCase().includes('STUDENT')).length;
+  const teacherCount = notifications.filter(n => n.title.toLowerCase().includes('TEACHER')).length;
 
   return (
     <CoordinatorLayout>
@@ -241,8 +241,8 @@ const CoordinatorNotifications = () => {
                   { id: 'unread', label: 'Unread', count: unreadCount },
                   { id: 'system', label: 'System', count: systemCount },
                   { id: 'timetable', label: 'Timetable', count: timetableCount },
-                  { id: 'student', label: 'Students', count: studentCount },
-                  { id: 'teacher', label: 'Teachers', count: teacherCount }
+                  { id: 'STUDENT', label: 'Students', count: studentCount },
+                  { id: 'TEACHER', label: 'Teachers', count: teacherCount }
                 ].map((filterOption) => (
                   <button
                     key={filterOption.id}

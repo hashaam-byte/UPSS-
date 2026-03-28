@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server';
 export async function GET(request) {
   try {
     // Authenticate and get the current admin user
-    const user = await requireAuth(['admin']);
+    const user = await requireAuth(['ADMIN']);
 
     // IMPORTANT: This ensures we only get data for the authenticated user's school
     // Each school admin can ONLY see their own school's subscription data
@@ -47,21 +47,21 @@ export async function GET(request) {
       prisma.user.count({
         where: {
           schoolId: schoolId, // Explicitly use schoolId
-          role: 'student',
+          role: 'STUDENT',
           isActive: true
         }
       }),
       prisma.user.count({
         where: {
           schoolId: schoolId, // Explicitly use schoolId
-          role: 'teacher',
+          role: 'TEACHER',
           isActive: true
         }
       }),
       prisma.user.count({
         where: {
           schoolId: schoolId, // Explicitly use schoolId
-          role: 'admin',
+          role: 'ADMIN',
           isActive: true
         }
       })

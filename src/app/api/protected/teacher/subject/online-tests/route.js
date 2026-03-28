@@ -12,7 +12,7 @@ export async function GET(request) {
   try {
     const user = await getCurrentUser();
     
-    if (!user || user.role !== 'teacher') {
+    if (!user || user.role !== 'TEACHER') {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 403 }
@@ -97,7 +97,7 @@ export async function POST(request) {
   try {
     const user = await getCurrentUser();
     
-    if (!user || user.role !== 'teacher') {
+    if (!user || user.role !== 'TEACHER') {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 403 }
@@ -172,7 +172,7 @@ export async function POST(request) {
     // Create notifications for students in selected classes
     const students = await prisma.user.findMany({
       where: {
-        role: 'student',
+        role: 'STUDENT',
         schoolId: user.schoolId,
         studentProfile: {
           className: { in: classes }

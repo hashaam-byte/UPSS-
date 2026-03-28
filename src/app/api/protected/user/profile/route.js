@@ -54,9 +54,9 @@ export async function PUT(request) {
       },
       include: {
         school: true,
-        studentProfile: user.role === 'student',
-        teacherProfile: user.role === 'teacher',
-        adminProfile: user.role === 'admin' ? {
+        studentProfile: user.role === 'STUDENT',
+        teacherProfile: user.role === 'TEACHER',
+        adminProfile: user.role === 'ADMIN' ? {
           include: { permissions: true }
         } : false
       }

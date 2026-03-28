@@ -54,7 +54,7 @@ const ImprovedSubjectTeacherLayout = ({ children }) => {
 
       const data = await response.json();
 
-      if (!data.authenticated || data.user.role !== 'teacher' || data.user.department !== 'subject_teacher') {
+      if (!data.authenticated || data.user.role !== 'TEACHER' || data.user.department !== 'subject_teacher') {
         router.push('/auth/unauthorized');
         return;
       }

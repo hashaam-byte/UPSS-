@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request) {
   try {
-    const user = await requireAuth(['headadmin']);
+    const user = await requireAuth(['HEADADMIN']);
     
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');

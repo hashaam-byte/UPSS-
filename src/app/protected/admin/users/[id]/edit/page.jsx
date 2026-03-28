@@ -47,7 +47,7 @@ const UserEditPage = () => {
     dateOfBirth: '',
     gender: '',
     isActive: true,
-    role: 'student',
+    role: 'STUDENT',
     teacherType: '',
     coordinatorClasses: [],
     classTeacherClass: '',  // NEW
@@ -88,7 +88,7 @@ const UserEditPage = () => {
         let classTeacherClass = '';
         let classTeacherArm = '';
         
-        if (userData.role === 'teacher' && userData.teacherProfile) {
+        if (userData.role === 'TEACHER' && userData.teacherProfile) {
           const dept = userData.teacherProfile.department;
           
           if (dept === 'coordinator') {
@@ -137,7 +137,7 @@ const UserEditPage = () => {
     setFormData(prev => ({ ...prev, [field]: value }));
     
     // Clear coordinator classes if role/type changes
-    if ((field === 'role' && value !== 'teacher') || 
+    if ((field === 'role' && value !== 'TEACHER') || 
         (field === 'teacherType' && value !== 'coordinator')) {
       setFormData(prev => ({ ...prev, coordinatorClasses: [] }));
     }
@@ -159,7 +159,7 @@ const UserEditPage = () => {
 
     try {
       // Validation for coordinator
-      if (formData.role === 'teacher' && formData.teacherType === 'coordinator' && formData.coordinatorClasses.length === 0) {
+      if (formData.role === 'TEACHER' && formData.teacherType === 'coordinator' && formData.coordinatorClasses.length === 0) {
         setError('Please select at least one class for the coordinator to manage');
         setSaving(false);
         return;
@@ -173,7 +173,7 @@ const UserEditPage = () => {
         credentials: 'include',
         body: JSON.stringify({
           ...formData,
-          ...(formData.role === 'teacher' && formData.teacherType === 'coordinator' && {
+          ...(formData.role === 'TEACHER' && formData.teacherType === 'coordinator' && {
             coordinatorClasses: formData.coordinatorClasses
           })
         })
@@ -263,8 +263,8 @@ const UserEditPage = () => {
   };
 
   const getRoleIcon = (role, teacherType) => {
-    if (role === 'admin') return Crown;
-    if (role === 'teacher') {
+    if (role === 'ADMIN') return Crown;
+    if (role === 'TEACHER') {
       switch (teacherType) {
         case 'coordinator': return BookOpen;
         case 'director': return Shield;
@@ -275,8 +275,8 @@ const UserEditPage = () => {
   };
 
   const getRoleBadgeColor = (role, teacherType) => {
-    if (role === 'admin') return 'from-purple-500 to-pink-500';
-    if (role === 'teacher') {
+    if (role === 'ADMIN') return 'from-purple-500 to-pink-500';
+    if (role === 'TEACHER') {
       switch (teacherType) {
         case 'coordinator': return 'from-blue-500 to-indigo-500';
         case 'director': return 'from-emerald-500 to-teal-500';
@@ -440,7 +440,7 @@ const UserEditPage = () => {
                 </div>
 
                 {/* Coordinator Classes Display */}
-                {user.role === 'teacher' && user.teacherProfile?.department === 'coordinator' && formData.coordinatorClasses.length > 0 && (
+                {user.role === 'TEACHER' && user.teacherProfile?.department === 'coordinator' && formData.coordinatorClasses.length > 0 && (
                   <div className="mb-6">
                     <h4 className="text-sm font-bold text-gray-700 mb-2">Managing Classes</h4>
                     <div className="flex flex-wrap gap-1 justify-center">
@@ -573,7 +573,7 @@ const UserEditPage = () => {
                       </select>
                     </div>
 
-                    {formData.role === 'teacher' && (
+                    {formData.role === 'TEACHER' && (
                       <div>
                         <label className="block text-sm font-bold text-gray-700 mb-2">Teacher Type</label>
                         <select
@@ -612,7 +612,7 @@ const UserEditPage = () => {
                   </div>
 
                   {/* Coordinator Classes Selection */}
-                  {formData.role === 'teacher' && formData.teacherType === 'coordinator' && (
+                  {formData.role === 'TEACHER' && formData.teacherType === 'coordinator' && (
                     <div className="mt-6">
                       <label className="block text-sm font-bold text-gray-700 mb-3">
                         Coordinator Classes (Select classes this coordinator will manage)
@@ -641,7 +641,7 @@ const UserEditPage = () => {
                   )}
 
                   {/* Class Teacher Assignment */}
-                  {formData.role === 'teacher' && formData.teacherType === 'class_teacher' && (
+                  {formData.role === 'TEACHER' && formData.teacherType === 'class_teacher' && (
                     <div className="mt-6 space-y-4">
                       <label className="block text-sm font-bold text-gray-700 mb-3">
                         Class Teacher Assignment * <span className="text-red-600">(Required)</span>

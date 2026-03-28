@@ -4,7 +4,7 @@ import { requireAuth } from '@/lib/auth';
 
 export async function GET(request) {
   try {
-    const user = await requireAuth(['teacher']);
+    const user = await requireAuth(['TEACHER']);
     
     // Ensure user is a coordinator
     const coordinator = await prisma.user.findFirst({
@@ -40,7 +40,7 @@ export async function GET(request) {
       // Total students in coordinator's classes
       prisma.user.count({
         where: {
-          role: 'student',
+          role: 'STUDENT',
           schoolId: user.schoolId,
           studentProfile: {
             className: {
@@ -53,7 +53,7 @@ export async function GET(request) {
       // Total teachers in the school (excluding directors and coordinators)
       prisma.user.count({
         where: {
-          role: 'teacher',
+          role: 'TEACHER',
           schoolId: user.schoolId,
           teacherProfile: {
             department: {
@@ -113,7 +113,7 @@ export async function GET(request) {
         const [studentCount, timetableSlots] = await Promise.all([
           prisma.user.count({
             where: {
-              role: 'student',
+              role: 'STUDENT',
               schoolId: user.schoolId,
               studentProfile: {
                 className
@@ -140,7 +140,7 @@ export async function GET(request) {
     // Get available teachers for assignment
     const availableTeachers = await prisma.user.count({
       where: {
-        role: 'teacher',
+        role: 'TEACHER',
         schoolId: user.schoolId,
         isActive: true,
         teacherProfile: {

@@ -71,7 +71,7 @@ const ClassTeacherLayout = ({ children }) => {
       }
 
       // Verify user is a teacher
-      if (data.user.role !== 'teacher') {
+      if (data.user.role !== 'TEACHER') {
         router.push('/auth/unauthorized');
         return;
       }

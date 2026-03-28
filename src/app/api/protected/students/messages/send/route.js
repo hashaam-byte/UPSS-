@@ -6,7 +6,7 @@ import { requireAuth } from '@/lib/auth';
 
 export async function POST(request) {
   try {
-    const user = await requireAuth(['student']);
+    const user = await requireAuth(['STUDENT']);
     const body = await request.json();
     const { conversationId, content } = body;
 

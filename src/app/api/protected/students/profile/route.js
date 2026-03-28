@@ -5,7 +5,7 @@ import { requireAuth } from '@/lib/auth';
 
 export async function GET() {
   try {
-    const user = await requireAuth(['student']);
+    const user = await requireAuth(['STUDENT']);
     
     const studentData = await prisma.user.findUnique({
       where: { id: user.id },
@@ -56,7 +56,7 @@ export async function GET() {
 
 export async function PUT(request) {
   try {
-    const user = await requireAuth(['student']);
+    const user = await requireAuth(['STUDENT']);
     const body = await request.json();
     
     const { phone, address, parentName, parentPhone, parentEmail } = body;

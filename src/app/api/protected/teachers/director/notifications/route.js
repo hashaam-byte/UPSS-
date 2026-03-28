@@ -5,7 +5,7 @@ import { requireAuth } from '@/lib/auth';
 
 export async function GET(request) {
   try {
-    const user = await requireAuth(['teacher']);
+    const user = await requireAuth(['TEACHER']);
     
     if (user.department !== 'director') {
       return NextResponse.json(
@@ -64,7 +64,7 @@ export async function GET(request) {
 
 export async function PUT(request) {
   try {
-    const user = await requireAuth(['teacher']);
+    const user = await requireAuth(['TEACHER']);
     
     if (user.department !== 'director') {
       return NextResponse.json(
@@ -142,7 +142,7 @@ export async function PUT(request) {
 
 export async function DELETE(request) {
   try {
-    const user = await requireAuth(['teacher']);
+    const user = await requireAuth(['TEACHER']);
     
     if (user.department !== 'director') {
       return NextResponse.json(
@@ -197,7 +197,7 @@ export async function DELETE(request) {
 // POST - Create notification (for system-generated notifications)
 export async function POST(request) {
   try {
-    const user = await requireAuth(['teacher']);
+    const user = await requireAuth(['TEACHER']);
     
     if (user.department !== 'director') {
       return NextResponse.json(

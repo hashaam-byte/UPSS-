@@ -1,280 +1,347 @@
-// app/api/protected/teachers/director/subjects/[id]/route.js
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth';
+// API Route: /api/protected/teachers/director/subjects/[id]/route.js
+// Update or Delete a subject (Director only)
 
-export async function GET(request, { params }) {
+import { NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import { verifyAuth } from '@/lib/auth';
+
+const prisma = new PrismaClient();
+
+// UPDATE subject
+export async function PUT(request, { params }) {
   try {
-    const user = await requireAuth(['teacher']);
+    const { id } = params;
     
-    if (user.department !== 'director') {
+    // Verify authentication
+    const authResult = await verifyAuth(request);
+    
+    if (!authResult.valid) {
       return NextResponse.json(
-        { success: false, error: 'Access denied' },
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Get teacher profile
+    const teacher = await prisma.teacherProfile.findUnique({
+      where: { userId: authResult.userId },
+      select: {
+        id: true,
+        schoolId: true,
+        teacherRole: true,
+        levelSpecialization: true,
+      },
+    });
+
+    if (!teacher || teacher.teacherRole !== 'DIRECTOR') {
+      return NextResponse.json(
+        { success: false, error: 'Only Directors can update subjects' },
         { status: 403 }
       );
     }
 
-    const subjectId = params.id;
-
-    // Fetch subject with teachers
-    const subject = await prisma.subject.findFirst({
-      where: {
-        id: subjectId,
-        schoolId: user.schoolId
+    // Get existing subject
+    const existingSubject = await prisma.subject.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: {
+            selectedByStudents: true,
+          },
+        },
       },
+    });
+
+    if (!existingSubject) {
+      return NextResponse.json(
+        { success: false, error: 'Subject not found' },
+        { status: 404 }
+      );
+    }
+
+    // Verify subject belongs to director's school
+    if (existingSubject.schoolId !== teacher.schoolId) {
+      return NextResponse.json(
+        { success: false, error: 'Cannot modify subjects from another school' },
+        { status: 403 }
+      );
+    }
+
+    // Verify director can modify this subject (level check)
+    const jsLevels = ['JS1', 'JS2', 'JS3'];
+    const ssLevels = ['SS1', 'SS2', 'SS3'];
+    
+    const hasJSLevels = existingSubject.classLevel.some(level => jsLevels.includes(level));
+    const hasSSLevels = existingSubject.classLevel.some(level => ssLevels.includes(level));
+
+    if (teacher.levelSpecialization === 'JUNIOR' && hasSSLevels) {
+      return NextResponse.json(
+        { success: false, error: 'JS Director cannot modify SS subjects' },
+        { status: 403 }
+      );
+    }
+
+    if (teacher.levelSpecialization === 'SENIOR' && hasJSLevels) {
+      return NextResponse.json(
+        { success: false, error: 'SS Director cannot modify JS subjects' },
+        { status: 403 }
+      );
+    }
+
+    // Parse request body
+    const body = await request.json();
+    const {
+      name,
+      description,
+      subjectType,
+      classLevel,
+      eligibleStreams,
+      isElectiveOption,
+      electiveGroup,
+      maxStudents,
+      creditHours,
+      isActive,
+    } = body;
+
+    // Prevent changing code if subject has student selections
+    if (body.code && body.code !== existingSubject.code && existingSubject._count.selectedByStudents > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Cannot change subject code - subject has student selections',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Validate class level changes
+    if (classLevel && classLevel.length > 0) {
+      const newHasJS = classLevel.some(level => jsLevels.includes(level));
+      const newHasSS = classLevel.some(level => ssLevels.includes(level));
+
+      if (teacher.levelSpecialization === 'JUNIOR' && newHasSS) {
+        return NextResponse.json(
+          { success: false, error: 'JS Director cannot assign SS levels' },
+          { status: 400 }
+        );
+      }
+
+      if (teacher.levelSpecialization === 'SENIOR' && newHasJS) {
+        return NextResponse.json(
+          { success: false, error: 'SS Director cannot assign JS levels' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Build update data
+    const updateData = {
+      ...(name && { name }),
+      ...(description !== undefined && { description }),
+      ...(subjectType && { subjectType }),
+      ...(classLevel && classLevel.length > 0 && { classLevel }),
+      ...(eligibleStreams !== undefined && { eligibleStreams }),
+      ...(isElectiveOption !== undefined && { isElectiveOption }),
+      ...(electiveGroup !== undefined && { electiveGroup }),
+      ...(maxStudents !== undefined && { maxStudents }),
+      ...(creditHours !== undefined && { creditHours }),
+      ...(isActive !== undefined && { isActive }),
+    };
+
+    // Update subject
+    const updatedSubject = await prisma.subject.update({
+      where: { id },
+      data: updateData,
       include: {
         teachers: {
-          include: {
-            teacher: {
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    firstName: true,
-                    lastName: true,
-                    email: true,
-                    phone: true,
-                    avatar: true,
-                    isActive: true
-                  }
-                }
-              }
-            }
-          }
-        },
-        assignments: {
-          where: {
-            schoolId: user.schoolId
-          },
-          orderBy: {
-            createdAt: 'desc'
-          },
-          take: 10,
           include: {
             teacher: {
               select: {
                 id: true,
                 firstName: true,
-                lastName: true
-              }
+                lastName: true,
+              },
             },
-            submissions: {
-              select: {
-                id: true,
-                status: true
-              }
-            }
-          }
+          },
         },
-        grades: {
-          where: {
-            schoolId: user.schoolId
+        streamMappings: {
+          include: {
+            stream: true,
           },
-          orderBy: {
-            createdAt: 'desc'
-          },
-          take: 100
-        }
-      }
+        },
+      },
     });
 
-    if (!subject) {
-      return NextResponse.json(
-        { success: false, error: 'Subject not found' },
-        { status: 404 }
-      );
-    }
-
-    // Calculate statistics
-    const totalTeachers = subject.teachers.length;
-    const totalAssignments = subject.assignments.length;
-    const totalGrades = subject.grades.length;
-
-    // Calculate average grade
-    const averageGrade = totalGrades > 0
-      ? Math.round(subject.grades.reduce((sum, g) => sum + Number(g.percentage), 0) / totalGrades)
-      : 0;
-
-    // Calculate pass rate
-    const passedGrades = subject.grades.filter(g => Number(g.percentage) >= 50).length;
-    const passRate = totalGrades > 0 ? Math.round((passedGrades / totalGrades) * 100) : 0;
-
-    // Get grade distribution
-    const gradeDistribution = {
-      A: subject.grades.filter(g => Number(g.percentage) >= 70).length,
-      B: subject.grades.filter(g => Number(g.percentage) >= 60 && Number(g.percentage) < 70).length,
-      C: subject.grades.filter(g => Number(g.percentage) >= 50 && Number(g.percentage) < 60).length,
-      D: subject.grades.filter(g => Number(g.percentage) >= 40 && Number(g.percentage) < 50).length,
-      F: subject.grades.filter(g => Number(g.percentage) < 40).length
-    };
-
-    // Assignment completion rate
-    const totalSubmissions = subject.assignments.reduce((sum, a) => sum + a.submissions.length, 0);
-    const gradedSubmissions = subject.assignments.reduce(
-      (sum, a) => sum + a.submissions.filter(s => s.status === 'graded').length,
-      0
-    );
-    const completionRate = totalSubmissions > 0 
-      ? Math.round((gradedSubmissions / totalSubmissions) * 100)
-      : 0;
-
-    // Teachers with their assignment data
-    const teachersData = subject.teachers.map(ts => {
-      const teacherAssignments = subject.assignments.filter(a => a.teacher.id === ts.teacher.userId);
-      const teacherGrades = subject.grades.filter(g => g.teacherId === ts.teacher.userId);
-      
-      return {
-        id: ts.teacher.user.id,
-        name: `${ts.teacher.user.firstName} ${ts.teacher.user.lastName}`,
-        email: ts.teacher.user.email,
-        phone: ts.teacher.user.phone,
-        avatar: ts.teacher.user.avatar,
-        isActive: ts.teacher.user.isActive,
-        classes: ts.classes,
-        assignmentsCreated: teacherAssignments.length,
-        gradesGiven: teacherGrades.length
-      };
+    // Log the action
+    await prisma.auditLog.create({
+      data: {
+        schoolId: teacher.schoolId,
+        userId: authResult.userId,
+        action: 'UPDATE',
+        entity: 'Subject',
+        entityId: id,
+        changes: updateData,
+      },
     });
 
     return NextResponse.json({
       success: true,
-      data: {
-        subject: {
-          id: subject.id,
-          name: subject.name,
-          code: subject.code,
-          category: subject.category,
-          classes: subject.classes,
-          isActive: subject.isActive
-        },
-        statistics: {
-          totalTeachers,
-          totalAssignments,
-          totalGrades,
-          averageGrade,
-          passRate,
-          completionRate,
-          gradeDistribution
-        },
-        teachers: teachersData,
-        recentAssignments: subject.assignments.map(a => ({
-          id: a.id,
-          title: a.title,
-          dueDate: a.dueDate,
-          status: a.status,
-          teacher: a.teacher,
-          submissions: a.submissions.length,
-          graded: a.submissions.filter(s => s.status === 'graded').length
-        }))
-      }
+      message: 'Subject updated successfully',
+      subject: updatedSubject,
     });
+
   } catch (error) {
-    console.error('Subject detail fetch error:', error);
+    console.error('Error updating subject:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to fetch subject details' },
+      {
+        success: false,
+        error: 'Failed to update subject',
+        details: error.message,
+      },
       { status: 500 }
     );
+  } finally {
+    await prisma.$disconnect();
   }
 }
 
-export async function PUT(request, { params }) {
-  try {
-    const user = await requireAuth(['teacher']);
-    
-    if (user.department !== 'director') {
-      return NextResponse.json(
-        { success: false, error: 'Access denied' },
-        { status: 403 }
-      );
-    }
-
-    const subjectId = params.id;
-    const updates = await request.json();
-
-    // Verify subject exists
-    const subject = await prisma.subject.findFirst({
-      where: {
-        id: subjectId,
-        schoolId: user.schoolId
-      }
-    });
-
-    if (!subject) {
-      return NextResponse.json(
-        { success: false, error: 'Subject not found' },
-        { status: 404 }
-      );
-    }
-
-    // Update subject
-    const updatedSubject = await prisma.subject.update({
-      where: { id: subjectId },
-      data: {
-        name: updates.name,
-        code: updates.code,
-        category: updates.category,
-        classes: updates.classes,
-        isActive: updates.isActive
-      }
-    });
-
-    return NextResponse.json({
-      success: true,
-      data: { subject: updatedSubject },
-      message: 'Subject updated successfully'
-    });
-  } catch (error) {
-    console.error('Subject update error:', error);
-    return NextResponse.json(
-      { success: false, error: error.message || 'Failed to update subject' },
-      { status: 500 }
-    );
-  }
-}
-
+// DELETE subject
 export async function DELETE(request, { params }) {
   try {
-    const user = await requireAuth(['teacher']);
+    const { id } = params;
     
-    if (user.department !== 'director') {
+    // Verify authentication
+    const authResult = await verifyAuth(request);
+    
+    if (!authResult.valid) {
       return NextResponse.json(
-        { success: false, error: 'Access denied' },
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Get teacher profile
+    const teacher = await prisma.teacherProfile.findUnique({
+      where: { userId: authResult.userId },
+      select: {
+        id: true,
+        schoolId: true,
+        teacherRole: true,
+        levelSpecialization: true,
+      },
+    });
+
+    if (!teacher || teacher.teacherRole !== 'DIRECTOR') {
+      return NextResponse.json(
+        { success: false, error: 'Only Directors can delete subjects' },
         { status: 403 }
       );
     }
 
-    const subjectId = params.id;
-
-    // Verify subject exists
-    const subject = await prisma.subject.findFirst({
-      where: {
-        id: subjectId,
-        schoolId: user.schoolId
-      }
+    // Get existing subject
+    const existingSubject = await prisma.subject.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: {
+            selectedByStudents: true,
+            teachers: true,
+            assignments: true,
+            tests: true,
+            grades: true,
+          },
+        },
+      },
     });
 
-    if (!subject) {
+    if (!existingSubject) {
       return NextResponse.json(
         { success: false, error: 'Subject not found' },
         { status: 404 }
       );
     }
 
-    // Soft delete - just deactivate
-    await prisma.subject.update({
-      where: { id: subjectId },
-      data: { isActive: false }
+    // Verify ownership
+    if (existingSubject.schoolId !== teacher.schoolId) {
+      return NextResponse.json(
+        { success: false, error: 'Cannot delete subjects from another school' },
+        { status: 403 }
+      );
+    }
+
+    // Check if subject has any dependencies
+    const hasDependencies =
+      existingSubject._count.selectedByStudents > 0 ||
+      existingSubject._count.assignments > 0 ||
+      existingSubject._count.tests > 0 ||
+      existingSubject._count.grades > 0;
+
+    if (hasDependencies) {
+      // Instead of deleting, deactivate
+      const deactivated = await prisma.subject.update({
+        where: { id },
+        data: { isActive: false },
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          schoolId: teacher.schoolId,
+          userId: authResult.userId,
+          action: 'DELETE',
+          entity: 'Subject',
+          entityId: id,
+          changes: {
+            note: 'Deactivated instead of deleted due to existing data',
+            dependencies: existingSubject._count,
+          },
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: 'Subject has existing data and has been deactivated instead of deleted',
+        subject: deactivated,
+        wasDeactivated: true,
+      });
+    }
+
+    // Safe to delete
+    await prisma.subject.delete({
+      where: { id },
+    });
+
+    // Log the action
+    await prisma.auditLog.create({
+      data: {
+        schoolId: teacher.schoolId,
+        userId: authResult.userId,
+        action: 'DELETE',
+        entity: 'Subject',
+        entityId: id,
+        changes: {
+          name: existingSubject.name,
+          code: existingSubject.code,
+        },
+      },
     });
 
     return NextResponse.json({
       success: true,
-      message: 'Subject deactivated successfully'
+      message: 'Subject deleted successfully',
+      wasDeactivated: false,
     });
+
   } catch (error) {
-    console.error('Subject delete error:', error);
+    console.error('Error deleting subject:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to delete subject' },
+      {
+        success: false,
+        error: 'Failed to delete subject',
+        details: error.message,
+      },
       { status: 500 }
     );
+  } finally {
+    await prisma.$disconnect();
   }
 }

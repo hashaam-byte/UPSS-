@@ -7,7 +7,7 @@ export async function POST(request, { params }) {
   try {
     const user = await getCurrentUser();
     
-    if (!user || user.role !== 'headadmin') {
+    if (!user || user.role !== 'HEADADMIN') {
       return NextResponse.json(
         { error: 'Access denied' },
         { status: 403 }
@@ -71,13 +71,12 @@ export async function POST(request, { params }) {
 
       // If suspending, deactivate all user sessions for this school
       if (action === 'suspend') {
-        await tx.userSession.updateMany({
+        await tx.userSession.deleteMany({
           where: {
             user: {
               schoolId: schoolId
             }
-          },
-          data: { isActive: false }
+          }
         });
       }
 
@@ -101,7 +100,7 @@ export async function POST(request, { params }) {
       const schoolAdmins = await tx.user.findMany({
         where: {
           schoolId: schoolId,
-          role: 'admin',
+          role: 'ADMIN',
           isActive: true
         },
         select: { id: true }

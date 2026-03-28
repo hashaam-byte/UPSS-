@@ -7,14 +7,14 @@ export async function GET(request) {
   try {
     const user = await requireAuth(request);
     
-    if (decoded.role !== 'headadmin') {
+    if (decoded.role !== 'HEADADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
     // Get all school admins for conversations
     const schoolAdmins = await prisma.user.findMany({
       where: {
-        role: 'admin',
+        role: 'ADMIN',
         isActive: true
       },
       select: {

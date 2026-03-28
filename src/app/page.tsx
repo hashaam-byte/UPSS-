@@ -25,7 +25,7 @@ import {
 const UnifiedLandingPage = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrollY, setScrollY] = useState(0);
-  const [activeRole, setActiveRole] = useState('student');
+  const [activeRole, setActiveRole] = useState('STUDENT');
 
   useEffect(() => {
     const handleScroll = () => setScrollY(window.scrollY);
@@ -50,7 +50,7 @@ const UnifiedLandingPage = () => {
 
   const roles = [
     {
-      id: 'student',
+      id: 'STUDENT',
       title: 'Students',
       emoji: '🎓',
       icon: GraduationCap,
@@ -58,7 +58,7 @@ const UnifiedLandingPage = () => {
       color: 'from-blue-400 to-blue-500'
     },
     {
-      id: 'teacher',
+      id: 'TEACHER',
       title: 'Teachers',
       emoji: '👩‍🏫',
       icon: UserCheck,
@@ -66,7 +66,7 @@ const UnifiedLandingPage = () => {
       color: 'from-emerald-400 to-emerald-500'
     },
     {
-      id: 'admin',
+      id: 'ADMIN',
       title: 'Admins',
       emoji: '🏫',
       icon: Shield,
@@ -483,8 +483,8 @@ const UnifiedLandingPage = () => {
             {[
               { role: 'Head Admin', path: '/protected/Headadmin/page.tsx?role=head', icon: Crown },
               { role: 'School Admin', path: '/protected/Admin/page.tsx?role=school', icon: Shield },
-              { role: 'Teacher', path: '/protected/Teachers/page.tsx?role=teacher', icon: UserCheck },
-              { role: 'Student', path: '/protected/students/page.tsx?role=student', icon: GraduationCap }
+              { role: 'TEACHER', path: '/protected/Teachers/page.tsx?role=teacher', icon: UserCheck },
+              { role: 'STUDENT', path: '/protected/students/page.tsx?role=student', icon: GraduationCap }
             ].map((item, index) => (
               <button
                 key={index}

@@ -15,7 +15,7 @@ async function verifyCoordinatorAccess(token) {
     include: { teacherProfile: true, school: true }
   });
 
-  if (!user || user.role !== 'teacher' || user.teacherProfile?.department !== 'coordinator') {
+  if (!user || user.role !== 'TEACHER' || user.teacherProfile?.department !== 'coordinator') {
     throw new Error('Access denied');
   }
 
@@ -398,7 +398,7 @@ async function generateClassDistributionReport(schoolId, coordinatorClasses, cla
     const students = await prisma.user.findMany({
       where: {
         schoolId,
-        role: 'student',
+        role: 'STUDENT',
         isActive: true,
         studentProfile: {
           className
@@ -538,7 +538,7 @@ async function generateSummaryReport(schoolId, coordinatorClasses) {
     prisma.user.count({
       where: {
         schoolId,
-        role: 'student',
+        role: 'STUDENT',
         isActive: true,
         studentProfile: {
           className: {
@@ -551,7 +551,7 @@ async function generateSummaryReport(schoolId, coordinatorClasses) {
     prisma.user.count({
       where: {
         schoolId,
-        role: 'teacher',
+        role: 'TEACHER',
         isActive: true,
         teacherProfile: {
           teacherSubjects: {

@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await requireAuth(['admin']);
+    const user = await requireAuth(['ADMIN']);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -40,17 +40,24 @@ export async function GET(request: NextRequest) {
       }
     });
 
+    // Build the id filter - only include notIn if there are chatted users
+    const idFilter: any = {
+      not: user.id // Exclude current user
+    };
+    
+    const chattedUserArray = Array.from(chattedUserIds).filter(id => id != null);
+    if (chattedUserArray.length > 0) {
+      idFilter.notIn = chattedUserArray;
+    }
+
     // Fetch all users EXCEPT those already chatted with
     const availableUsers = await prisma.user.findMany({
       where: {
         schoolId: user.schoolId,
         isActive: true,
-        id: {
-          not: user.id, // Exclude current user
-          notIn: Array.from(chattedUserIds) // Exclude users already chatted with
-        },
+        id: idFilter,
         role: {
-          in: ['teacher', 'admin', 'student']
+          in: ['TEACHER', 'ADMIN', 'STUDENT']
         }
       },
       select: {
@@ -99,12 +106,16 @@ export async function GET(request: NextRequest) {
     });
 
     // Also return users already chatted with for reference (optional)
-    const existingContacts = await prisma.user.findMany({
-      where: {
-        id: {
-          in: Array.from(chattedUserIds)
-        }
-      },
+    const existingContactsArray = Array.from(chattedUserIds).filter(id => id != null);
+    let existingContacts = [];
+    
+    if (existingContactsArray.length > 0) {
+      existingContacts = await prisma.user.findMany({
+        where: {
+          id: {
+            in: existingContactsArray
+          }
+        },
       select: {
         id: true,
         firstName: true,
@@ -143,7 +154,8 @@ export async function GET(request: NextRequest) {
         { role: 'asc' },
         { firstName: 'asc' }
       ]
-    });
+      });
+    }
 
     return NextResponse.json({ 
       success: true, 

@@ -33,7 +33,7 @@ const HeadAdminLayout = ({ children }) => {
       const data = await response.json();
       
       // Check if user is head admin
-      if (data.user?.role !== 'headadmin') {
+      if (data.user?.role !== 'HEADADMIN') {
         window.location.href = '/auth/unauthorized';
         return;
       }

@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 
 export async function PATCH(request, { params }) {
   try {
-    const user = await requireAuth(['headadmin']);
+    const user = await requireAuth(['HEADADMIN']);
     const { id } = params;
     const { daysTillNextPayment } = await request.json();
 

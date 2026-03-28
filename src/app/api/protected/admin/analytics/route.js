@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server';
 export async function GET(request) {
   try {
     // Require school admin authentication
-    const user = await requireAuth(['admin']);
+    const user = await requireAuth(['ADMIN']);
     
     // The requireAuth function now handles the school verification
     // Just double-check we have the school data
@@ -136,7 +136,7 @@ export async function GET(request) {
       prisma.user.count({
         where: {
           schoolId: schoolId,
-          role: 'teacher',
+          role: 'TEACHER',
           isActive: true,
           lastLogin: {
             gte: startDate
@@ -262,7 +262,7 @@ function processUserGrowthData(userData, range) {
       groups[key] = { students: 0, teachers: 0, admins: 0, total: 0 };
     }
     
-    groups[key][user.role === 'student' ? 'students' : user.role === 'teacher' ? 'teachers' : 'admins']++;
+    groups[key][user.role === 'STUDENT' ? 'students' : user.role === 'TEACHER' ? 'teachers' : 'admins']++;
     groups[key].total++;
   });
   
@@ -309,9 +309,9 @@ async function generateActivityData(schoolId, startDate, endDate) {
       }
       
       dailyActivity[key].users++;
-      if (user.role === 'student') {
+      if (user.role === 'STUDENT') {
         dailyActivity[key].students++;
-      } else if (user.role === 'teacher') {
+      } else if (user.role === 'TEACHER') {
         dailyActivity[key].teachers++;
       }
     }

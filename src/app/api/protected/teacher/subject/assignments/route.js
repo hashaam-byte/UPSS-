@@ -33,7 +33,7 @@ export async function GET(request) {
       }
     });
 
-    if (!user || user.role !== 'teacher' || !user.teacherProfile) {
+    if (!user || user.role !== 'TEACHER' || !user.teacherProfile) {
       return NextResponse.json(
         { success: false, error: 'Only teachers can access assignments' },
         { status: 403 }
@@ -107,7 +107,7 @@ export async function GET(request) {
         if (assignment.classes && assignment.classes.length > 0) {
           totalStudents = await prisma.user.count({
             where: {
-              role: 'student',
+              role: 'STUDENT',
               schoolId: user.schoolId,
               studentProfile: {
                 className: {
@@ -171,7 +171,7 @@ export async function POST(request) {
       }
     });
 
-    if (!user || user.role !== 'teacher' || !user.teacherProfile) {
+    if (!user || user.role !== 'TEACHER' || !user.teacherProfile) {
       return NextResponse.json(
         { success: false, error: 'Only teachers can create assignments' },
         { status: 403 }

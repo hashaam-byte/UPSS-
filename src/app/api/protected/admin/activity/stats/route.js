@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request) {
   try {
-    const user = await requireAuth(['admin']);
+    const user = await requireAuth(['ADMIN']);
 
     // Fetch recent activity from AuditLog table
     const activities = await prisma.auditLog.findMany({

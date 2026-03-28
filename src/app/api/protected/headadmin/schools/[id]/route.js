@@ -7,7 +7,7 @@ export async function GET(request, { params }) {
   try {
     const user = await getCurrentUser();
     
-    if (!user || user.role !== 'headadmin') {
+    if (!user || user.role !== 'HEADADMIN') {
       return NextResponse.json(
         { error: 'Access denied' },
         { status: 403 }
@@ -77,9 +77,9 @@ export async function GET(request, { params }) {
     const userStats = {
       total: school.users.length,
       active: school.users.filter(u => u.isActive).length,
-      admins: school.users.filter(u => u.role === 'admin').length,
-      teachers: school.users.filter(u => u.role === 'teacher').length,
-      students: school.users.filter(u => u.role === 'student').length
+      admins: school.users.filter(u => u.role === 'ADMIN').length,
+      teachers: school.users.filter(u => u.role === 'TEACHER').length,
+      students: school.users.filter(u => u.role === 'STUDENT').length
     };
 
     // Calculate billing statistics

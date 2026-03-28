@@ -182,7 +182,7 @@ export default function TeacherPerformanceReport() {
                   </div>
                   <div className="flex-1">
                     <h3 className="font-semibold text-white mb-1">{teacher.name}</h3>
-                    <p className="text-xs text-gray-400 capitalize mb-2">{teacher.department || 'Teacher'}</p>
+                    <p className="text-xs text-gray-400 capitalize mb-2">{teacher.department || 'TEACHER'}</p>
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div>
                         <span className="text-gray-400">Grading: </span>
@@ -234,7 +234,7 @@ export default function TeacherPerformanceReport() {
                     </div>
                     <div>
                       <h3 className="font-semibold text-white">{teacher.name}</h3>
-                      <p className="text-xs text-gray-400 capitalize">{teacher.department || 'Teacher'}</p>
+                      <p className="text-xs text-gray-400 capitalize">{teacher.department || 'TEACHER'}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-4 text-sm">

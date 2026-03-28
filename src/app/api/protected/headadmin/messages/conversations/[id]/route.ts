@@ -13,9 +13,9 @@ export async function GET(
     // Await params in Next.js 15+
     const { id } = await params;
     
-    const user = await requireAuth(['headadmin']);
+    const user = await requireAuth(['HEADADMIN']);
     
-    if (!user || user.role !== 'headadmin') {
+    if (!user || user.role !== 'HEADADMIN') {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }

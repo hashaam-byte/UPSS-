@@ -1,1260 +1,719 @@
 'use client'
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Users, 
-  GraduationCap, 
-  UserCheck, 
-  Shield,
-  Plus, 
-  Search, 
-  Filter, 
-  Edit3, 
-  Trash2,
-  Eye,
-  EyeOff,
-  Download,
-  Upload,
-  MoreVertical,
-  UserPlus,
-  Mail,
-  Phone,
-  Calendar,
-  MapPin,
-  Check,
-  X,
-  AlertTriangle,
-  Loader2,
-  Zap,
-  Star,
-  Activity,
-  Crown,
-  BookOpen,
-  ChevronDown,
-  FileText,
-  CheckCircle
+import {
+  GraduationCap, UserCheck, Shield, Plus, Search, Filter,
+  Edit3, Trash2, Eye, EyeOff, Download, Upload, UserPlus,
+  Mail, Phone, Calendar, Check, X, AlertTriangle, Loader2,
+  Zap, BookOpen, FileText, CheckCircle, MoreHorizontal,
+  ChevronLeft, ChevronRight, Users
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-const AdminUsersPage = () => {
-  const router = useRouter();
-  const [activeTab, setActiveTab] = useState('students');
-  const [users, setUsers] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [selectedUsers, setSelectedUsers] = useState([]);
-  const [error, setError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
-  const [availableArms, setAvailableArms] = useState([]);
-  const [availableClasses, setAvailableClasses] = useState(['JSS1', 'JSS2', 'JSS3', 'SS1', 'SS2', 'SS3']);
-  const [loadingArms, setLoadingArms] = useState(false);
-  
-  // CSV Import States
-  const [importFile, setImportFile] = useState(null);
-  const [importProgress, setImportProgress] = useState(0);
-  const [importResults, setImportResults] = useState(null);
-  const fileInputRef = useRef(null);
+// ─── Role config ──────────────────────────────────────────────────────────────
+const ROLE_CONFIG = {
+  STUDENT: { label: 'Student', color: 'bg-sky-100 text-sky-700 ring-sky-200',     dot: 'bg-sky-500'     },
+  TEACHER: { label: 'Teacher', color: 'bg-emerald-100 text-emerald-700 ring-emerald-200', dot: 'bg-emerald-500' },
+  ADMIN:   { label: 'Admin',   color: 'bg-violet-100 text-violet-700 ring-violet-200',    dot: 'bg-violet-500'  },
+};
 
-  const tabs = [
-    { id: 'students', label: 'Students', icon: GraduationCap, count: 0, gradient: 'from-blue-500 to-cyan-500' },
-    { id: 'teachers', label: 'Teachers', icon: UserCheck, count: 0, gradient: 'from-emerald-500 to-teal-500' },
-    { id: 'admins', label: 'Admins', icon: Shield, count: 0, gradient: 'from-purple-500 to-pink-500' }
-  ];
+const TEACHER_TYPE_LABELS = {
+  coordinator:     'Coordinator',
+  director:        'Director',
+  class_teacher:   'Class Teacher',
+  subject_teacher: 'Subject Teacher',
+};
 
-  const classLevels = ['JS1', 'JS2', 'JS3', 'SS1', 'SS2', 'SS3'];
+const TABS = [
+  { id: 'students', label: 'Students', role: 'student', icon: GraduationCap, accent: 'sky'     },
+  { id: 'teachers', label: 'Teachers', role: 'teacher', icon: UserCheck,    accent: 'emerald'  },
+  { id: 'admins',   label: 'Admins',   role: 'admin',   icon: Shield,        accent: 'violet'   },
+];
 
-  const [createForm, setCreateForm] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    username: '',
-    password: '',
-    role: 'student',
-    phone: '',
-    dateOfBirth: '',
-    address: '',
-    gender: '',
-    teacherType: '',
-    coordinatorClasses: [],
-    classTeacherArms: [],
-    classTeacherClass: '',  // NEW: Single class selection
-    classTeacherArm: ''     // NEW: Single arm selection
-  });
+const CLASS_LEVELS = ['JSS1', 'JSS2', 'JSS3', 'SS1', 'SS2', 'SS3'];
 
-  useEffect(() => {
-    fetchUsers();
-  }, [activeTab, currentPage, searchQuery]);
+const EMPTY_FORM = {
+  firstName: '', lastName: '', email: '', username: '', password: '',
+  role: 'student', phone: '', dateOfBirth: '', address: '', gender: '',
+  teacherType: '', coordinatorClasses: [], classTeacherClass: '', classTeacherArm: ''
+};
 
-  const fetchAvailableArms = async () => {
-    try {
-      setLoadingArms(true);
-      const response = await fetch('/api/protected/admin/school/arms');
-      const data = await response.json();
+// ─── Small reusable pieces ────────────────────────────────────────────────────
+function RolePill({ role }) {
+  const cfg = ROLE_CONFIG[role] ?? { label: role, color: 'bg-gray-100 text-gray-600 ring-gray-200', dot: 'bg-gray-400' };
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ${cfg.color}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+      {cfg.label}
+    </span>
+  );
+}
 
-      if (response.ok) {
-        setAvailableArms(data.arms || []);
-      } else {
-        console.error('Failed to fetch arms:', data.error);
-        setAvailableArms(['Silver', 'Diamond', 'Gold']);
-      }
-    } catch (error) {
-      console.error('Error fetching arms:', error);
-      setAvailableArms(['Silver', 'Diamond', 'Gold']);
-    } finally {
-      setLoadingArms(false);
-    }
+function StatusPill({ active }) {
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ${
+      active ? 'bg-green-50 text-green-700 ring-green-200' : 'bg-red-50 text-red-600 ring-red-200'
+    }`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-green-500' : 'bg-red-400'}`} />
+      {active ? 'Active' : 'Inactive'}
+    </span>
+  );
+}
+
+function Avatar({ firstName, lastName, role }) {
+  const colors = {
+    STUDENT: 'from-sky-400 to-blue-500',
+    TEACHER: 'from-emerald-400 to-teal-500',
+    ADMIN:   'from-violet-400 to-purple-500',
   };
+  return (
+    <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${colors[role] ?? 'from-gray-300 to-gray-400'} flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm`}>
+      {firstName?.[0]}{lastName?.[0]}
+    </div>
+  );
+}
 
-  useEffect(() => {
-    if (showCreateModal && createForm.teacherType === 'class_teacher') {
-      fetchAvailableArms();
-    }
-  }, [showCreateModal, createForm.teacherType]);
+// ─── User Card ────────────────────────────────────────────────────────────────
+function UserCard({ user, onEdit, onDelete, onToggle }) {
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  const fetchUsers = async () => {
-    try {
-      setIsLoading(true);
-      const params = new URLSearchParams({
-        page: currentPage.toString(),
-        limit: '10',
-        role: activeTab === 'students' ? 'student' : activeTab === 'teachers' ? 'teacher' : 'admin',
-        ...(searchQuery && { search: searchQuery })
-      });
-
-      const response = await fetch(`/api/protected/admin/users?${params}`);
-      const data = await response.json();
-
-      if (response.ok) {
-        setUsers(data.users || []);
-        setTotalPages(data.pagination?.pages || 1);
-      } else {
-        setError(data.error || 'Failed to fetch users');
-      }
-    } catch (error) {
-      console.error('Error fetching users:', error);
-      setError('Network error occurred');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // CSV File Selection Handler
-  const handleFileSelect = (e) => {
-    const file = e.target.files[0];
-    if (file && file.type === 'text/csv') {
-      setImportFile(file);
-      setError('');
-    } else {
-      setError('Please select a valid CSV file');
-      setImportFile(null);
-    }
-  };
-
-  // CSV Import Handler
-  const handleImportCSV = async () => {
-    if (!importFile) {
-      setError('Please select a CSV file first');
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      setImportProgress(0);
-      setImportResults(null);
-
-      const formData = new FormData();
-      formData.append('file', importFile);
-      formData.append('role', activeTab === 'students' ? 'student' : activeTab === 'teachers' ? 'teacher' : 'admin');
-
-      const response = await fetch('/api/protected/admin/users/import', {
-        method: 'POST',
-        body: formData
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setImportResults({
-          success: data.success || 0,
-          failed: data.failed || 0,
-          errors: data.errors || []
-        });
-        setSuccessMessage(`Successfully imported ${data.success} users`);
-        setShowImportModal(false);
-        fetchUsers();
-        setImportFile(null);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-      } else {
-        setError(data.error || 'Failed to import users');
-      }
-    } catch (error) {
-      setError('Network error occurred during import');
-    } finally {
-      setIsLoading(false);
-      setImportProgress(0);
-    }
-  };
-
-  // CSV Template Download
-  const downloadCSVTemplate = () => {
-    const role = activeTab === 'students' ? 'student' : activeTab === 'teachers' ? 'teacher' : 'admin';
-    let csvContent = '';
-
-    if (role === 'student') {
-      csvContent = 'firstName,lastName,email,username,password,phone,dateOfBirth,gender,className,section,parentName,parentPhone,parentEmail\n';
-      csvContent += 'John,Doe,john.doe@example.com,johndoe,Password123,+2348012345678,2005-01-15,male,SS1,A,Jane Doe,+2348087654321,jane.doe@example.com\n';
-    } else if (role === 'teacher') {
-      csvContent = 'firstName,lastName,email,username,password,phone,dateOfBirth,gender,teacherType,coordinatorClasses,classTeacherArms,qualification,experienceYears\n';
-      csvContent += 'Jane,Smith,jane.smith@example.com,janesmith,Password123,+2348012345678,1985-03-20,female,subject_teacher,,,B.Ed Mathematics,5\n';
-    } else {
-      csvContent = 'firstName,lastName,email,username,password,phone,dateOfBirth,gender\n';
-      csvContent += 'Admin,User,admin.user@example.com,adminuser,Password123,+2348012345678,1990-05-10,male\n';
-    }
-
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${role}_import_template.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
-  };
-
-  const handleCreateUser = async (e) => {
-    e.preventDefault();
-    
-    // Clear previous errors
-    setError('');
-    
-    // Validate class teacher assignment
-    if (createForm.role === 'teacher' && createForm.teacherType === 'class_teacher') {
-      if (!createForm.classTeacherClass || !createForm.classTeacherArm) {
-        setError(`Please select both a class (${createForm.classTeacherClass || 'not selected'}) and an arm (${createForm.classTeacherArm || 'not selected'}) for the class teacher`);
-        return;
-      }
-    }
-    
-    // Validate coordinator
-    if (createForm.teacherType === 'coordinator' && createForm.coordinatorClasses.length === 0) {
-      setError('Please select at least one class for the coordinator to manage');
-      return;
-    }
-    
-    try {
-      setIsLoading(true);
-      
-      // Prepare data - ensure we're sending the right fields
-      const userData = {
-        ...createForm,
-        ...(createForm.teacherType === 'class_teacher' && {
-          classTeacherClass: createForm.classTeacherClass.trim(),
-          classTeacherArm: createForm.classTeacherArm.trim()
-        }),
-        ...(createForm.teacherType === 'coordinator' && {
-          coordinatorClasses: createForm.coordinatorClasses
-        })
-      };
-      
-      const response = await fetch('/api/protected/admin/users', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(userData)
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setSuccessMessage('User created successfully');
-        setShowCreateModal(false);
-        setCreateForm({
-          firstName: '',
-          lastName: '',
-          email: '',
-          username: '',
-          password: '',
-          role: 'student',
-          phone: '',
-          dateOfBirth: '',
-          address: '',
-          gender: '',
-          teacherType: '',
-          coordinatorClasses: [],
-          classTeacherArms: [],
-          classTeacherClass: '',  // NEW: Single class selection
-          classTeacherArm: ''     // NEW: Single arm selection
-        });
-        fetchUsers();
-      } else {
-        setError(data.error || 'Failed to create user');
-      }
-    } catch (error) {
-      console.error('Error creating user:', error);
-      setError('Network error occurred');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleDeleteUser = async (userId) => {
-    if (!confirm('Are you sure you want to delete this user?')) return;
-
-    try {
-      const response = await fetch(`/api/protected/admin/users/${userId}`, {
-        method: 'DELETE'
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setSuccessMessage('User deleted successfully');
-        fetchUsers();
-      } else {
-        setError(data.error || 'Failed to delete user');
-      }
-    } catch (error) {
-      console.error('Error deleting user:', error);
-      setError('Network error occurred');
-    }
-  };
-
-  const handleToggleUserStatus = async (userId, currentStatus) => {
-    try {
-      const response = await fetch(`/api/protected/admin/users/${userId}/toggle-status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ isActive: !currentStatus })
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setSuccessMessage(`User ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
-        fetchUsers();
-      } else {
-        setError(data.error || 'Failed to update user status');
-      }
-    } catch (error) {
-      console.error('Error updating user status:', error);
-      setError('Network error occurred');
-    }
-  };
-
-  const handleEditUser = (userId) => {
-    router.push(`/protected/admin/users/${userId}/edit`);
-  };
-
-  const generatePassword = () => {
-    const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&*';
-    let password = '';
-    for (let i = 0; i < 12; i++) {
-      password += charset.charAt(Math.floor(Math.random() * charset.length));
-    }
-    setCreateForm(prev => ({ ...prev, password }));
-  };
-
-  const handleClassToggle = (className) => {
-    setCreateForm(prev => ({
-      ...prev,
-      coordinatorClasses: prev.coordinatorClasses.includes(className)
-        ? prev.coordinatorClasses.filter(c => c !== className)
-        : [...prev.coordinatorClasses, className]
-    }));
-  };
-
-  const handleArmToggle = (arm) => {
-    setCreateForm(prev => ({
-      ...prev,
-      classTeacherArms: prev.classTeacherArms.includes(arm)
-        ? prev.classTeacherArms.filter(a => a !== arm)
-        : [...prev.classTeacherArms, arm]
-    }));
-  };
-
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString();
-  };
-
-  const getTeacherTypeDisplay = (teacherProfile) => {
-    if (!teacherProfile) return null;
-    
-    const typeMap = {
-      coordinator: 'Coordinator',
-      director: 'Director', 
-      class_teacher: 'Class Teacher',
-      subject_teacher: 'Subject Teacher'
-    };
-    
-    return typeMap[teacherProfile.department] || teacherProfile.department;
-  };
-
-  const getCoordinatorClasses = (user) => {
-    if (user.role !== 'teacher' || user.teacherProfile?.department !== 'coordinator') {
-      return null;
-    }
-    
-    const classes = user.teacherProfile?.teacherSubjects?.flatMap(ts => ts.classes) || [];
-    return [...new Set(classes)];
-  };
-
-  const getClassTeacherArms = (user) => {
-    if (user.role !== 'teacher' || user.teacherProfile?.department !== 'class_teacher') {
-      return null;
-    }
-    
-    const arms = user.teacherProfile?.teacherSubjects?.flatMap(ts => ts.classes) || [];
-    return [...new Set(arms)];
-  };
-
-  if (isLoading && users.length === 0) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="relative">
-            <div className="w-20 h-20 bg-gradient-to-r from-blue-600 to-purple-600 rounded-3xl animate-pulse shadow-2xl">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-purple-400 rounded-3xl animate-ping opacity-75"></div>
-            </div>
-          </div>
-          <p className="text-gray-700 mt-6 font-bold text-lg">Loading User Database...</p>
-        </div>
-      </div>
-    );
-  }
+  const teacherType = user.teacherProfile?.department;
+  const coordinatorClasses = user.role === 'TEACHER' && teacherType === 'coordinator'
+    ? [...new Set(user.teacherProfile?.teacherSubjects?.flatMap(ts => ts.classes) || [])]
+    : null;
+  const classAssignment = user.role === 'TEACHER' && teacherType === 'class_teacher'
+    ? [...new Set(user.teacherProfile?.teacherSubjects?.flatMap(ts => ts.classes) || [])]
+    : null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-6">
-      <div className="space-y-8">
-        {/* Header */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-white/80 to-blue-50/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-8">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-600/5 via-purple-600/5 to-pink-600/5"></div>
-          <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-blue-400/20 to-transparent rounded-full blur-3xl"></div>
-          
-          <div className="relative z-10 flex flex-col lg:flex-row justify-between items-start gap-6">
-            <div className="space-y-3">
-              <div className="flex items-center space-x-3">
-                <Activity className="w-6 h-6 text-emerald-500 animate-pulse" />
-                <span className="text-emerald-600 font-bold text-sm uppercase tracking-wider">User Management System</span>
-              </div>
-              <h1 className="text-5xl font-black bg-gradient-to-r from-gray-800 via-blue-800 to-purple-800 bg-clip-text text-transparent">
-                Personnel Control
-              </h1>
-              <p className="text-gray-600 text-xl font-medium">
-                Advanced user account management and analytics
+    <div className="group bg-white rounded-2xl border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all duration-200 overflow-hidden">
+      {/* Top bar – accent color per role */}
+      <div className={`h-1 w-full ${
+        user.role === 'STUDENT' ? 'bg-sky-400' :
+        user.role === 'TEACHER' ? 'bg-emerald-400' : 'bg-violet-400'
+      }`} />
+
+      <div className="p-5">
+        {/* Header row */}
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <Avatar firstName={user.firstName} lastName={user.lastName} role={user.role} />
+            <div className="min-w-0">
+              <p className="font-bold text-gray-900 text-[15px] truncate leading-tight">
+                {user.firstName} {user.lastName}
               </p>
-            </div>
-            <div className="flex gap-4">
-              <button
-                onClick={() => setShowImportModal(true)}
-                className="group relative overflow-hidden bg-gradient-to-r from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30 text-purple-600 px-6 py-3 rounded-xl font-bold transition-all duration-300 hover:scale-105 shadow-lg border border-purple-300/50 flex items-center gap-2"
-              >
-                <Upload className="w-5 h-5" />
-                <span>Import CSV</span>
-              </button>
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="group relative overflow-hidden bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl font-bold transition-all duration-300 hover:scale-105 shadow-xl flex items-center gap-2"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                <Plus className="w-5 h-5 relative z-10" />
-                <span className="relative z-10">Add User</span>
-              </button>
+              <p className="text-xs text-gray-400 truncate mt-0.5">@{user.username}</p>
             </div>
           </div>
-        </div>
 
-        {/* Success/Error Messages */}
-        {successMessage && (
-          <div className="relative overflow-hidden bg-gradient-to-r from-emerald-50/90 to-green-50/90 backdrop-blur-sm border border-emerald-300 rounded-2xl p-6 shadow-xl">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-green-500 rounded-2xl flex items-center justify-center shadow-lg">
-                <Check className="w-6 h-6 text-white" />
-              </div>
-              <div className="flex-1">
-                <p className="text-emerald-700 font-bold text-lg">{successMessage}</p>
-              </div>
-              <button onClick={() => setSuccessMessage('')} className="p-2 text-emerald-600 hover:bg-emerald-100 rounded-xl transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {error && (
-          <div className="relative overflow-hidden bg-gradient-to-r from-red-50/90 to-pink-50/90 backdrop-blur-sm border border-red-300 rounded-2xl p-6 shadow-xl">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg">
-                <AlertTriangle className="w-6 h-6 text-white" />
-              </div>
-              <div className="flex-1">
-                <p className="text-red-700 font-bold text-lg">{error}</p>
-              </div>
-              <button onClick={() => setError('')} className="p-2 text-red-600 hover:bg-red-100 rounded-xl transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Enhanced Tabs and Content */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-white/80 to-blue-50/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50">
-          <div className="p-8">
-            {/* Tabs */}
-            <div className="flex flex-wrap gap-3 mb-8">
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => {
-                      setActiveTab(tab.id);
-                      setCurrentPage(1);
-                    }}
-                    className={`group relative overflow-hidden px-6 py-4 rounded-2xl font-bold transition-all duration-300 hover:scale-105 shadow-lg flex items-center gap-3 ${
-                      activeTab === tab.id
-                        ? `bg-gradient-to-r ${tab.gradient} text-white border-0`
-                        : 'bg-white/50 text-gray-600 hover:bg-white/80 border border-gray-200/50'
-                    }`}
-                  >
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-300 ${
-                      activeTab === tab.id ? 'bg-white/20' : 'bg-gray-100'
-                    }`}>
-                      <Icon className="w-5 h-5" />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-black">{tab.label}</div>
-                      <div className="text-xs opacity-80 font-medium">
-                        {users.length} active
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Search and Controls */}
-            <div className="flex flex-col lg:flex-row gap-6 mb-8">
-              <div className="relative flex-1">
-                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type="text"
-                  placeholder={`Search ${activeTab}...`}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-12 pr-6 py-4 bg-white/50 border border-gray-200/50 rounded-2xl text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all font-medium shadow-lg backdrop-blur-sm"
-                />
-              </div>
-              <div className="flex gap-3">
-                <button className="flex items-center gap-3 px-6 py-4 bg-white/50 hover:bg-white/80 text-gray-600 hover:text-gray-800 border border-gray-200/50 rounded-2xl transition-all font-bold shadow-lg">
-                  <Filter className="w-5 h-5" />
-                  Filter
-                </button>
-                <button className="flex items-center gap-3 px-6 py-4 bg-white/50 hover:bg-white/80 text-gray-600 hover:text-gray-800 border border-gray-200/50 rounded-2xl transition-all font-bold shadow-lg">
-                  <Download className="w-5 h-5" />
-                  Export
-                </button>
-              </div>
-            </div>
-
-            {/* Users Table */}
-            {isLoading ? (
-              <div className="flex items-center justify-center py-20">
-                <div className="text-center">
-                  <Loader2 className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
-                  <p className="text-gray-600 font-bold">Loading users...</p>
-                </div>
-              </div>
-            ) : (
+          {/* Three-dot menu */}
+          <div className="relative shrink-0 ml-2">
+            <button
+              onClick={() => setMenuOpen(v => !v)}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              <MoreHorizontal className="w-4 h-4" />
+            </button>
+            {menuOpen && (
               <>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-gray-200/50">
-                        <th className="text-left py-4 px-6 font-black text-gray-700 uppercase tracking-wider">
-                          <input 
-                            type="checkbox" 
-                            className="w-5 h-5 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500"
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedUsers(users.map(u => u.id));
-                              } else {
-                                setSelectedUsers([]);
-                              }
-                            }}
-                          />
-                        </th>
-                        <th className="text-left py-4 px-6 font-black text-gray-700 uppercase tracking-wider">User Profile</th>
-                        <th className="text-left py-4 px-6 font-black text-gray-700 uppercase tracking-wider">Contact Info</th>
-                        <th className="text-left py-4 px-6 font-black text-gray-700 uppercase tracking-wider">Role & Permissions</th>
-                        <th className="text-left py-4 px-6 font-black text-gray-700 uppercase tracking-wider">System Status</th>
-                        <th className="text-left py-4 px-6 font-black text-gray-700 uppercase tracking-wider">Registration</th>
-                        <th className="text-left py-4 px-6 font-black text-gray-700 uppercase tracking-wider">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {users.map((user) => {
-                        const coordinatorClasses = getCoordinatorClasses(user);
-                        const classTeacherArms = getClassTeacherArms(user);
-                        return (
-                          <tr key={user.id} className="border-b border-gray-100/50 hover:bg-white/50 transition-colors group">
-                            <td className="py-4 px-6">
-                              <input 
-                                type="checkbox" 
-                                className="w-5 h-5 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500"
-                                checked={selectedUsers.includes(user.id)}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setSelectedUsers([...selectedUsers, user.id]);
-                                  } else {
-                                    setSelectedUsers(selectedUsers.filter(id => id !== user.id));
-                                  }
-                                }}
-                              />
-                            </td>
-                            <td className="py-4 px-6">
-                              <div className="flex items-center gap-4">
-                                <div className="relative">
-                                  <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-500 rounded-2xl flex items-center justify-center text-white font-black text-lg shadow-lg">
-                                    {user.firstName?.charAt(0)}{user.lastName?.charAt(0)}
-                                  </div>
-                                  {user.role === 'admin' && (
-                                    <Crown className="absolute -top-1 -right-1 w-5 h-5 text-yellow-500" />
-                                  )}
-                                </div>
-                                <div>
-                                  <p className="font-black text-gray-900 text-lg">
-                                    {user.firstName} {user.lastName}
-                                  </p>
-                                  <p className="text-sm text-gray-500 font-medium">@{user.username}</p>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="py-4 px-6">
-                              <div className="space-y-2">
-                                <div className="flex items-center gap-2 text-sm text-gray-700">
-                                  <Mail className="w-4 h-4" />
-                                  <span className="font-medium">{user.email}</span>
-                                </div>
-                                {user.phone && (
-                                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                                    <Phone className="w-4 h-4" />
-                                    <span className="font-medium">{user.phone}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-                            <td className="py-4 px-6">
-                              <div className="space-y-2">
-                                <div className="flex items-center gap-2">
-                                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-black ${
-                                    user.role === 'admin' ? 'bg-purple-100 text-purple-700' :
-                                    user.role === 'teacher' ? 'bg-emerald-100 text-emerald-700' :
-                                    'bg-blue-100 text-blue-700'
-                                  }`}>
-                                    {user.role.toUpperCase()}
-                                  </span>
-                                  {user.role === 'teacher' && (
-                                    <span className="text-xs text-gray-600 font-medium">
-                                      {getTeacherTypeDisplay(user.teacherProfile)}
-                                    </span>
-                                  )}
-                                </div>
-                                {coordinatorClasses && coordinatorClasses.length > 0 && (
-                                  <div className="flex flex-wrap gap-1">
-                                    {coordinatorClasses.slice(0, 3).map(className => (
-                                      <span key={className} className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded-full font-medium">
-                                        {className}
-                                      </span>
-                                    ))}
-                                    {coordinatorClasses.length > 3 && (
-                                      <span className="text-xs px-2 py-1 bg-gray-50 text-gray-600 rounded-full font-medium">
-                                        +{coordinatorClasses.length - 3} more
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                                {classTeacherArms && classTeacherArms.length > 0 && (
-                                  <div className="flex flex-wrap gap-1">
-                                    {classTeacherArms.slice(0, 3).map(arm => (
-                                      <span key={arm} className="text-xs px-2 py-1 bg-green-50 text-green-600 rounded-full font-medium">
-                                        {arm}
-                                      </span>
-                                    ))}
-                                    {classTeacherArms.length > 3 && (
-                                      <span className="text-xs px-2 py-1 bg-gray-50 text-gray-600 rounded-full font-medium">
-                                        +{classTeacherArms.length - 3} more
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-                            <td className="py-4 px-6">
-                              <div className="space-y-2">
-                                <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-black shadow-sm ${
-                                  user.isActive 
-                                    ? 'bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-700 border border-emerald-300' 
-                                    : 'bg-gradient-to-r from-red-100 to-pink-100 text-red-700 border border-red-300'
-                                }`}>
-                                  {user.isActive ? 'ONLINE' : 'OFFLINE'}
-                                </span>
-                                <div className={`text-xs font-bold ${
-                                  user.isEmailVerified ? 'text-emerald-600' : 'text-yellow-600'
-                                }`}>
-                                  {user.isEmailVerified ? '✓ VERIFIED' : '⚠ PENDING'}
-                                </div>
-                              </div>
-                            </td>
-                            <td className="py-4 px-6 text-sm text-gray-600 font-medium">
-                              <div className="flex items-center gap-2">
-                                <Calendar className="w-4 h-4" />
-                                {formatDate(user.createdAt)}
-                              </div>
-                            </td>
-                            <td className="py-4 px-6">
-                              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button
-                                  onClick={() => handleToggleUserStatus(user.id, user.isActive)}
-                                  className={`p-2 rounded-xl transition-all shadow-lg ${
-                                    user.isActive 
-                                      ? 'text-red-600 hover:bg-red-100 border border-red-200' 
-                                      : 'text-emerald-600 hover:bg-emerald-100 border border-emerald-200'
-                                  }`}
-                                  title={user.isActive ? 'Deactivate user' : 'Activate user'}
-                                >
-                                  {user.isActive ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                </button>
-                                <button
-                                  onClick={() => handleEditUser(user.id)}
-                                  className="p-2 text-blue-600 hover:bg-blue-100 border border-blue-200 rounded-xl transition-all shadow-lg"
-                                  title="Edit user"
-                                >
-                                  <Edit3 className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteUser(user.id)}
-                                  className="p-2 text-red-600 hover:bg-red-100 border border-red-200 rounded-xl transition-all shadow-lg"
-                                  title="Delete user"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+                <div className="absolute right-0 top-8 z-20 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-40 text-sm">
+                  <button onClick={() => { onEdit(user.id); setMenuOpen(false); }} className="w-full flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50 transition-colors">
+                    <Edit3 className="w-3.5 h-3.5" /> Edit user
+                  </button>
+                  <button onClick={() => { onToggle(user.id, user.isActive); setMenuOpen(false); }} className={`w-full flex items-center gap-2 px-3 py-2 transition-colors hover:bg-gray-50 ${user.isActive ? 'text-amber-600' : 'text-green-600'}`}>
+                    {user.isActive ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    {user.isActive ? 'Deactivate' : 'Activate'}
+                  </button>
+                  <div className="my-1 border-t border-gray-100" />
+                  <button onClick={() => { onDelete(user.id); setMenuOpen(false); }} className="w-full flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 transition-colors">
+                    <Trash2 className="w-3.5 h-3.5" /> Delete
+                  </button>
                 </div>
-
-                {/* Pagination */}
-                {totalPages > 1 && (
-                  <div className="flex items-center justify-between mt-8">
-                    <div className="text-sm text-gray-600 font-medium">
-                      Page {currentPage} of {totalPages} • {users.length} users displayed
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                        disabled={currentPage === 1}
-                        className="px-6 py-3 bg-white/50 hover:bg-white/80 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 rounded-xl transition-all font-bold shadow-lg border border-gray-200/50"
-                      >
-                        Previous
-                      </button>
-                      <button
-                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                        disabled={currentPage === totalPages}
-                        className="px-6 py-3 bg-white/50 hover:bg-white/80 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 rounded-xl transition-all font-bold shadow-lg border border-gray-200/50"
-                      >
-                        Next
-                      </button>
-                    </div>
-                  </div>
-                )}
               </>
             )}
           </div>
         </div>
 
-        {/* Import CSV Modal */}
-        {showImportModal && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl shadow-2xl border border-gray-200/50 p-8 w-full max-w-2xl">
-              <div className="flex items-center justify-between mb-8">
-                <div>
-                  <h2 className="text-2xl font-black text-gray-900">Import Users from CSV</h2>
-                  <p className="text-gray-600 font-medium">Upload a CSV file to bulk import {activeTab}</p>
-                </div>
-                <button
-                  onClick={() => {
-                    setShowImportModal(false);
-                    setImportFile(null);
-                    if (fileInputRef.current) fileInputRef.current.value = '';
-                  }}
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-
-              <div className="space-y-6">
-                <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-lg flex-shrink-0">
-                      <FileText className="w-6 h-6 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-black text-gray-900 mb-2">Download Template First</h3>
-                      <p className="text-sm text-gray-600 mb-4">
-                        Download the CSV template for {activeTab} to ensure your file has the correct format.
-                      </p>
-                      <button
-                        onClick={downloadCSVTemplate}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all"
-                      >
-                        <Download className="w-4 h-4" />
-                        Download Template
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".csv"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                    id="csv-upload"
-                  />
-                  <label htmlFor="csv-upload" className="cursor-pointer">
-                    <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-                      <Upload className="w-8 h-8 text-white" />
-                    </div>
-                    <p className="text-lg font-black text-gray-900 mb-2">
-                      {importFile ? importFile.name : 'Click to upload CSV file'}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      {importFile ? 'File selected - Click Import to proceed' : 'or drag and drop your CSV file here'}
-                    </p>
-                  </label>
-                </div>
-
-                {isLoading && (
-                  <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-6 border border-blue-200">
-                    <div className="flex items-center gap-4 mb-4">
-                      <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-                      <span className="font-bold text-gray-900">Importing users...</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                      <div 
-                        className="bg-gradient-to-r from-blue-600 to-purple-600 h-full transition-all duration-300 rounded-full"
-                        style={{ width: `${importProgress}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                )}
-
-                {importResults && (
-                  <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-2xl p-6 border border-emerald-200">
-                    <div className="flex items-center gap-3 mb-4">
-                      <CheckCircle className="w-6 h-6 text-emerald-600" />
-                      <h3 className="font-black text-gray-900">Import Complete</h3>
-                    </div>
-                    <div className="space-y-2">
-                      <p className="text-emerald-700 font-bold">✓ Successfully imported: {importResults.success} users</p>
-                      {importResults.failed > 0 && (
-                        <p className="text-red-700 font-bold">✗ Failed: {importResults.failed} users</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex gap-4">
-                  <button
-                    onClick={() => {
-                      setShowImportModal(false);
-                      setImportFile(null);
-                      setImportResults(null);
-                      if (fileInputRef.current) fileInputRef.current.value = '';
-                    }}
-                    className="flex-1 px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-all font-bold"
-                  >
-                    {importResults ? 'Close' : 'Cancel'}
-                  </button>
-                  {!importResults && (
-                    <button
-                      onClick={handleImportCSV}
-                      disabled={!importFile || isLoading}
-                      className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl transition-all font-bold flex items-center justify-center gap-2 shadow-xl"
-                    >
-                      {isLoading ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Importing...
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="w-4 h-4" />
-                          Import Users
-                        </>
-                      )}
-                    </button>
-                  )}
-                </div>
-              </div>
+        {/* Info rows */}
+        <div className="space-y-2 mb-4">
+          <div className="flex items-center gap-2 text-sm">
+            <Mail className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+            <span className="text-gray-700 truncate font-medium">{user.email}</span>
+          </div>
+          {user.phone && (
+            <div className="flex items-center gap-2 text-sm">
+              <Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+              <span className="text-gray-600">{user.phone}</span>
             </div>
+          )}
+          <div className="flex items-center gap-2 text-sm">
+            <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+            <span className="text-gray-500">Joined {new Date(user.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+          </div>
+        </div>
+
+        {/* Teacher sub-info */}
+        {user.role === 'TEACHER' && teacherType && (
+          <div className="mb-4">
+            <span className="inline-block text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-medium">
+              {TEACHER_TYPE_LABELS[teacherType] ?? teacherType}
+            </span>
+            {coordinatorClasses?.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {coordinatorClasses.slice(0, 4).map(c => (
+                  <span key={c} className="text-xs bg-sky-50 text-sky-600 border border-sky-200 px-2 py-0.5 rounded-md font-medium">{c}</span>
+                ))}
+                {coordinatorClasses.length > 4 && (
+                  <span className="text-xs bg-gray-50 text-gray-500 border border-gray-200 px-2 py-0.5 rounded-md">+{coordinatorClasses.length - 4}</span>
+                )}
+              </div>
+            )}
+            {classAssignment?.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {classAssignment.map(a => (
+                  <span key={a} className="text-xs bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded-md font-medium">{a}</span>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
-        {/* Create User Modal */}
-        {showCreateModal && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl shadow-2xl border border-gray-200/50 p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between mb-8">
-                <div>
-                  <h2 className="text-2xl font-black text-gray-900">Create New User</h2>
-                  <p className="text-gray-600 font-medium">Add a new account to the system</p>
-                </div>
+        {/* Student profile info */}
+        {user.role === 'STUDENT' && user.studentProfile && (
+          <div className="mb-4 text-xs text-gray-500 space-y-0.5">
+            {user.studentProfile.className && (
+              <p>Class: <span className="text-gray-700 font-medium">{user.studentProfile.className}</span></p>
+            )}
+            {user.studentProfile.studentId && (
+              <p>ID: <span className="text-gray-700 font-medium font-mono">{user.studentProfile.studentId}</span></p>
+            )}
+          </div>
+        )}
+
+        {/* Footer pills */}
+        <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+          <div className="flex items-center gap-2">
+            <RolePill role={user.role} />
+            <StatusPill active={user.isActive} />
+          </div>
+          <span className={`text-xs font-medium ${user.isEmailVerified ? 'text-green-600' : 'text-amber-500'}`}>
+            {user.isEmailVerified ? '✓ Verified' : '⚠ Unverified'}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Input field helper ───────────────────────────────────────────────────────
+function Field({ label, required, children }) {
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+        {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+const inputCls = "w-full px-3.5 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-900 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400 transition-all";
+const selectCls = inputCls + " cursor-pointer";
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+export default function AdminUsersPage() {
+  const router = useRouter();
+  const [activeTab, setActiveTab]         = useState('students');
+  const [users, setUsers]                 = useState([]);
+  const [isLoading, setIsLoading]         = useState(true);
+  const [searchQuery, setSearchQuery]     = useState('');
+  const [currentPage, setCurrentPage]     = useState(1);
+  const [totalPages, setTotalPages]       = useState(1);
+  const [total, setTotal]                 = useState(0);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [error, setError]                 = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [availableArms, setAvailableArms] = useState([]);
+  const [loadingArms, setLoadingArms]     = useState(false);
+  const [importFile, setImportFile]       = useState(null);
+  const [importResults, setImportResults] = useState(null);
+  const [createForm, setCreateForm]       = useState(EMPTY_FORM);
+  const [createLoading, setCreateLoading] = useState(false);
+  const fileInputRef = useRef(null);
+
+  // ── Fetch ──────────────────────────────────────────────────────────────────
+  useEffect(() => { fetchUsers(); }, [activeTab, currentPage, searchQuery]);
+
+  useEffect(() => {
+    if (showCreateModal && createForm.teacherType === 'class_teacher') fetchAvailableArms();
+  }, [showCreateModal, createForm.teacherType]);
+
+  const fetchAvailableArms = async () => {
+    try {
+      setLoadingArms(true);
+      const res = await fetch('/api/protected/admin/school/arms');
+      const d = await res.json();
+      setAvailableArms(res.ok ? (d.arms || []) : ['Silver', 'Diamond', 'Gold']);
+    } catch { setAvailableArms(['Silver', 'Diamond', 'Gold']); }
+    finally { setLoadingArms(false); }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      setIsLoading(true);
+      const tab = TABS.find(t => t.id === activeTab);
+      const params = new URLSearchParams({
+        page: currentPage.toString(), limit: '12', role: tab?.role || 'all',
+        ...(searchQuery && { search: searchQuery })
+      });
+      const res = await fetch(`/api/protected/admin/users?${params}`);
+      const d = await res.json();
+      if (res.ok) {
+        setUsers(d.users || []);
+        setTotalPages(d.pagination?.pages || 1);
+        setTotal(d.pagination?.total || 0);
+      } else { setError(d.error || 'Failed to fetch users'); }
+    } catch { setError('Network error occurred'); }
+    finally { setIsLoading(false); }
+  };
+
+  // ── Actions ────────────────────────────────────────────────────────────────
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (createForm.role === 'teacher' && createForm.teacherType === 'class_teacher') {
+      if (!createForm.classTeacherClass || !createForm.classTeacherArm) {
+        setError('Please select both a class and an arm for the class teacher'); return;
+      }
+    }
+    if (createForm.role === 'teacher' && createForm.teacherType === 'coordinator' && !createForm.coordinatorClasses.length) {
+      setError('Please select at least one class for the coordinator'); return;
+    }
+    try {
+      setCreateLoading(true);
+      const res = await fetch('/api/protected/admin/users', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(createForm)
+      });
+      const d = await res.json();
+      if (res.ok) { setSuccessMessage('User created successfully'); setShowCreateModal(false); setCreateForm(EMPTY_FORM); fetchUsers(); }
+      else setError(d.error || 'Failed to create user');
+    } catch { setError('Network error occurred'); }
+    finally { setCreateLoading(false); }
+  };
+
+  const handleDeleteUser = async (userId) => {
+    if (!confirm('Are you sure you want to delete this user?')) return;
+    try {
+      const res = await fetch(`/api/protected/admin/users/${userId}`, { method: 'DELETE' });
+      const d = await res.json();
+      if (res.ok) { setSuccessMessage('User deleted successfully'); fetchUsers(); }
+      else setError(d.error || 'Failed to delete user');
+    } catch { setError('Network error occurred'); }
+  };
+
+  const handleToggleStatus = async (userId, currentStatus) => {
+    try {
+      const res = await fetch(`/api/protected/admin/users/${userId}/toggle-status`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive: !currentStatus })
+      });
+      const d = await res.json();
+      if (res.ok) { setSuccessMessage(`User ${!currentStatus ? 'activated' : 'deactivated'}`); fetchUsers(); }
+      else setError(d.error || 'Failed to update status');
+    } catch { setError('Network error occurred'); }
+  };
+
+  const handleImportCSV = async () => {
+    if (!importFile) { setError('Please select a CSV file first'); return; }
+    try {
+      setIsLoading(true); setImportResults(null);
+      const tab = TABS.find(t => t.id === activeTab);
+      const fd = new FormData();
+      fd.append('file', importFile); fd.append('role', tab?.role || 'student');
+      const res = await fetch('/api/protected/admin/users/import', { method: 'POST', body: fd });
+      const d = await res.json();
+      if (res.ok) {
+        setImportResults({ success: d.success || 0, failed: d.failed || 0, errors: d.errors || [] });
+        setSuccessMessage(`Imported ${d.success} users`); fetchUsers();
+        setImportFile(null); if (fileInputRef.current) fileInputRef.current.value = '';
+      } else setError(d.error || 'Import failed');
+    } catch { setError('Network error during import'); }
+    finally { setIsLoading(false); }
+  };
+
+  const downloadCSVTemplate = () => {
+    const tab = TABS.find(t => t.id === activeTab);
+    const role = tab?.role || 'student';
+    const rows = {
+      student: 'firstName,lastName,email,username,password,phone,dateOfBirth,gender,className,section,parentName,parentPhone,parentEmail\nJohn,Doe,john@example.com,johndoe,Pass1234,+234801234,2005-01-15,male,SS1,A,Jane Doe,+234808765,jane@example.com',
+      teacher: 'firstName,lastName,email,username,password,phone,dateOfBirth,gender,teacherType,coordinatorClasses,classTeacherClass,classTeacherArm\nJane,Smith,jane@example.com,janesmith,Pass1234,+234801234,1985-03-20,female,subject_teacher,,,',
+      admin:   'firstName,lastName,email,username,password,phone,dateOfBirth,gender\nAdmin,User,admin@example.com,adminuser,Pass1234,+234801234,1990-05-10,male'
+    };
+    const blob = new Blob([rows[role]], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = Object.assign(document.createElement('a'), { href: url, download: `${role}_template.csv` });
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+  };
+
+  const generatePassword = () => {
+    const c = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%';
+    setCreateForm(p => ({ ...p, password: Array.from({ length: 12 }, () => c[Math.floor(Math.random() * c.length)]).join('') }));
+  };
+
+  const toggleCoordinatorClass = (cls) =>
+    setCreateForm(p => ({
+      ...p, coordinatorClasses: p.coordinatorClasses.includes(cls)
+        ? p.coordinatorClasses.filter(c => c !== cls)
+        : [...p.coordinatorClasses, cls]
+    }));
+
+  const activeTabData = TABS.find(t => t.id === activeTab);
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  return (
+    <div className="min-h-screen bg-gray-50" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+      <div className="max-w-7xl mx-auto px-6 py-8 space-y-6">
+
+        {/* ── Page header ───────────────────────────────────────────────────── */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">User Management</h1>
+            <p className="text-gray-500 text-sm mt-1">{total} total users across all roles</p>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm"
+            >
+              <Upload className="w-4 h-4" /> Import CSV
+            </button>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-semibold hover:bg-gray-700 transition-all shadow-sm"
+            >
+              <Plus className="w-4 h-4" /> Add User
+            </button>
+          </div>
+        </div>
+
+        {/* ── Alerts ────────────────────────────────────────────────────────── */}
+        {successMessage && (
+          <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+            <div className="flex items-center gap-2 text-green-700 text-sm font-medium">
+              <CheckCircle className="w-4 h-4" /> {successMessage}
+            </div>
+            <button onClick={() => setSuccessMessage('')}><X className="w-4 h-4 text-green-500" /></button>
+          </div>
+        )}
+        {error && (
+          <div className="flex items-center justify-between bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+            <div className="flex items-center gap-2 text-red-700 text-sm font-medium">
+              <AlertTriangle className="w-4 h-4" /> {error}
+            </div>
+            <button onClick={() => setError('')}><X className="w-4 h-4 text-red-400" /></button>
+          </div>
+        )}
+
+        {/* ── Tabs + search ──────────────────────────────────────────────────── */}
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+          {/* Tabs */}
+          <div className="flex gap-1 bg-white border border-gray-200 rounded-xl p-1 shadow-sm">
+            {TABS.map(tab => {
+              const Icon = tab.icon;
+              const active = activeTab === tab.id;
+              return (
                 <button
-                  onClick={() => setShowCreateModal(false)}
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+                  key={tab.id}
+                  onClick={() => { setActiveTab(tab.id); setCurrentPage(1); }}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                    active ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                  }`}
                 >
-                  <X className="w-6 h-6" />
+                  <Icon className="w-4 h-4" />
+                  {tab.label}
                 </button>
-              </div>
+              );
+            })}
+          </div>
 
-              <form onSubmit={handleCreateUser} className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-wider">
-                      First Name *
-                    </label>
-                    <input
-                      type="text"
-                      value={createForm.firstName}
-                      onChange={(e) => setCreateForm(prev => ({ ...prev, firstName: e.target.value }))}
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-wider">
-                      Last Name *
-                    </label>
-                    <input
-                      type="text"
-                      value={createForm.lastName}
-                      onChange={(e) => setCreateForm(prev => ({ ...prev, lastName: e.target.value }))}
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
-                      required
-                    />
-                  </div>
-                </div>
+          {/* Search */}
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <input
+              type="text"
+              placeholder={`Search ${activeTabData?.label.toLowerCase()}...`}
+              value={searchQuery}
+              onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+              className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400 transition-all shadow-sm"
+            />
+          </div>
+        </div>
 
-                <div>
-                  <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-wider">
-                    Email Address *
-                  </label>
-                  <input
-                    type="email"
-                    value={createForm.email}
-                    onChange={(e) => setCreateForm(prev => ({ ...prev, email: e.target.value }))}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
-                    required
-                  />
-                </div>
+        {/* ── Cards grid ────────────────────────────────────────────────────── */}
+        {isLoading ? (
+          <div className="flex items-center justify-center py-24">
+            <div className="text-center">
+              <Loader2 className="w-8 h-8 animate-spin text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-500 text-sm font-medium">Loading {activeTabData?.label.toLowerCase()}...</p>
+            </div>
+          </div>
+        ) : users.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24 text-gray-400">
+            <Users className="w-14 h-14 mb-4 opacity-30" />
+            <p className="font-semibold text-lg text-gray-500">No {activeTabData?.label.toLowerCase()} found</p>
+            <p className="text-sm mt-1">Try adjusting your search or add a new user</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {users.map(user => (
+              <UserCard
+                key={user.id}
+                user={user}
+                onEdit={id => router.push(`/protected/admin/users/${id}/edit`)}
+                onDelete={handleDeleteUser}
+                onToggle={handleToggleStatus}
+              />
+            ))}
+          </div>
+        )}
 
-                <div>
-                  <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-wider">
-                    Username *
-                  </label>
-                  <input
-                    type="text"
-                    value={createForm.username}
-                    onChange={(e) => setCreateForm(prev => ({ ...prev, username: e.target.value }))}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
-                    required
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-wider">
-                      User Role *
-                    </label>
-                    <select
-                      value={createForm.role}
-                      onChange={(e) => setCreateForm(prev => ({ 
-                        ...prev, 
-                        role: e.target.value, 
-                        teacherType: '', 
-                        coordinatorClasses: [],
-                        classTeacherArms: [],
-                        classTeacherClass: '',  // NEW: Reset single class selection
-                        classTeacherArm: ''     // NEW: Reset single arm selection
-                      }))}
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
-                      required
-                    >
-                      <option value="student">Student</option>
-                      <option value="teacher">Teacher</option>
-                      <option value="admin">Admin</option>
-                    </select>
-                  </div>
-
-                  {createForm.role === 'teacher' && (
-                    <div>
-                      <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-wider">
-                        Teacher Type *
-                      </label>
-                      <select
-                        value={createForm.teacherType}
-                        onChange={e => setCreateForm(prev => ({ 
-                          ...prev, 
-                          teacherType: e.target.value, 
-                          coordinatorClasses: [],
-                          classTeacherArms: [],
-                          classTeacherClass: '',  // NEW: Reset single class selection
-                          classTeacherArm: ''     // NEW: Reset single arm selection
-                        }))}
-                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
-                        required
-                      >
-                        <option value="">Select type</option>
-                        <option value="coordinator">Coordinator</option>
-                        <option value="director">Director</option>
-                        <option value="class_teacher">Class Teacher</option>
-                        <option value="subject_teacher">Subject Teacher</option>
-                      </select>
-                    </div>
-                  )}
-                </div>
-
-                {/* Coordinator Classes Selection */}
-                {createForm.role === 'teacher' && createForm.teacherType === 'coordinator' && (
-                  <div>
-                    <label className="block text-sm font-black text-gray-700 mb-3 uppercase tracking-wider">
-                      Coordinator Classes *
-                    </label>
-                    <div className="grid grid-cols-3 gap-3 p-4 bg-blue-50 rounded-xl border border-blue-200">
-                      {classLevels.map(className => (
-                        <label key={className} className="flex items-center space-x-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={createForm.coordinatorClasses.includes(className)}
-                            onChange={() => handleClassToggle(className)}
-                            className="w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500"
-                          />
-                          <span className="text-sm font-bold text-blue-800">{className}</span>
-                        </label>
-                      ))}
-                    </div>
-                    {createForm.coordinatorClasses.length > 0 && (
-                      <div className="mt-2 p-2 bg-green-50 rounded-lg">
-                        <p className="text-sm text-green-700 font-medium">
-                          Selected: {createForm.coordinatorClasses.join(', ')}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Class Teacher Arms Selection */}
-                {createForm.role === 'teacher' && createForm.teacherType === 'class_teacher' && (
-                  <div className="space-y-4">
-                    <label className="block text-sm font-black text-gray-700 mb-3 uppercase tracking-wider">
-                      Assign Class Teacher To * <span className="text-red-600">(Required)</span>
-                    </label>
-                    
-                    {/* Class Selection */}
-                    <div>
-                      <label className="block text-xs font-bold text-gray-600 mb-2">
-                        Step 1: Select Class Level
-                      </label>
-                      <select
-                        value={createForm.classTeacherClass}
-                        onChange={(e) => setCreateForm(prev => ({ ...prev, classTeacherClass: e.target.value }))}
-                        className={`w-full px-4 py-3 bg-gray-50 border-2 rounded-xl text-gray-900 focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all font-medium ${
-                          !createForm.classTeacherClass ? 'border-yellow-300 bg-yellow-50' : 'border-green-300 bg-green-50'
-                        }`}
-                        required
-                      >
-                        <option value="">-- Choose a class level --</option>
-                        {availableClasses.map(cls => (
-                          <option key={cls} value={cls}>{cls}</option>
-                        ))}
-                      </select>
-                      {!createForm.classTeacherClass && (
-                        <p className="text-xs text-yellow-600 mt-1 font-medium">⚠️ Please select a class level first</p>
-                      )}
-                      {createForm.classTeacherClass && (
-                        <p className="text-xs text-green-600 mt-1 font-medium">✓ Class level selected: {createForm.classTeacherClass}</p>
-                      )}
-                    </div>
-
-                    {/* Arm Selection */}
-                    <div>
-                      <label className="block text-xs font-bold text-gray-600 mb-2">
-                        Step 2: Select Arm
-                      </label>
-                      {loadingArms ? (
-                        <div className="flex items-center justify-center p-4 bg-green-50 rounded-xl border border-green-200">
-                          <Loader2 className="w-5 h-5 animate-spin text-green-600 mr-2" />
-                          <span className="text-green-700 font-medium">Loading available arms...</span>
-                        </div>
-                      ) : (
-                        <select
-                          value={createForm.classTeacherArm}
-                          onChange={(e) => setCreateForm(prev => ({ ...prev, classTeacherArm: e.target.value }))}
-                          className={`w-full px-4 py-3 bg-gray-50 border-2 rounded-xl text-gray-900 focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all font-medium ${
-                            !createForm.classTeacherClass ? 'opacity-50 cursor-not-allowed border-gray-300' : 
-                            !createForm.classTeacherArm ? 'border-yellow-300 bg-yellow-50' : 'border-green-300 bg-green-50'
-                          }`}
-                          required
-                          disabled={!createForm.classTeacherClass}
-                        >
-                          <option value="">-- Choose an arm --</option>
-                          {availableArms.map(arm => (
-                            <option key={arm} value={arm}>{arm}</option>
-                          ))}
-                        </select>
-                      )}
-                    </div>
-
-                    {/* Selected Assignment Display */}
-                    {createForm.classTeacherClass && createForm.classTeacherArm ? (
-                      <div className="mt-4 p-6 bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl border-2 border-green-300 shadow-lg">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="flex items-center gap-2 mb-2">
-                              <CheckCircle className="w-5 h-5 text-green-600" />
-                              <p className="text-sm font-bold text-green-800">Assignment Complete!</p>
-                            </div>
-                            <p className="text-xs text-green-600 mb-2">Class Teacher will be assigned to:</p>
-                            <p className="text-3xl font-black text-green-900">
-                              {createForm.classTeacherClass} {createForm.classTeacherArm}
-                            </p>
-                          </div>
-                          <div className="w-20 h-20 bg-green-600 rounded-2xl flex items-center justify-center shadow-xl">
-                            <BookOpen className="w-10 h-10 text-white" />
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="mt-4 p-4 bg-yellow-50 rounded-xl border-2 border-yellow-300">
-                        <div className="flex items-start gap-3">
-                          <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-sm text-yellow-900 font-bold mb-1">Assignment Required</p>
-                            <p className="text-xs text-yellow-700">
-                              Please complete both steps above to assign this class teacher to a specific class and arm.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-wider">
-                    Password *
-                  </label>
-                  <div className="flex gap-3">
-                    <input
-                      type="password"
-                      value={createForm.password}
-                      onChange={(e) => setCreateForm(prev => ({ ...prev, password: e.target.value }))}
-                      className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
-                      required
-                      minLength={8}
-                    />
-                    <button
-                      type="button"
-                      onClick={generatePassword}
-                      className="px-4 py-3 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white rounded-xl transition-all font-bold shadow-lg"
-                      title="Generate secure password"
-                    >
-                      <Zap className="w-4 h-4" />
-                    </button>
-                  </div>
-                  {createForm.password && (
-                    <p className="text-xs text-gray-500 mt-1">Password: {createForm.password}</p>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-wider">
-                      Phone Number
-                    </label>
-                    <input
-                      type="tel"
-                      value={createForm.phone}
-                      onChange={(e) => setCreateForm(prev => ({ ...prev, phone: e.target.value }))}
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-wider">
-                      Gender
-                    </label>
-                    <select
-                      value={createForm.gender}
-                      onChange={(e) => setCreateForm(prev => ({ ...prev, gender: e.target.value }))}
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
-                    >
-                      <option value="">Select gender</option>
-                      <option value="male">Male</option>
-                      <option value="female">Female</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex gap-4 mt-8">
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateModal(false)}
-                    className="flex-1 px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-all font-bold"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl transition-all font-bold flex items-center justify-center gap-2 shadow-xl"
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Creating...
-                      </>
-                    ) : (
-                      <>
-                        <UserPlus className="w-4 h-4" />
-                        Create User
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
+        {/* ── Pagination ────────────────────────────────────────────────────── */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between pt-2">
+            <p className="text-sm text-gray-500">
+              Page <span className="font-semibold text-gray-700">{currentPage}</span> of {totalPages} · {total} total
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
+              >
+                <ChevronLeft className="w-4 h-4" /> Prev
+              </button>
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
+              >
+                Next <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
           </div>
         )}
       </div>
+
+      {/* ── Import Modal ──────────────────────────────────────────────────────── */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Import from CSV</h2>
+                <p className="text-sm text-gray-500 mt-0.5">Bulk import {activeTabData?.label.toLowerCase()}</p>
+              </div>
+              <button onClick={() => { setShowImportModal(false); setImportFile(null); setImportResults(null); }} className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
+                <div className="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center shrink-0">
+                  <FileText className="w-4 h-4 text-blue-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-800">Download the template first</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Ensure your CSV matches the required format</p>
+                </div>
+                <button onClick={downloadCSVTemplate} className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors">
+                  <Download className="w-3.5 h-3.5" /> Template
+                </button>
+              </div>
+
+              <label htmlFor="csv-upload" className="flex flex-col items-center justify-center gap-3 p-8 border-2 border-dashed border-gray-200 rounded-xl cursor-pointer hover:border-gray-300 hover:bg-gray-50 transition-all">
+                <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
+                  <Upload className="w-5 h-5 text-gray-500" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-semibold text-gray-700">{importFile ? importFile.name : 'Click to select CSV file'}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{importFile ? 'Ready to import' : 'or drag and drop here'}</p>
+                </div>
+                <input ref={fileInputRef} id="csv-upload" type="file" accept=".csv" onChange={e => {
+                  const f = e.target.files[0];
+                  f?.type === 'text/csv' ? setImportFile(f) : setError('Please select a valid CSV file');
+                }} className="hidden" />
+              </label>
+
+              {importResults && (
+                <div className="p-4 bg-green-50 rounded-xl border border-green-100">
+                  <p className="text-sm font-semibold text-green-800 mb-1">Import complete</p>
+                  <p className="text-sm text-green-700">✓ {importResults.success} users imported successfully</p>
+                  {importResults.failed > 0 && <p className="text-sm text-red-600 mt-0.5">✗ {importResults.failed} failed</p>}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 px-6 pb-6">
+              <button onClick={() => { setShowImportModal(false); setImportFile(null); setImportResults(null); }} className="flex-1 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition-colors">
+                {importResults ? 'Close' : 'Cancel'}
+              </button>
+              {!importResults && (
+                <button onClick={handleImportCSV} disabled={!importFile || isLoading} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-900 hover:bg-gray-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-colors">
+                  {isLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Importing...</> : <><Upload className="w-4 h-4" /> Import</>}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Create User Modal ──────────────────────────────────────────────────── */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl z-10">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Create New User</h2>
+                <p className="text-sm text-gray-500 mt-0.5">Add a new account to the system</p>
+              </div>
+              <button onClick={() => setShowCreateModal(false)} className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateUser} className="p-6 space-y-4">
+              {/* Name */}
+              <div className="grid grid-cols-2 gap-3">
+                {[['firstName','First Name'],['lastName','Last Name']].map(([f, l]) => (
+                  <Field key={f} label={l} required>
+                    <input type="text" value={createForm[f]} onChange={e => setCreateForm(p => ({ ...p, [f]: e.target.value }))} className={inputCls} required />
+                  </Field>
+                ))}
+              </div>
+
+              <Field label="Email" required>
+                <input type="email" value={createForm.email} onChange={e => setCreateForm(p => ({ ...p, email: e.target.value }))} className={inputCls} required />
+              </Field>
+
+              <Field label="Username" required>
+                <input type="text" value={createForm.username} onChange={e => setCreateForm(p => ({ ...p, username: e.target.value }))} className={inputCls} required />
+              </Field>
+
+              {/* Role + teacher type */}
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Role" required>
+                  <select value={createForm.role} onChange={e => setCreateForm({ ...EMPTY_FORM, role: e.target.value })} className={selectCls} required>
+                    <option value="student">Student</option>
+                    <option value="teacher">Teacher</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </Field>
+                {createForm.role === 'teacher' && (
+                  <Field label="Teacher Type" required>
+                    <select value={createForm.teacherType} onChange={e => setCreateForm(p => ({ ...p, teacherType: e.target.value, coordinatorClasses: [], classTeacherClass: '', classTeacherArm: '' }))} className={selectCls} required>
+                      <option value="">Select type</option>
+                      <option value="coordinator">Coordinator</option>
+                      <option value="director">Director</option>
+                      <option value="class_teacher">Class Teacher</option>
+                      <option value="subject_teacher">Subject Teacher</option>
+                    </select>
+                  </Field>
+                )}
+              </div>
+
+              {/* Coordinator classes */}
+              {createForm.role === 'teacher' && createForm.teacherType === 'coordinator' && (
+                <div>
+                  <Field label="Coordinator Classes" required>
+                    <div className="grid grid-cols-3 gap-2 mt-1">
+                      {CLASS_LEVELS.map(cls => (
+                        <label key={cls} className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-all text-sm font-medium ${
+                          createForm.coordinatorClasses.includes(cls) ? 'bg-gray-900 border-gray-900 text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                        }`}>
+                          <input type="checkbox" checked={createForm.coordinatorClasses.includes(cls)} onChange={() => toggleCoordinatorClass(cls)} className="sr-only" />
+                          {cls}
+                        </label>
+                      ))}
+                    </div>
+                  </Field>
+                </div>
+              )}
+
+              {/* Class teacher */}
+              {createForm.role === 'teacher' && createForm.teacherType === 'class_teacher' && (
+                <div className="space-y-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Class Assignment</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Class Level" required>
+                      <select value={createForm.classTeacherClass} onChange={e => setCreateForm(p => ({ ...p, classTeacherClass: e.target.value }))} className={selectCls} required>
+                        <option value="">Select class</option>
+                        {CLASS_LEVELS.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Arm" required>
+                      {loadingArms ? (
+                        <div className="flex items-center gap-2 px-3.5 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-400">
+                          <Loader2 className="w-4 h-4 animate-spin" /> Loading...
+                        </div>
+                      ) : (
+                        <select value={createForm.classTeacherArm} onChange={e => setCreateForm(p => ({ ...p, classTeacherArm: e.target.value }))} className={`${selectCls} ${!createForm.classTeacherClass ? 'opacity-50 cursor-not-allowed' : ''}`} required disabled={!createForm.classTeacherClass}>
+                          <option value="">Select arm</option>
+                          {availableArms.map(a => <option key={a} value={a}>{a}</option>)}
+                        </select>
+                      )}
+                    </Field>
+                  </div>
+                  {createForm.classTeacherClass && createForm.classTeacherArm && (
+                    <div className="flex items-center gap-2 p-3 bg-emerald-50 rounded-lg border border-emerald-100">
+                      <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <p className="text-sm font-semibold text-emerald-700">
+                        Assigned to: {createForm.classTeacherClass} {createForm.classTeacherArm}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Password */}
+              <Field label="Password" required>
+                <div className="flex gap-2">
+                  <input type="text" value={createForm.password} onChange={e => setCreateForm(p => ({ ...p, password: e.target.value }))} className={`${inputCls} flex-1 font-mono`} required minLength={8} placeholder="Min. 8 characters" />
+                  <button type="button" onClick={generatePassword} className="px-3 py-2.5 bg-gray-900 text-white rounded-xl hover:bg-gray-700 transition-colors" title="Generate">
+                    <Zap className="w-4 h-4" />
+                  </button>
+                </div>
+              </Field>
+
+              {/* Phone + Gender */}
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Phone">
+                  <input type="tel" value={createForm.phone} onChange={e => setCreateForm(p => ({ ...p, phone: e.target.value }))} className={inputCls} />
+                </Field>
+                <Field label="Gender">
+                  <select value={createForm.gender} onChange={e => setCreateForm(p => ({ ...p, gender: e.target.value }))} className={selectCls}>
+                    <option value="">Select</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </Field>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowCreateModal(false)} className="flex-1 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition-colors">
+                  Cancel
+                </button>
+                <button type="submit" disabled={createLoading} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-900 hover:bg-gray-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-colors">
+                  {createLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Creating...</> : <><UserPlus className="w-4 h-4" /> Create User</>}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
-};
-
-export default AdminUsersPage;
+}pre

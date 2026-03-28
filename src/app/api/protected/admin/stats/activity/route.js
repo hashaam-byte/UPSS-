@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request) {
   try {
-    const user = await requireAuth(['admin']);
+    const user = await requireAuth(['ADMIN']);
 
     // Get recent activities for the school
     const recentUsers = await prisma.user.findMany({

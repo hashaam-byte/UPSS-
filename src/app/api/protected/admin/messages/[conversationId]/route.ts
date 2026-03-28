@@ -8,12 +8,12 @@ export async function GET(
   context: { params: Promise<{ conversationId: string }> }
 ) {
   try {
-    const user = await requireAuth(['admin']);
+    const user = await requireAuth(['ADMIN']);
     const { conversationId } = await context.params;
 
     let messages;
 
-    if (conversationId === 'headadmin') {
+    if (conversationId === 'HEADADMIN') {
       // Messages with head admin (fromUserId is null for head admin messages)
       messages = await prisma.message.findMany({
         where: {
@@ -70,7 +70,7 @@ export async function GET(
     }
 
     // Mark messages as read
-    if (conversationId === 'headadmin') {
+    if (conversationId === 'HEADADMIN') {
       await prisma.message.updateMany({
         where: {
           schoolId: user.schoolId,

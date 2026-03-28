@@ -24,8 +24,7 @@ export async function GET() {
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     const session = await prisma.userSession.findFirst({
       where: {
-        tokenHash,
-        isActive: true,
+        tokenHash: tokenHash,
         expiresAt: {
           gt: new Date()
         }
@@ -41,11 +40,11 @@ export async function GET() {
 
     // Determine what to include based on decoded role
     const includeOptions = {
-      school: decoded.role !== 'headadmin',
-      studentProfile: decoded.role === 'student',
-      teacherProfile: decoded.role === 'teacher' || 
+      school: decoded.role !== 'HEADADMIN',
+      studentProfile: decoded.role === 'STUDENT',
+      teacherProfile: decoded.role === 'TEACHER' || 
                     ['director', 'coordinator', 'class_teacher', 'subject_teacher'].includes(decoded.role),
-      adminProfile: decoded.role === 'admin' ? {
+      adminProfile: decoded.role === 'ADMIN' ? {
         include: { permissions: true }
       } : false
     };
@@ -58,9 +57,8 @@ export async function GET() {
     
     if (!user || !user.isActive) {
       // Invalidate session if user not found or inactive
-      await prisma.userSession.update({
-        where: { id: session.id },
-        data: { isActive: false }
+      await prisma.userSession.delete({
+        where: { id: session.id }
       });
       
       return NextResponse.json(
@@ -70,7 +68,7 @@ export async function GET() {
     }
 
     // For head admin, skip school checks
-    if (decoded.role === 'headadmin') {
+    if (decoded.role === 'HEADADMIN') {
       return NextResponse.json({
         authenticated: true,
         user: {
@@ -89,9 +87,8 @@ export async function GET() {
 
     // Check if school is still active (for non-head admins)
     if (!user.school?.isActive) {
-      await prisma.userSession.update({
-        where: { id: session.id },
-        data: { isActive: false }
+      await prisma.userSession.delete({
+        where: { id: session.id }
       });
       
       return NextResponse.json(
@@ -103,11 +100,11 @@ export async function GET() {
     // Determine redirect URL based on actual user role and subdivisions
     let redirectTo = '/protected/dashboard';
     
-    if (user.role === 'student') {
+    if (user.role === 'STUDENT') {
       redirectTo = '/protected/students';
-    } else if (user.role === 'admin') {
+    } else if (user.role === 'ADMIN') {
       redirectTo = '/protected/admin';
-    } else if (user.role === 'teacher') {
+    } else if (user.role === 'TEACHER') {
       // Handle teacher subdivisions based on their department
       const teacherProfile = user.teacherProfile;
       if (teacherProfile?.department) {

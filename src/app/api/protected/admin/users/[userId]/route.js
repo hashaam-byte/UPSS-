@@ -6,12 +6,12 @@ import bcrypt from 'bcryptjs';
 
 export async function GET(request, { params }) {
   try {
-    const currentUser = await requireAuth(['admin', 'headadmin']);
+    const currentUser = await requireAuth(['ADMIN', 'HEADADMIN']);
     const { userId } = params;
 
     // Build where clause for access control
     const where = { id: userId };
-    if (currentUser.role === 'admin') {
+    if (currentUser.role === 'ADMIN') {
       where.schoolId = currentUser.school.id;
     }
 
@@ -74,7 +74,7 @@ export async function GET(request, { params }) {
 
 export async function PUT(request, { params }) {
   try {
-    const currentUser = await requireAuth(['admin', 'headadmin']);
+    const currentUser = await requireAuth(['ADMIN', 'HEADADMIN']);
     const { userId } = params;
     const body = await request.json();
 
@@ -97,7 +97,7 @@ export async function PUT(request, { params }) {
 
     // Verify user exists and admin has access
     const where = { id: userId };
-    if (currentUser.role === 'admin') {
+    if (currentUser.role === 'ADMIN') {
       where.schoolId = currentUser.school.id;
     }
 
@@ -124,7 +124,7 @@ export async function PUT(request, { params }) {
     }
 
     // Validate teacher-specific requirements
-    if (role === 'teacher') {
+    if (role === 'TEACHER') {
       const validClasses = ['JSS1', 'JSS2', 'JSS3', 'SS1', 'SS2', 'SS3'];
       
       // Validate coordinator requirements
@@ -172,7 +172,7 @@ export async function PUT(request, { params }) {
       const emailConflict = await prisma.user.findFirst({
         where: {
           email: email.toLowerCase(),
-          schoolId: currentUser.role === 'admin' ? currentUser.school.id : existingUser.schoolId,
+          schoolId: currentUser.role === 'ADMIN' ? currentUser.school.id : existingUser.schoolId,
           NOT: { id: userId }
         }
       });
@@ -190,7 +190,7 @@ export async function PUT(request, { params }) {
       const usernameConflict = await prisma.user.findFirst({
         where: {
           username: username.toLowerCase(),
-          schoolId: currentUser.role === 'admin' ? currentUser.school.id : existingUser.schoolId,
+          schoolId: currentUser.role === 'ADMIN' ? currentUser.school.id : existingUser.schoolId,
           NOT: { id: userId }
         }
       });
@@ -225,7 +225,7 @@ export async function PUT(request, { params }) {
       });
 
       // Handle role-specific profile updates
-      if (role === 'student' && !existingUser.studentProfile) {
+      if (role === 'STUDENT' && !existingUser.studentProfile) {
         console.log('Creating student profile for updated user:', userId);
         await tx.studentProfile.create({
           data: {
@@ -234,7 +234,7 @@ export async function PUT(request, { params }) {
             admissionDate: new Date()
           }
         });
-      } else if (role === 'admin' && !existingUser.adminProfile) {
+      } else if (role === 'ADMIN' && !existingUser.adminProfile) {
         console.log('Creating admin profile for updated user:', userId);
         await tx.adminProfile.create({
           data: {
@@ -245,7 +245,7 @@ export async function PUT(request, { params }) {
       }
 
       // Handle teacher profile updates
-      if (role === 'teacher' || existingUser.role === 'teacher') {
+      if (role === 'TEACHER' || existingUser.role === 'TEACHER') {
         console.log('Handling teacher profile updates for:', userId);
         
         const teacherProfile = await tx.teacherProfile.upsert({
@@ -267,7 +267,7 @@ export async function PUT(request, { params }) {
           where: { teacherId: teacherProfile.id }
         });
 
-        const schoolId = currentUser.role === 'admin' ? currentUser.school.id : existingUser.schoolId;
+        const schoolId = currentUser.role === 'ADMIN' ? currentUser.school.id : existingUser.schoolId;
 
         // Handle coordinator class assignments
         if (teacherType === 'coordinator' && coordinatorClasses.length > 0) {
@@ -440,12 +440,12 @@ export async function PUT(request, { params }) {
 
 export async function DELETE(request, { params }) {
   try {
-    const currentUser = await requireAuth(['admin', 'headadmin']);
+    const currentUser = await requireAuth(['ADMIN', 'HEADADMIN']);
     const { userId } = params;
 
     // Build where clause for access control
     const where = { id: userId };
-    if (currentUser.role === 'admin') {
+    if (currentUser.role === 'ADMIN') {
       where.schoolId = currentUser.school.id;
     }
 
