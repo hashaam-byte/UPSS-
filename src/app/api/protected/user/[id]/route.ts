@@ -6,6 +6,10 @@ import { prisma } from '@/lib/prisma';
 // ─── GET /api/protected/headadmin/users/[id] ─────────────────────────────────
 interface Params { id: string; }
 
+interface RouteContext {
+    params: Promise<Params>;
+}
+
 type JsonRecord = Record<string, unknown>;
 
 interface Caller {
