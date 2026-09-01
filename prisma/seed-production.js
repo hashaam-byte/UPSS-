@@ -3,77 +3,9 @@
 
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
-const readline = require('readline');
 
 const prisma = new PrismaClient();
-
-// ============================================================================
-// UTILITY: Prompt user for password input (hidden)
-// ============================================================================
-function promptPassword(label) {
-  return new Promise((resolve) => {
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stderr,
-    });
-
-    process.stderr.write(`🔑 Enter password for ${label}: `);
-
-    if (process.stdin.isTTY) {
-      process.stdin.setRawMode(true);
-    }
-
-    let password = '';
-
-    const onData = (char) => {
-      char = char.toString();
-
-      if (char === '\n' || char === '\r' || char === '\u0004') {
-        if (process.stdin.isTTY) process.stdin.setRawMode(false);
-        process.stderr.write('\n');
-        process.stdin.removeListener('data', onData);
-        rl.close();
-        resolve(password);
-      } else if (char === '\u0003') {
-        process.stderr.write('\n❌ Aborted.\n');
-        process.exit(1);
-      } else if (char === '\u007f' || char === '\b') {
-        if (password.length > 0) {
-          password = password.slice(0, -1);
-          process.stderr.write('\b \b');
-        }
-      } else {
-        password += char;
-        process.stderr.write('*');
-      }
-    };
-
-    if (process.stdin.isTTY) {
-      process.stdin.resume();
-      process.stdin.on('data', onData);
-    } else {
-      rl.question('', (answer) => {
-        rl.close();
-        resolve(answer);
-      });
-    }
-  });
-}
-
-async function confirmPassword(label) {
-  while (true) {
-    const pass1 = await promptPassword(label);
-    const pass2 = await promptPassword(`${label} (confirm)`);
-    if (pass1 === pass2) {
-      if (pass1.length < 8) {
-        console.error('⚠️  Password must be at least 8 characters. Try again.');
-        continue;
-      }
-      return pass1;
-    }
-    console.error('⚠️  Passwords do not match. Try again.');
-  }
-}
+const DEFAULT_PASSWORD = 'hashaam2009@';
 
 async function main() {
   console.log('🌱 Starting Production Database Seeding...\n');
@@ -103,15 +35,15 @@ async function main() {
   console.log('✅ Database cleared.\n');
 
   // ============================================================================
-  // COLLECT ALL PASSWORDS UPFRONT
+  // USE ONE DEFAULT PASSWORD FOR ALL SEEDED ACCOUNTS
   // ============================================================================
-  console.log('📋 Please set passwords for all accounts before seeding begins:\n');
+  console.log(`📋 Using the default password for all seeded accounts: ${DEFAULT_PASSWORD}\n`);
 
-  const headAdminPassword   = await confirmPassword('Head Admin (hashcody63@gmail.com)');
-  const schoolAdminPassword = await confirmPassword('School Admin (admin@test.edu)');
-  const directorPassword    = await confirmPassword('Directors (JS & SS — shared password)');
+  const headAdminPassword   = DEFAULT_PASSWORD;
+  const schoolAdminPassword = DEFAULT_PASSWORD;
+  const directorPassword    = DEFAULT_PASSWORD;
 
-  console.log('\n✅ All passwords collected. Starting seed...\n');
+  console.log('✅ Default password applied. Starting seed...\n');
 
   // ============================================================================
   // 1. CREATE HEAD ADMIN
@@ -729,11 +661,11 @@ async function main() {
   console.log('═══════════════════════════════════════════════════════════');
   console.log('📊 PRODUCTION SETUP COMPLETE');
   console.log('═══════════════════════════════════════════════════════════');
-  console.log(`✅ Head Admin:   hashcody63@gmail.com       (password: as entered)`);
+  console.log(`✅ Head Admin:   hashcody63@gmail.com       (password: ${DEFAULT_PASSWORD})`);
   console.log(`✅ School:       ${firstSchool.name}`);
-  console.log(`✅ Admin:        admin@test.edu             (password: as entered)`);
-  console.log(`✅ JS Director:  js.director@test.edu       (password: as entered)`);
-  console.log(`✅ SS Director:  ss.director@test.edu       (password: as entered)`);
+  console.log(`✅ Admin:        admin@test.edu             (password: ${DEFAULT_PASSWORD})`);
+  console.log(`✅ JS Director:  js.director@test.edu       (password: ${DEFAULT_PASSWORD})`);
+  console.log(`✅ SS Director:  ss.director@test.edu       (password: ${DEFAULT_PASSWORD})`);
   console.log(`✅ Streams:      3 (Science, Arts, Commercial)`);
   console.log(`✅ Subjects:     All core and stream subjects created`);
   console.log('\n⚠️  IMPORTANT NEXT STEPS:');

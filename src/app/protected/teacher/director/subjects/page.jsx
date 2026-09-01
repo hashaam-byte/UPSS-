@@ -5,10 +5,10 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import SubjectCatalogTable from '@/components/director/SubjectCatalogTable';
-import CreateSubjectModal from '@/components/director/CreateSubjectModal';
-import SubjectStatsCards from '@/components/director/SubjectStatsCards';
-import StreamManagement from '@/components/director/StreamManagement';
+import SubjectCatalogTable from '@/Components/director/SubjectCatalogTable';
+import CreateSubjectModal from '@/Components/director/CreateSubjectModal';
+import SubjectStatsCards from '@/Components/director/SubjectStatsCards';
+import StreamManagement from '@/Components/director/StreamManagement';
 
 export default function DirectorSubjectsDashboard() {
   const router = useRouter();

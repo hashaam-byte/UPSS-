@@ -1,6 +1,6 @@
 'use client';
 
-import TeacherAssignmentManager from '@/components/admin/TeacherAssignmentManager';
+import TeacherAssignmentManager from '@/Components/admin/TeacherAssignmentManager';
 
 export default function TeacherAssignmentsPage() {
   return (

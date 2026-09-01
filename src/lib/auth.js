@@ -144,6 +144,36 @@ export async function requireAuth(allowedRoles = []) {
   return user;
 }
 
+export async function verifyAuth(request) {
+  try {
+    const user = await getCurrentUser();
+
+    if (!user) {
+      return {
+        valid: false,
+        isAuthenticated: false,
+        user: null,
+        userId: null,
+      };
+    }
+
+    return {
+      valid: true,
+      isAuthenticated: true,
+      user,
+      userId: user.id,
+    };
+  } catch (error) {
+    return {
+      valid: false,
+      isAuthenticated: false,
+      user: null,
+      userId: null,
+      error: error.message,
+    };
+  }
+}
+
 export function generateSecureToken(length = 32) {
   return crypto.randomBytes(length).toString('hex');
 }
