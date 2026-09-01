@@ -6,53 +6,55 @@ import { prisma } from '@/lib/prisma';
 // ─── GET /api/protected/headadmin/users/[id] ─────────────────────────────────
 interface Params { id: string; }
 
+type JsonRecord = Record<string, unknown>;
+
 interface Caller {
     id: string;
     role: 'HEADADMIN' | 'ADMIN' | 'TEACHER' | 'STUDENT' | string;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 interface Class {
     id: string;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 interface StudentProfile {
     id: string;
     class?: Class | null;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 interface Subject {
     id: string;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 interface TeacherSubject {
     isActive?: boolean;
     subject?: Subject | null;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 interface TeacherProfile {
     id: string;
     teacherSubjects?: TeacherSubject[];
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 interface AdminPermission {
     id: string;
     module?: string;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 interface AdminProfile {
     id: string;
     permissions?: AdminPermission[];
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
-interface Settings { [key: string]: any }
+interface Settings { [key: string]: unknown }
 
 interface UserCount {
     sessions?: number;
@@ -64,13 +66,13 @@ interface User {
     passwordHash?: string | null;
     emailVerificationToken?: string | null;
     passwordResetToken?: string | null;
-    school?: any;
+    school?: JsonRecord | null;
     studentProfile?: StudentProfile | null;
     teacherProfile?: TeacherProfile | null;
     adminProfile?: AdminProfile | null;
     settings?: Settings | null;
     _count?: UserCount;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 export async function GET(request: Request, { params }: { params: Params }): Promise<NextResponse> {
@@ -135,15 +137,17 @@ export async function GET(request: Request, { params }: { params: Params }): Pro
             user: safeUser
         });
 
-    } catch (error: any) {
-        if (error.message === 'Authentication required') {
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+
+        if (message === 'Authentication required') {
             return NextResponse.json(
                 { error: 'Authentication required' },
                 { status: 401 }
             );
         }
 
-        if (error.message === 'Access denied') {
+        if (message === 'Access denied') {
             return NextResponse.json(
                 { error: 'Access denied' },
                 { status: 403 }
@@ -167,11 +171,11 @@ interface AdminPermissionInput {
     canUpdate?: boolean;
     canDelete?: boolean;
     actions?: string[];
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 interface ProfileData {
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 interface PatchBody {
@@ -185,7 +189,7 @@ interface PatchBody {
     isActive?: boolean;
     profileData?: ProfileData | null;
     permissions?: AdminPermissionInput[] | null;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 interface ExistingUserProfiles {
@@ -194,7 +198,7 @@ interface ExistingUserProfiles {
     adminProfile?: { id: string } | null;
     teacherProfile?: { id: string } | null;
     studentProfile?: { id: string } | null;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 export async function PATCH(request: Request, { params }: { params: Params }): Promise<NextResponse> {
@@ -242,7 +246,7 @@ export async function PATCH(request: Request, { params }: { params: Params }): P
         }
 
         // Build base user update — only include fields that were sent
-        const userUpdateData: Record<string, any> = {};
+        const userUpdateData: Record<string, unknown> = {};
         if (firstName  !== undefined) userUpdateData.firstName  = firstName?.trim();
         if (lastName   !== undefined) userUpdateData.lastName   = lastName?.trim();
         if (email      !== undefined) userUpdateData.email      = email?.trim();
@@ -334,15 +338,17 @@ export async function PATCH(request: Request, { params }: { params: Params }): P
             }
         });
 
-    } catch (error: any) {
-        if (error.message === 'Authentication required') {
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+
+        if (message === 'Authentication required') {
             return NextResponse.json(
                 { error: 'Authentication required' },
                 { status: 401 }
             );
         }
 
-        if (error.message === 'Access denied') {
+        if (message === 'Access denied') {
             return NextResponse.json(
                 { error: 'Access denied' },
                 { status: 403 }
@@ -412,15 +418,17 @@ export async function DELETE(request: Request, { params }: { params: Params }): 
       message: 'User deactivated successfully'
     });
 
-  } catch (error: any) {
-    if (error.message === 'Authentication required') {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+
+    if (message === 'Authentication required') {
       return NextResponse.json(
         { error: 'Authentication required' },
         { status: 401 }
       );
     }
 
-    if (error.message === 'Access denied') {
+    if (message === 'Access denied') {
       return NextResponse.json(
         { error: 'Access denied' },
         { status: 403 }

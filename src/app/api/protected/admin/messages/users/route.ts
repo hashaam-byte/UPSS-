@@ -41,11 +41,11 @@ export async function GET(request: NextRequest) {
     });
 
     // Build the id filter - only include notIn if there are chatted users
-    const idFilter: any = {
+    const idFilter: { not: string; notIn?: string[] } = {
       not: user.id // Exclude current user
     };
     
-    const chattedUserArray = Array.from(chattedUserIds).filter(id => id != null);
+    const chattedUserArray = Array.from(chattedUserIds).filter((id): id is string => typeof id === 'string' && id.length > 0);
     if (chattedUserArray.length > 0) {
       idFilter.notIn = chattedUserArray;
     }

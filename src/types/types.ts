@@ -98,8 +98,8 @@ export interface SubjectSelectionHistory {
   action: SelectionAction;
   previousStream: StreamType | null;
   newStream: StreamType | null;
-  previousSubjects: any; // JSON
-  newSubjects: any; // JSON
+  previousSubjects: unknown;
+  newSubjects: unknown;
   modifiedBy: string;
   modifiedByRole: string;
   reason: string | null;
