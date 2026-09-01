@@ -75,7 +75,7 @@ interface User {
     [key: string]: unknown;
 }
 
-export async function GET(request: Request, { params }: { params: Params }): Promise<NextResponse> {
+export async function GET(request: Request, { params }: RouteContext): Promise<NextResponse> {
     try {
         const caller: Caller = await requireAuth();
 
@@ -86,7 +86,7 @@ export async function GET(request: Request, { params }: { params: Params }): Pro
             );
         }
 
-        const { id } = params;
+        const { id } = await params;
 
         const user: User | null = await prisma.user.findUnique({
             where: { id },
@@ -201,7 +201,7 @@ interface ExistingUserProfiles {
     [key: string]: unknown;
 }
 
-export async function PATCH(request: Request, { params }: { params: Params }): Promise<NextResponse> {
+export async function PATCH(request: Request, { params }: RouteContext): Promise<NextResponse> {
     try {
         const caller: Caller = await requireAuth();
 
@@ -212,7 +212,7 @@ export async function PATCH(request: Request, { params }: { params: Params }): P
             );
         }
 
-        const { id } = params;
+        const { id } = await params;
         const body: PatchBody = await request.json();
 
         const {
@@ -365,7 +365,7 @@ export async function PATCH(request: Request, { params }: { params: Params }): P
 
 // ─── DELETE /api/protected/headadmin/users/[id] ──────────────────────────────
 // Soft delete by default. Pass ?hard=true for permanent deletion.
-export async function DELETE(request: Request, { params }: { params: Params }): Promise<NextResponse> {
+export async function DELETE(request: Request, { params }: RouteContext): Promise<NextResponse> {
   try {
     const caller = await requireAuth();
 
@@ -376,7 +376,7 @@ export async function DELETE(request: Request, { params }: { params: Params }): 
       );
     }
 
-    const { id } = params;
+    const { id } = await params;
     const { searchParams } = new URL(request.url);
     const hard = searchParams.get('hard') === 'true';
 
