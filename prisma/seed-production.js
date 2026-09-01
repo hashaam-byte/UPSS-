@@ -577,9 +577,9 @@ async function main() {
 
   await prisma.adminProfile.create({
     data: {
-      user: { connect: { id: adminUser.id } },
-      firstName: 'School',
-      lastName: 'Administrator',
+      userId: adminUser.id,
+      employeeId: 'ADM-001',
+      department: 'Administration',
       phone: '+234-000-899-0978',
     },
   });
@@ -609,15 +609,15 @@ async function main() {
 
   await prisma.teacherProfile.create({
     data: {
-      user: { connect: { id: jsDirectorUser.id } },
-      firstName: 'JS',
-      lastName: 'Director',
+      userId: jsDirectorUser.id,
       employeeId: 'DIR-JS-001',
       department: 'Junior Secondary',
       teacherRole: 'DIRECTOR',
       levelSpecialization: 'JUNIOR',
+      canTeachStreams: ['SCIENCE', 'ARTS', 'COMMERCIAL'],
       qualification: 'M.Ed',
       experienceYears: 15,
+      phone: '+234-800-111-0001',
     },
   });
 
@@ -639,9 +639,7 @@ async function main() {
 
   await prisma.teacherProfile.create({
     data: {
-      user: { connect: { id: ssDirectorUser.id } },
-      firstName: 'SS',
-      lastName: 'Director',
+      userId: ssDirectorUser.id,
       employeeId: 'DIR-SS-001',
       department: 'Senior Secondary',
       teacherRole: 'DIRECTOR',
@@ -649,6 +647,7 @@ async function main() {
       canTeachStreams: ['SCIENCE', 'ARTS', 'COMMERCIAL'],
       qualification: 'Ph.D',
       experienceYears: 20,
+      phone: '+234-800-111-0002',
     },
   });
 
