@@ -104,7 +104,5 @@ export async function POST(request: NextRequest) {
       { error: 'Failed to send broadcast message' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
-  }
+}
 }

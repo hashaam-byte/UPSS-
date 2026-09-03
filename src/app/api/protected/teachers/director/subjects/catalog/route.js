@@ -179,7 +179,5 @@ export async function GET(request) {
       { success: false, error: 'Failed to fetch subjects.', details: error.message },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
-  }
+}
 }

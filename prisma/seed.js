@@ -1,4 +1,4 @@
-// UPSS Phase 1 - Comprehensive Seed Script (FIXED)
+// U-Plus - Comprehensive Seed Script
 // This script populates the database with initial data for testing
 
 const { PrismaClient } = require('@prisma/client');
@@ -17,12 +17,12 @@ async function main() {
   const hashedHeadAdminPassword = await bcrypt.hash('HeadAdmin@123', 10);
   
   const headAdmin = await prisma.user.upsert({
-    where: { email: 'headadmin@upss.com' },
+    where: { email: 'headadmin@uplus.com' },
     update: {},
     create: {
       firstName: 'Head',
       lastName: 'ADMIN',
-      email: 'headadmin@upss.com',
+      email: 'headadmin@uplus.com',
       passwordHash: hashedHeadAdminPassword,
       role: 'HEADADMIN',
       isEmailVerified: true,
@@ -785,7 +785,7 @@ async function main() {
   console.log('═══════════════════════════════════════════════════════════');
   console.log('📊 SEEDING SUMMARY');
   console.log('═══════════════════════════════════════════════════════════');
-  console.log(`✅ Head Admin: headadmin@upss.com (Password: HeadAdmin@123)`);
+  console.log(`✅ Head Admin: headadmin@uplus.com (Password: HeadAdmin@123)`);
   console.log(`✅ School: ${demoSchool.name}`);
   console.log(`✅ Admin: admin@demoschool.edu (Password: Demo@123)`);
   console.log(`✅ JS Director: js.director@demoschool.edu (Password: Demo@123)`);

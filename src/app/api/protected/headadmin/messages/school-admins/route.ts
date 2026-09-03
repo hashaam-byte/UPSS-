@@ -55,7 +55,5 @@ export async function GET() {
       { error: 'Failed to fetch school admins' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
-  }
+}
 }

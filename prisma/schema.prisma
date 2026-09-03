@@ -1,4 +1,4 @@
-// UPSS - Combined Prisma Schema
+// U-Plus - Combined Prisma Schema
 // Merged from Schema 1 (Subject Selection System) + Schema 2 (Production Schema)
 // Generated: 2026-02-22
 
@@ -487,6 +487,7 @@ model UserSettings {
   showPerformance       Boolean  @default(false) @map("show_performance")
   theme                 String   @default("light") @db.VarChar(20)
   language              String   @default("en")    @db.VarChar(10)
+  preferences           Json?    @default("{}")
   createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz
 

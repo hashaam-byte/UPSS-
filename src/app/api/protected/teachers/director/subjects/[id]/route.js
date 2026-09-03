@@ -200,9 +200,7 @@ export async function PUT(request, { params }) {
       },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
-  }
+}
 }
 
 // DELETE subject
@@ -341,7 +339,5 @@ export async function DELETE(request, { params }) {
       },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
-  }
+}
 }

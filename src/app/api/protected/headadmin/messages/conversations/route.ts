@@ -101,7 +101,5 @@ export async function GET() {
       { error: 'Failed to fetch conversations' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
-  }
+}
 }

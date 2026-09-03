@@ -1,5 +1,5 @@
 // TypeScript Type Definitions for Subject Selection System
-// UPSS Phase 1
+// U-Plus Phase 1
 
 export type Role = 'STUDENT' | 'TEACHER' | 'ADMIN' | 'HEADADMIN';
 

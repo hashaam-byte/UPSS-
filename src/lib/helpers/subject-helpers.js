@@ -1,5 +1,5 @@
 // Subject Selection Helper Functions
-// UPSS Phase 1 - Utility Functions for Subject Selection System
+// U-Plus - Utility Functions for Subject Selection System
 
 
 /**

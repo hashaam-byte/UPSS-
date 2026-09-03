@@ -73,66 +73,53 @@ export async function GET(request) {
       return normalizedAssignedClasses.includes(normalizedStudentClass);
     });
 
-    // TODO: In production, this would query an actual attendance table
-    // For now, generate mock attendance data
-    const mockAttendanceData = students.map(student => {
-      const attendanceRecords = [];
-      
-      if (startDate && endDate) {
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        const currentDate = new Date(start);
-        
-        while (currentDate <= end) {
-          if (currentDate.getDay() !== 0 && currentDate.getDay() !== 6) {
-            const status = Math.random() > 0.15 ? 'present' : 
-                         Math.random() > 0.7 ? 'late' : 'absent';
-            
-            attendanceRecords.push({
-              studentId: student.id,
-              date: currentDate.toISOString().split('T')[0],
-              status: status,
-              arrivalTime: status === 'present' ? '08:00' : 
-                          status === 'late' ? '08:15' : null,
-              notes: status === 'absent' ? 'No reason provided' : null,
-              markedBy: user.id,
-              markedAt: new Date()
-            });
-          }
-          currentDate.setDate(currentDate.getDate() + 1);
-        }
-      } else {
-        const status = Math.random() > 0.15 ? 'present' : 
-                      Math.random() > 0.7 ? 'late' : 'absent';
-        
-        attendanceRecords.push({
-          studentId: student.id,
-          date: date,
-          status: status,
-          arrivalTime: status === 'present' ? '08:00' : 
-                      status === 'late' ? '08:15' : null,
-          notes: status === 'absent' ? 'No reason provided' : null,
-          markedBy: user.id,
-          markedAt: new Date()
-        });
-      }
+    // Build the date range to query real attendance records for
+    const studentIds = students.map(s => s.id);
+    const rangeStart = startDate ? new Date(startDate) : new Date(date);
+    const rangeEnd = endDate ? new Date(endDate) : new Date(date);
 
-      return {
-        student: {
-          id: student.id,
-          firstName: student.firstName,
-          lastName: student.lastName,
-          name: `${student.firstName} ${student.lastName}`,
-          studentId: student.studentProfile?.studentId,
-          className: student.studentProfile?.className,
-          avatar: student.avatar
-        },
-        attendance: attendanceRecords
-      };
-    });
+    const dbAttendanceRecords = studentIds.length > 0
+      ? await prisma.attendance.findMany({
+          where: {
+            studentId: { in: studentIds },
+            schoolId: user.schoolId,
+            date: { gte: rangeStart, lte: rangeEnd },
+            ...(period !== 'all' && { period })
+          },
+          orderBy: { date: 'asc' }
+        })
+      : [];
+
+    // Group real records by student
+    const recordsByStudent = new Map();
+    for (const rec of dbAttendanceRecords) {
+      if (!recordsByStudent.has(rec.studentId)) recordsByStudent.set(rec.studentId, []);
+      recordsByStudent.get(rec.studentId).push({
+        studentId: rec.studentId,
+        date: rec.date.toISOString().split('T')[0],
+        status: rec.status.toLowerCase(),
+        arrivalTime: rec.arrivalTime,
+        notes: rec.notes,
+        markedBy: rec.markedBy,
+        markedAt: rec.markedAt
+      });
+    }
+
+    const attendanceData = students.map(student => ({
+      student: {
+        id: student.id,
+        firstName: student.firstName,
+        lastName: student.lastName,
+        name: `${student.firstName} ${student.lastName}`,
+        studentId: student.studentProfile?.studentId,
+        className: student.studentProfile?.className,
+        avatar: student.avatar
+      },
+      attendance: recordsByStudent.get(student.id) || []
+    }));
 
     // Calculate summary statistics
-    const allAttendanceRecords = mockAttendanceData.flatMap(item => item.attendance);
+    const allAttendanceRecords = attendanceData.flatMap(item => item.attendance);
     const summary = {
       totalStudents: students.length,
       totalRecords: allAttendanceRecords.length,
@@ -146,7 +133,7 @@ export async function GET(request) {
 
     // If requesting specific student's attendance history
     if (studentId && students.length === 1) {
-      const studentData = mockAttendanceData[0];
+      const studentData = attendanceData[0];
       return NextResponse.json({
         success: true,
         data: {
@@ -171,7 +158,7 @@ export async function GET(request) {
         date: date,
         period: period,
         assignedClasses: assignedClasses,
-        attendance: mockAttendanceData,
+        attendance: attendanceData,
         summary: summary,
         teacherInfo: {
           id: user.id,
@@ -283,7 +270,34 @@ export async function POST(request) {
           continue;
         }
 
-        // TODO: In production, save to actual attendance table
+        // Upsert so re-marking the same student/date/period updates rather than duplicates
+        await prisma.attendance.upsert({
+          where: {
+            studentId_date_period: {
+              studentId: studentId,
+              date: attendanceDate,
+              period: period
+            }
+          },
+          update: {
+            status: status,
+            arrivalTime: arrivalTime || null,
+            notes: notes || null,
+            markedBy: user.id,
+            markedAt: new Date()
+          },
+          create: {
+            studentId: studentId,
+            schoolId: user.schoolId,
+            date: attendanceDate,
+            period: period,
+            status: status,
+            arrivalTime: arrivalTime || null,
+            notes: notes || null,
+            markedBy: user.id
+          }
+        });
+
         results.successful.push({
           studentId: studentId,
           studentName: `${student.firstName} ${student.lastName}`,
@@ -376,7 +390,35 @@ export async function PUT(request) {
       }, { status: 404 });
     }
 
-    // TODO: In production, update actual attendance record
+    const attendanceDate = new Date(date);
+    if (isNaN(attendanceDate.getTime())) {
+      return NextResponse.json({ error: 'Invalid date format' }, { status: 400 });
+    }
+
+    const existing = await prisma.attendance.findFirst({
+      where: {
+        studentId: studentId,
+        date: attendanceDate,
+        schoolId: user.schoolId
+      }
+    });
+
+    if (!existing) {
+      return NextResponse.json({
+        error: 'No attendance record found for this student/date to update'
+      }, { status: 404 });
+    }
+
+    const updated = await prisma.attendance.update({
+      where: { id: existing.id },
+      data: {
+        status: status,
+        arrivalTime: arrivalTime || null,
+        notes: reason || notes || null,
+        markedBy: user.id,
+        markedAt: new Date()
+      }
+    });
 
     return NextResponse.json({
       success: true,
@@ -385,10 +427,10 @@ export async function PUT(request) {
         studentId: studentId,
         studentName: `${student.firstName} ${student.lastName}`,
         date: date,
-        status: status,
-        arrivalTime: arrivalTime || null,
-        notes: notes || null,
-        updatedAt: new Date()
+        status: updated.status,
+        arrivalTime: updated.arrivalTime,
+        notes: updated.notes,
+        updatedAt: updated.markedAt
       }
     });
 

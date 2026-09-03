@@ -25,37 +25,73 @@ export async function GET(request) {
       }
     });
 
+    // Get (or lazily create) this teacher's real settings row
+    let userSettings = await prisma.userSettings.findUnique({
+      where: { userId: user.id }
+    });
+    if (!userSettings) {
+      userSettings = await prisma.userSettings.create({
+        data: { userId: user.id }
+      });
+    }
+
+    const DEFAULT_PREFERENCES = {
+      dashboardPreferences: {
+        defaultView: 'performance',
+        studentsPerPage: 20,
+        showParentContacts: true,
+        autoRefresh: false,
+        refreshInterval: 300
+      },
+      gradingPreferences: {
+        defaultGradingScale: 'percentage',
+        roundingMethod: 'nearest',
+        showTrends: true,
+        highlightConcerns: true
+      },
+      communicationSettings: {
+        autoReplyEnabled: false,
+        autoReplyMessage: '',
+        signatureEnabled: true,
+        emailSignature: `Best regards,\n${user.firstName} ${user.lastName}\nClass Teacher`,
+        allowParentDirectContact: true,
+        parentMeetingSlots: []
+      },
+      classroomManagement: {
+        attendanceTrackingEnabled: true,
+        behaviorTrackingEnabled: true,
+        parentProgressReports: 'weekly',
+        performanceAlerts: {
+          failingGradeThreshold: 60,
+          attendanceThreshold: 85,
+          consecutiveAbsences: 3
+        }
+      }
+    };
+
+    // Merge stored JSON preferences over defaults (stored values win)
+    const storedPrefs = userSettings.preferences || {};
+    const mergedPrefs = {
+      dashboardPreferences: { ...DEFAULT_PREFERENCES.dashboardPreferences, ...(storedPrefs.dashboardPreferences || {}) },
+      gradingPreferences: { ...DEFAULT_PREFERENCES.gradingPreferences, ...(storedPrefs.gradingPreferences || {}) },
+      communicationSettings: { ...DEFAULT_PREFERENCES.communicationSettings, ...(storedPrefs.communicationSettings || {}) },
+      classroomManagement: { ...DEFAULT_PREFERENCES.classroomManagement, ...(storedPrefs.classroomManagement || {}) }
+    };
+
     const settings = {
-      // Personal settings
+      // Personal settings — fixed fields come from the real UserSettings row,
+      // free-form ones come from the merged JSON preferences blob
       personalSettings: {
         emailNotifications: {
-          studentAbsent: true,
-          lowPerformance: true,
-          parentMessages: true,
-          assignmentOverdue: true,
-          behavioralIssues: true
+          studentAbsent: userSettings.attendanceAlerts,
+          lowPerformance: userSettings.gradeNotifications,
+          parentMessages: userSettings.emailNotifications,
+          assignmentOverdue: userSettings.assignmentReminders,
+          behavioralIssues: userSettings.attendanceAlerts
         },
-        dashboardPreferences: {
-          defaultView: 'performance',
-          studentsPerPage: 20,
-          showParentContacts: true,
-          autoRefresh: false,
-          refreshInterval: 300
-        },
-        gradingPreferences: {
-          defaultGradingScale: 'percentage',
-          roundingMethod: 'nearest',
-          showTrends: true,
-          highlightConcerns: true
-        },
-        communicationSettings: {
-          autoReplyEnabled: false,
-          autoReplyMessage: '',
-          signatureEnabled: true,
-          emailSignature: `Best regards,\n${user.firstName} ${user.lastName}\nClass Teacher`,
-          allowParentDirectContact: true,
-          parentMeetingSlots: []
-        }
+        dashboardPreferences: mergedPrefs.dashboardPreferences,
+        gradingPreferences: mergedPrefs.gradingPreferences,
+        communicationSettings: mergedPrefs.communicationSettings
       },
       
       // School-wide settings
@@ -73,16 +109,7 @@ export async function GET(request) {
       classSettings: {
         assignedClasses: assignedClasses,
         primaryClass: assignedClasses.length > 0 ? assignedClasses[0] : null,
-        classroomManagement: {
-          attendanceTrackingEnabled: true,
-          behaviorTrackingEnabled: true,
-          parentProgressReports: 'weekly',
-          performanceAlerts: {
-            failingGradeThreshold: 60,
-            attendanceThreshold: 85,
-            consecutiveAbsences: 3
-          }
-        }
+        classroomManagement: mergedPrefs.classroomManagement
       },
 
       // Available options
@@ -121,10 +148,41 @@ export async function PUT(request) {
     const body = await request.json();
     const { settingType, settingKey, value, settings } = body;
 
+    // Fixed columns on UserSettings that map to top-level flags rather than the JSON blob
+    const FIXED_FIELD_MAP = {
+      emailNotifications: 'emailNotifications',
+      pushNotifications: 'pushNotifications',
+      smsNotifications: 'smsNotifications',
+      assignmentReminders: 'assignmentReminders',
+      gradeNotifications: 'gradeNotifications',
+      attendanceAlerts: 'attendanceAlerts',
+      theme: 'theme',
+      language: 'language'
+    };
+
     // Handle bulk settings update
     if (settings && typeof settings === 'object') {
-      // TODO: In production, store these in a user_settings table
-      
+      const existing = await prisma.userSettings.findUnique({ where: { userId: user.id } });
+      const existingPrefs = existing?.preferences || {};
+
+      const fixedUpdates = {};
+      const jsonUpdates = { ...existingPrefs };
+
+      for (const [key, val] of Object.entries(settings)) {
+        if (FIXED_FIELD_MAP[key]) {
+          fixedUpdates[FIXED_FIELD_MAP[key]] = val;
+        } else {
+          // treat as a preferences sub-object, e.g. dashboardPreferences / gradingPreferences
+          jsonUpdates[key] = { ...(jsonUpdates[key] || {}), ...(typeof val === 'object' ? val : { value: val }) };
+        }
+      }
+
+      await prisma.userSettings.upsert({
+        where: { userId: user.id },
+        update: { ...fixedUpdates, preferences: jsonUpdates },
+        create: { userId: user.id, ...fixedUpdates, preferences: jsonUpdates }
+      });
+
       return NextResponse.json({
         success: true,
         message: 'Settings updated successfully',
@@ -158,11 +216,33 @@ export async function PUT(request) {
       }, { status: 400 });
     }
 
-    // TODO: In production, implement actual setting storage
+    const existing = await prisma.userSettings.findUnique({ where: { userId: user.id } });
+    const oldValue = FIXED_FIELD_MAP[settingKey]
+      ? existing?.[FIXED_FIELD_MAP[settingKey]] ?? null
+      : existing?.preferences?.[settingType]?.[settingKey] ?? null;
+
+    if (FIXED_FIELD_MAP[settingKey]) {
+      await prisma.userSettings.upsert({
+        where: { userId: user.id },
+        update: { [FIXED_FIELD_MAP[settingKey]]: value },
+        create: { userId: user.id, [FIXED_FIELD_MAP[settingKey]]: value }
+      });
+    } else {
+      const prefs = existing?.preferences || {};
+      const sectionPrefs = { ...(prefs[settingType] || {}), [settingKey]: value };
+      const updatedPrefs = { ...prefs, [settingType]: sectionPrefs };
+
+      await prisma.userSettings.upsert({
+        where: { userId: user.id },
+        update: { preferences: updatedPrefs },
+        create: { userId: user.id, preferences: updatedPrefs }
+      });
+    }
+
     const updateResult = {
       settingType,
       settingKey,
-      oldValue: null,
+      oldValue,
       newValue: value,
       updatedAt: new Date()
     };
@@ -186,45 +266,53 @@ export async function POST(request) {
     const body = await request.json();
     const { resetType = 'all' } = body;
 
-    // TODO: In production, implement actual reset functionality
-
     const resetResult = {
       resetType,
       affectedSettings: [],
       resetAt: new Date()
     };
 
-    switch (resetType) {
-      case 'personal':
-        resetResult.affectedSettings = [
-          'emailNotifications',
-          'dashboardPreferences',
-          'gradingPreferences'
-        ];
-        break;
-      case 'class':
-        resetResult.affectedSettings = [
-          'classroomManagement',
-          'performanceAlerts'
-        ];
-        break;
-      case 'communication':
-        resetResult.affectedSettings = [
-          'communicationSettings',
-          'emailSignature',
-          'autoReply'
-        ];
-        break;
-      case 'all':
-      default:
-        resetResult.affectedSettings = [
-          'emailNotifications',
-          'dashboardPreferences',
-          'gradingPreferences',
-          'classroomManagement',
-          'communicationSettings'
-        ];
-    }
+    const existing = await prisma.userSettings.findUnique({ where: { userId: user.id } });
+    const prefs = existing?.preferences || {};
+
+    const RESET_GROUPS = {
+      personal: {
+        affectedSettings: ['emailNotifications', 'dashboardPreferences', 'gradingPreferences'],
+        fixedFields: { emailNotifications: true, assignmentReminders: true, gradeNotifications: true },
+        jsonKeys: ['dashboardPreferences', 'gradingPreferences']
+      },
+      class: {
+        affectedSettings: ['classroomManagement', 'performanceAlerts'],
+        fixedFields: {},
+        jsonKeys: ['classroomManagement']
+      },
+      communication: {
+        affectedSettings: ['communicationSettings', 'emailSignature', 'autoReply'],
+        fixedFields: {},
+        jsonKeys: ['communicationSettings']
+      }
+    };
+    RESET_GROUPS.all = {
+      affectedSettings: [
+        'emailNotifications', 'dashboardPreferences', 'gradingPreferences',
+        'classroomManagement', 'communicationSettings'
+      ],
+      fixedFields: { emailNotifications: true, assignmentReminders: true, gradeNotifications: true, attendanceAlerts: true },
+      jsonKeys: ['dashboardPreferences', 'gradingPreferences', 'classroomManagement', 'communicationSettings']
+    };
+
+    const group = RESET_GROUPS[resetType] || RESET_GROUPS.all;
+    resetResult.affectedSettings = group.affectedSettings;
+
+    // Drop the JSON keys for this group so GET falls back to defaults
+    const updatedPrefs = { ...prefs };
+    for (const key of group.jsonKeys) delete updatedPrefs[key];
+
+    await prisma.userSettings.upsert({
+      where: { userId: user.id },
+      update: { ...group.fixedFields, preferences: updatedPrefs },
+      create: { userId: user.id, ...group.fixedFields, preferences: updatedPrefs }
+    });
 
     return NextResponse.json({
       success: true,

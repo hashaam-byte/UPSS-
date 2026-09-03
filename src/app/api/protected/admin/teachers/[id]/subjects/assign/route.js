@@ -256,9 +256,7 @@ export async function GET(request) {
       { success: false, error: 'Failed to fetch teacher assignments.' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
-  }
+}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -416,7 +414,5 @@ export async function POST(request) {
       { success: false, error: 'Failed to process teacher assignment.' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
-  }
+}
 }

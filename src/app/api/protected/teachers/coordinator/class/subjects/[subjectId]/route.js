@@ -288,7 +288,5 @@ export async function POST(request, { params }) {
       },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
-  }
+}
 }

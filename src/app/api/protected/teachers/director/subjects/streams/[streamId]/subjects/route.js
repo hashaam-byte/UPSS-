@@ -112,9 +112,7 @@ export async function GET(request, { params }) {
       },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
-  }
+}
 }
 
 // POST - Add subject to stream
@@ -265,7 +263,5 @@ export async function POST(request, { params }) {
       },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
-  }
+}
 }

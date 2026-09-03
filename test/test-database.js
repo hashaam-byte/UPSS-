@@ -1,5 +1,5 @@
 // Database Connection Test Script
-// UPSS Phase 1 - Verify database setup
+// U-Plus - Verify database setup
 
 const { PrismaClient } = require('@prisma/client');
 
@@ -401,7 +401,7 @@ async function testRelationships() {
 async function runAllTests() {
   console.log(`${COLORS.cyan}`);
   console.log('╔════════════════════════════════════════════════════════════╗');
-  console.log('║       UPSS Phase 1 - Database Verification Tests          ║');
+  console.log('║       U-Plus - Database Verification Tests          ║');
   console.log('╚════════════════════════════════════════════════════════════╝');
   console.log(`${COLORS.reset}`);
   

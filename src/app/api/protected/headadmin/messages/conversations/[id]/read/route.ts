@@ -60,7 +60,5 @@ export async function POST(
       { error: 'Failed to mark messages as read' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
-  }
+}
 }
