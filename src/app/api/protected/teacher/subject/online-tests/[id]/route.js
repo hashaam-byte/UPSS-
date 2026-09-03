@@ -11,7 +11,8 @@ import {
 // ... GET and DELETE remain the same ...
 
 // PUT - Update test - FIXED
-export async function PUT(request, { params }) {
+export async function PUT(request, { params: paramsPromise }) {
+  const params = await paramsPromise;
   try {
     const user = await requireAuth(['TEACHER']);
     const testId = params.id;

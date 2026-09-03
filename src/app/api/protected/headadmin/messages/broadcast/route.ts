@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create broadcast messages and notifications for all schools
-    const messagePromises = schools.map(async (school) => {
+    const messagePromises = schools.map(async (school: (typeof schools)[number]) => {
       // Create message for each school
       const message = await prisma.message.create({
         data: {

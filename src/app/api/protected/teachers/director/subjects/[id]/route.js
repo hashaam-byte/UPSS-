@@ -8,7 +8,8 @@ import { verifyAuth } from '@/lib/auth';
 const prisma = new PrismaClient();
 
 // UPDATE subject
-export async function PUT(request, { params }) {
+export async function PUT(request, { params: paramsPromise }) {
+  const params = await paramsPromise;
   try {
     const { id } = params;
     
@@ -204,7 +205,8 @@ export async function PUT(request, { params }) {
 }
 
 // DELETE subject
-export async function DELETE(request, { params }) {
+export async function DELETE(request, { params: paramsPromise }) {
+  const params = await paramsPromise;
   try {
     const { id } = params;
     

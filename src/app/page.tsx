@@ -481,10 +481,10 @@ const UnifiedLandingPage = () => {
           
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { role: 'Head Admin', path: '/protected/Headadmin/page.tsx?role=head', icon: Crown },
-              { role: 'School Admin', path: '/protected/Admin/page.tsx?role=school', icon: Shield },
-              { role: 'TEACHER', path: '/protected/Teachers/page.tsx?role=teacher', icon: UserCheck },
-              { role: 'STUDENT', path: '/protected/students/page.tsx?role=student', icon: GraduationCap }
+              { role: 'Head Admin', path: '/protected/headadmin', icon: Crown },
+              { role: 'School Admin', path: '/protected/admin', icon: Shield },
+              { role: 'TEACHER', path: '/protected/teacher', icon: UserCheck },
+              { role: 'STUDENT', path: '/protected/students', icon: GraduationCap }
             ].map((item, index) => (
               <button
                 key={index}

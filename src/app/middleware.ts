@@ -43,77 +43,80 @@ export async function middleware(request: NextRequest) {
       }
 
       // Role-based route protection with teacher subdivisions
-      const userRole = decoded.role;
+      // NOTE: decoded.role is uppercase for HEADADMIN/ADMIN/STUDENT (matches the UserRole enum)
+      // but lowercase for teacher subdivisions (director/coordinator/class_teacher/subject_teacher,
+      // set from TeacherProfile.department at login). Normalize before lookup or non-teacher
+      // roles never match any permission entry.
+      const userRole = decoded.role.toLowerCase();
       const requestedPath = pathname; // Keep original case for exact matching
 
       // Define role permissions with exact path matching
       const rolePermissions: Record<string, string[]> = {
         headadmin: [
           '/protected/headadmin',
-          '/protected/Headadmin', // Support both cases
           '/protected/admin',
-          '/protected/teachers',
-          '/protected/Teachers', // Support both cases
+          '/protected/teacher',
           '/protected/students',
           '/api/protected/headadmin',
           '/api/protected/admin',
+          '/api/protected/teacher',
           '/api/protected/teachers',
           '/api/protected/students',
         ],
         admin: [
           '/protected/admin',
-          '/protected/teachers',
-          '/protected/Teachers', // Support both cases
+          '/protected/teacher',
           '/protected/students',
           '/api/protected/admin',
+          '/api/protected/teacher',
           '/api/protected/teachers',
           '/api/protected/students',
         ],
         // Teacher role - includes all teacher subdivisions
         teacher: [
-          '/protected/teachers',
-          '/protected/Teachers', // Support both cases
-          '/protected/teacher', // Base teacher routes
-          '/protected/teacher/class', // <-- add this
+          '/protected/teacher',
+          '/api/protected/teacher',
           '/api/protected/teachers',
-          '/api/protected/teacher/class', // <-- add this
         ],
-        // Teacher subdivisions - each has access to their specific area + base teacher routes
+        // Teacher subdivisions - each has access to their specific area + shared teacher routes
+        // (messaging lives under the plural /api/protected/teachers/* prefix and is shared by all subdivisions)
         director: [
-          '/protected/teachers',
-          '/protected/Teachers', // Support both cases
           '/protected/teacher',
           '/protected/teacher/director',
-          '/api/protected/teachers',
-          '/api/protected/teacher/director',
+          '/api/protected/teacher',
+          '/api/protected/teachers/director',
+          '/api/protected/teachers/messages',
+          '/api/protected/teachers/class/messages',
         ],
         coordinator: [
           '/protected/teacher',
-          '/protected/Teacher', // Support both cases
-          '/protected/teacher',
           '/protected/teacher/coordinator',
-          '/api/protected/teachers',
-          '/api/protected/teacher/coordinator',
+          '/api/protected/teacher',
+          '/api/protected/teachers/coordinator',
+          '/api/protected/teachers/messages',
+          '/api/protected/teachers/class/messages',
         ],
         class_teacher: [
-          '/protected/teachers',
-          '/protected/Teachers', // Support both cases
           '/protected/teacher',
           '/protected/teacher/class',
-          '/api/protected/teachers',
-          '/api/protected/teacher/class',
+          '/api/protected/teacher',
+          '/api/protected/teachers/messages',
+          '/api/protected/teachers/class/messages',
         ],
         subject_teacher: [
-          '/protected/teachers',
-          '/protected/Teachers', // Support both cases
           '/protected/teacher',
           '/protected/teacher/subject',
-          '/api/protected/teachers',
-          '/api/protected/teacher/subject',
+          '/api/protected/teacher',
+          '/api/protected/teachers/messages',
+          '/api/protected/teachers/class/messages',
         ],
         student: [
           '/protected/students',
           '/api/protected/students'
+        ],
+        parent: [
+          '/protected/parent',
+          '/api/protected/parent',
         ],
       };
 

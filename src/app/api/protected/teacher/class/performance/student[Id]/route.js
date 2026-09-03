@@ -54,7 +54,8 @@ function getCurrentTerm(date) {
   }
 }
 
-export async function GET(request, { params }) {
+export async function GET(request, { params: paramsPromise }) {
+  const params = await paramsPromise;
   try {
     await requireAuth(['class_teacher']);
 

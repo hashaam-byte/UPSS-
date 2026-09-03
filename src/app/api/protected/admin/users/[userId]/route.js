@@ -4,7 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 
-export async function GET(request, { params }) {
+export async function GET(request, { params: paramsPromise }) {
+  const params = await paramsPromise;
   try {
     const currentUser = await requireAuth(['ADMIN', 'HEADADMIN']);
     const { userId } = params;
@@ -72,7 +73,8 @@ export async function GET(request, { params }) {
   }
 }
 
-export async function PUT(request, { params }) {
+export async function PUT(request, { params: paramsPromise }) {
+  const params = await paramsPromise;
   try {
     const currentUser = await requireAuth(['ADMIN', 'HEADADMIN']);
     const { userId } = params;
@@ -438,7 +440,8 @@ export async function PUT(request, { params }) {
   }
 }
 
-export async function DELETE(request, { params }) {
+export async function DELETE(request, { params: paramsPromise }) {
+  const params = await paramsPromise;
   try {
     const currentUser = await requireAuth(['ADMIN', 'HEADADMIN']);
     const { userId } = params;

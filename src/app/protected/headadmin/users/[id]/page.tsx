@@ -5,7 +5,7 @@ import UserDetailClient from "./UserDetailClient";
 
 // ─── Types for this page (mirrors API select) ─────────────────────────────────
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 // ─── Data fetching ────────────────────────────────────────────────────────────
@@ -117,7 +117,8 @@ async function getUser(id: string) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default async function Page({ params }: PageProps) {
-  const user = await getUser(params.id);
+  const { id } = await params;
+  const user = await getUser(id);
   if (!user) return notFound();
   return <UserDetailClient initialUser={user} />;
 }

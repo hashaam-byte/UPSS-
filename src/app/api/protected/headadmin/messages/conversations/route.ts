@@ -71,13 +71,13 @@ export async function GET() {
     });
 
     const unreadMap = new Map(
-      unreadCounts.map(item => [item.schoolId, item._count.id])
+      unreadCounts.map((item: (typeof unreadCounts)[number]) => [item.schoolId, item._count.id])
     );
 
     // Format conversations
     const formattedConversations = schools
-      .filter(school => school.messages.length > 0 || school.users.length > 0)
-      .map(school => ({
+      .filter((school: (typeof schools)[number]) => school.messages.length > 0 || school.users.length > 0)
+      .map((school: (typeof schools)[number]) => ({
         id: `conv-${school.id}`,
         schoolId: school.id,
         userId: school.users[0]?.id || null,

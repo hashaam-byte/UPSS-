@@ -4,7 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 
-export async function PUT(request, { params }) {
+export async function PUT(request, { params: paramsPromise }) {
+  const params = await paramsPromise;
   try {
     const currentUser = await requireAuth(['ADMIN', 'HEADADMIN']);
     const { userId } = params;

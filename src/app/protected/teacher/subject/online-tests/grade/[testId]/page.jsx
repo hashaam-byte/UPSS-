@@ -1,9 +1,12 @@
 // Theory Grading Interface - IMPROVED VISIBILITY
 'use client'
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
 import { User, CheckCircle, Save, ArrowLeft, Loader2 } from 'lucide-react';
 
-export default function TheoryGradingInterface({ testId }) {
+export default function TheoryGradingInterface() {
+  const params = useParams();
+  const testId = params.testId;
   const [submissions, setSubmissions] = useState([]);
   const [selectedSubmission, setSelectedSubmission] = useState(null);
   const [grades, setGrades] = useState({});

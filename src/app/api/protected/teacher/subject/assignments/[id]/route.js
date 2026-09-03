@@ -3,7 +3,8 @@ import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-export async function GET(request, { params }) {
+export async function GET(request, { params: paramsPromise }) {
+  const params = await paramsPromise;
   try {
     const currentUser = await getCurrentUser();
     
@@ -98,7 +99,8 @@ export async function GET(request, { params }) {
   }
 }
 
-export async function PATCH(request, { params }) {
+export async function PATCH(request, { params: paramsPromise }) {
+  const params = await paramsPromise;
   try {
     const currentUser = await getCurrentUser();
     
@@ -198,7 +200,8 @@ export async function PATCH(request, { params }) {
   }
 }
 
-export async function DELETE(request, { params }) {
+export async function DELETE(request, { params: paramsPromise }) {
+  const params = await paramsPromise;
   try {
     const currentUser = await getCurrentUser();
     

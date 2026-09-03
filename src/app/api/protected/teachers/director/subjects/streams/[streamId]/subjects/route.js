@@ -8,7 +8,8 @@ import { verifyAuth } from '@/lib/auth';
 const prisma = new PrismaClient();
 
 // GET subjects mapped to a stream
-export async function GET(request, { params }) {
+export async function GET(request, { params: paramsPromise }) {
+  const params = await paramsPromise;
   try {
     const { streamId } = params;
     
@@ -116,7 +117,8 @@ export async function GET(request, { params }) {
 }
 
 // POST - Add subject to stream
-export async function POST(request, { params }) {
+export async function POST(request, { params: paramsPromise }) {
+  const params = await paramsPromise;
   try {
     const { streamId } = params;
     

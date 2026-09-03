@@ -2,7 +2,8 @@ import { requireAuth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 
-export async function PATCH(request, { params }) {
+export async function PATCH(request, { params: paramsPromise }) {
+  const params = await paramsPromise;
   try {
     const user = await requireAuth(['HEADADMIN']);
     const { id } = params;

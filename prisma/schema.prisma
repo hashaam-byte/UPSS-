@@ -19,6 +19,7 @@ enum UserRole {
   ADMIN
   TEACHER
   STUDENT
+  PARENT
 }
 enum TeacherRole {
   DIRECTOR
@@ -30,6 +31,12 @@ enum Gender {
   male
   female
   other
+}
+
+enum OtpPurpose {
+  IDENTITY_VERIFICATION
+  PASSWORD_RESET
+  CHILD_PASSWORD_RESET
 }
 
 enum SubjectCategory {
@@ -297,6 +304,8 @@ model User {
 
   school                  School?   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   studentProfile          StudentProfile?
+  parentProfile           ParentProfile?
+  parentLinks             ParentStudentLink[] @relation("ParentLinkStudent")
   teacherProfile          TeacherProfile?
   adminProfile            AdminProfile?
   sessions                UserSession[]
@@ -414,6 +423,53 @@ model StudentProfile {
   subjectSelection             StudentSubjectSelection?
 
   @@map("student_profiles")
+}
+
+model ParentProfile {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String   @unique @map("user_id") @db.Uuid
+  schoolId     String   @map("school_id") @db.Uuid
+  phone        String   @db.VarChar(20)
+  isVerified   Boolean  @default(false) @map("is_verified")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  children     ParentStudentLink[]
+
+  // A phone number identifies exactly one parent account per school
+  @@unique([phone, schoolId])
+  @@map("parent_profiles")
+}
+
+model ParentStudentLink {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  parentId     String   @map("parent_id") @db.Uuid
+  studentId    String   @map("student_id") @db.Uuid
+  relationship String?  @db.VarChar(50) // e.g. "Father", "Mother", "Guardian"
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  parent       ParentProfile @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  student      User          @relation("ParentLinkStudent", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([parentId, studentId])
+  @@map("parent_student_links")
+}
+
+model OtpVerification {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phone       String     @db.VarChar(20)
+  codeHash    String     @map("code_hash") @db.VarChar(255)
+  purpose     OtpPurpose
+  schoolId    String?    @map("school_id") @db.Uuid
+  studentId   String?    @map("student_id") @db.Uuid // set only for CHILD_PASSWORD_RESET
+  attempts    Int        @default(0)
+  consumedAt  DateTime?  @map("consumed_at") @db.Timestamptz
+  expiresAt   DateTime   @map("expires_at") @db.Timestamptz
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([phone, purpose])
+  @@map("otp_verifications")
 }
 
 model TeacherProfile {

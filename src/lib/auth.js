@@ -51,12 +51,13 @@ export async function getCurrentUser() {
       return user;
     }
 
-    // Regular users (admin, teacher, student) - ALWAYS include school data
+    // Regular users (admin, teacher, student, parent) - ALWAYS include school data
     const includeOptions = {
       school: true, // Always include school for non-head admins
       studentProfile: false,
       teacherProfile: false,
-      adminProfile: false
+      adminProfile: false,
+      parentProfile: false
     };
 
     // Determine what to include based on token role or fallback to user role
@@ -69,6 +70,8 @@ export async function getCurrentUser() {
       includeOptions.teacherProfile = true;
     } else if (decoded.role === 'ADMIN') {
       includeOptions.adminProfile = { include: { permissions: true } };
+    } else if (decoded.role === 'PARENT') {
+      includeOptions.parentProfile = { include: { children: { include: { student: true } } } };
     }
 
     const user = await prisma.user.findUnique({

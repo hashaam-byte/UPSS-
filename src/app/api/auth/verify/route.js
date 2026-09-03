@@ -46,6 +46,9 @@ export async function GET() {
                     ['director', 'coordinator', 'class_teacher', 'subject_teacher'].includes(decoded.role),
       adminProfile: decoded.role === 'ADMIN' ? {
         include: { permissions: true }
+      } : false,
+      parentProfile: decoded.role === 'PARENT' ? {
+        include: { children: { include: { student: { select: { id: true, firstName: true, lastName: true } } } } }
       } : false
     };
 
@@ -122,11 +125,13 @@ export async function GET() {
             redirectTo = '/protected/teacher/subject/dashboard';
             break;
           default:
-            redirectTo = '/protected/teachers';
+            redirectTo = '/protected/teacher';
         }
       } else {
-        redirectTo = '/protected/teachers';
+        redirectTo = '/protected/teacher';
       }
+    } else if (user.role === 'PARENT') {
+      redirectTo = '/protected/parent/dashboard';
     }
 
     return NextResponse.json({
@@ -149,7 +154,8 @@ export async function GET() {
             ...user.adminProfile,
             permissions: user.adminProfile.permissions
           }
-        })
+        }),
+        ...(user.parentProfile && { parentProfile: user.parentProfile })
       },
       school: {
         id: user.school.id,

@@ -9,7 +9,8 @@ import { verifyAuth } from '@/lib/auth';
 
 const prisma = new PrismaClient();
 
-export async function POST(request, { params }) {
+export async function POST(request, { params: paramsPromise }) {
+  const params = await paramsPromise;
   try {
     const authResult = await verifyAuth(request);
     

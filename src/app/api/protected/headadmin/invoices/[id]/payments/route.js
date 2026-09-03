@@ -3,7 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 
-export async function GET(request, { params }) {
+export async function GET(request, { params: paramsPromise }) {
+  const params = await paramsPromise;
   try {
     const user = await getCurrentUser();
     if (!user || user.role !== 'HEADADMIN') {

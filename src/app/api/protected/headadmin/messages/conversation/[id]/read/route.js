@@ -1,6 +1,7 @@
 
 // /app/api/protected/headadmin/messages/conversations/[id]/read/route.js
-export async function POST(request, { params }) {
+export async function POST(request, { params: paramsPromise }) {
+  const params = await paramsPromise;
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
     const decoded = await verifyJWT(token);

@@ -167,7 +167,7 @@ const LoginPage = () => {
       bgGradient: 'from-emerald-50 to-emerald-100',
       glowColor: 'emerald-500',
       emoji: '👩‍🏫',
-      route: '/protected/Teachers'
+      route: '/protected/teacher'
     },
     {
       id: 'ADMIN',
@@ -178,7 +178,7 @@ const LoginPage = () => {
       bgGradient: 'from-purple-50 to-purple-100',
       glowColor: 'purple-500',
       emoji: '🏫',
-      route: '/protected/Admin'
+      route: '/protected/admin'
     },
     {
       id: 'HEADADMIN',
@@ -189,7 +189,7 @@ const LoginPage = () => {
       bgGradient: 'from-yellow-50 to-orange-100',
       glowColor: 'orange-500',
       emoji: '👑',
-      route: '/protected/Headadmin'
+      route: '/protected/headadmin'
     }
   ];
 

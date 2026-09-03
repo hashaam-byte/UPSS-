@@ -3,7 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 
-export async function POST(request, { params }) {
+export async function POST(request, { params: paramsPromise }) {
+  const params = await paramsPromise;
   let user = null; // Declare at top level for error handling
   
   try {

@@ -23,7 +23,8 @@ async function verifyDirectorAccess(token) {
 }
 
 // GET - Fetch individual student details
-export async function GET(request, { params }) {
+export async function GET(request, { params: paramsPromise }) {
+  const params = await paramsPromise;
   try {
     const cookieStore = cookies();
     const token = cookieStore.get('auth_token')?.value;
@@ -167,7 +168,8 @@ export async function GET(request, { params }) {
 }
 
 // PUT - Update student details including class assignment
-export async function PUT(request, { params }) {
+export async function PUT(request, { params: paramsPromise }) {
+  const params = await paramsPromise;
   try {
     const cookieStore = cookies();
     const token = cookieStore.get('auth_token')?.value;
@@ -335,7 +337,8 @@ export async function PUT(request, { params }) {
 }
 
 // DELETE - Deactivate student (soft delete)
-export async function DELETE(request, { params }) {
+export async function DELETE(request, { params: paramsPromise }) {
+  const params = await paramsPromise;
   try {
     const cookieStore = cookies();
     const token = cookieStore.get('auth_token')?.value;

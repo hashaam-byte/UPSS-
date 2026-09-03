@@ -4,7 +4,8 @@ import { NextResponse } from 'next/server';
 import { unlink } from 'fs/promises';
 import { join } from 'path';
 
-export async function DELETE(request, { params }) {
+export async function DELETE(request, { params: paramsPromise }) {
+  const params = await paramsPromise;
   try {
     const user = await requireAuth(['ADMIN']);
     const { resourceId } = params;
