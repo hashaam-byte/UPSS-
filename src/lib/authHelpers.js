@@ -10,7 +10,7 @@ export async function verifyHeadAdminAuth(request) {
     let token = null;
 
     // 1. Try to get token from cookies
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const authCookie = cookieStore.get("auth_token");
     if (authCookie) {
       token = authCookie.value;

@@ -7,7 +7,7 @@ import crypto from 'crypto';
 
 export async function POST() {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const token = cookieStore.get('auth_token')?.value;
     
     if (token) {

@@ -37,7 +37,7 @@ async function verifyDirectorAccess(token) {
 
 export async function GET(request) {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const token = cookieStore.get('auth_token')?.value;
     
     const user = await verifyDirectorAccess(token);
@@ -274,7 +274,7 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const token = cookieStore.get('auth_token')?.value;
     
     const user = await verifyDirectorAccess(token);
@@ -498,7 +498,7 @@ export async function POST(request) {
 
 export async function PUT(request) {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const token = cookieStore.get('auth_token')?.value;
     
     const user = await verifyDirectorAccess(token);
@@ -618,7 +618,7 @@ export async function PUT(request) {
 
 export async function DELETE(request) {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const token = cookieStore.get('auth_token')?.value;
     
     const user = await verifyDirectorAccess(token);

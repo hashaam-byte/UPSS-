@@ -26,7 +26,7 @@ async function verifyDirectorAccess(token) {
 export async function GET(request, { params: paramsPromise }) {
   const params = await paramsPromise;
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const token = cookieStore.get('auth_token')?.value;
     
     const director = await verifyDirectorAccess(token);
@@ -171,7 +171,7 @@ export async function GET(request, { params: paramsPromise }) {
 export async function PUT(request, { params: paramsPromise }) {
   const params = await paramsPromise;
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const token = cookieStore.get('auth_token')?.value;
     
     const director = await verifyDirectorAccess(token);
@@ -340,7 +340,7 @@ export async function PUT(request, { params: paramsPromise }) {
 export async function DELETE(request, { params: paramsPromise }) {
   const params = await paramsPromise;
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const token = cookieStore.get('auth_token')?.value;
     
     const director = await verifyDirectorAccess(token);

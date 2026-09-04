@@ -161,12 +161,10 @@ parent OTPs will actually reach a phone.
 
 ### After you upgrade, also check this build script
 
-`package.json`'s `build` script currently runs
-`prisma generate && prisma db push && node prisma/seed-production.js && next build`
-— meaning it pushes schema changes AND re-seeds the database on every
-single production build. That's unusual and risky (a bad seed script
-could overwrite live data on every deploy). Not changed in this pass
-since it wasn't asked for, but worth revisiting.
+`package.json`'s `build` script runs only
+`prisma generate && next build --turbopack`. Production builds do not
+push schema changes or seed the database. Run `pnpm run db:push` and
+`pnpm run db:seed:prod` explicitly when a database operation is intended.
 
 ## 7. SMS provider recommendation
 
