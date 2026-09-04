@@ -55,24 +55,30 @@ async function main() {
   console.log(`School: ${school.name} (slug: ${school.slug})`);
 
   // ---- Head Admin (platform-level, not tied to the school) ----
-  const headadmin = await prisma.user.upsert({
-    where: { email: HEADADMIN_EMAIL },
-    update: { passwordHash: headadminPasswordHash },
-    create: {
-      firstName: 'Head',
-      lastName: 'Admin',
-      email: HEADADMIN_EMAIL,
-      username: 'headadmin',
-      passwordHash: headadminPasswordHash,
-      role: 'HEADADMIN',
-      isActive: true,
-      isEmailVerified: true,
-    },
+  const existingHeadadmin = await prisma.user.findFirst({
+    where: { email: HEADADMIN_EMAIL, schoolId: null },
   });
+  const headadmin = existingHeadadmin
+    ? await prisma.user.update({
+        where: { id: existingHeadadmin.id },
+        data: { passwordHash: headadminPasswordHash },
+      })
+    : await prisma.user.create({
+        data: {
+          firstName: 'Head',
+          lastName: 'Admin',
+          email: HEADADMIN_EMAIL,
+          username: 'headadmin',
+          passwordHash: headadminPasswordHash,
+          role: 'HEADADMIN',
+          isActive: true,
+          isEmailVerified: true,
+        },
+      });
 
   // ---- School Admin ----
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@demo-school.test' },
+    where: { email_schoolId: { email: 'admin@demo-school.test', schoolId: school.id } },
     update: {},
     create: {
       firstName: 'School',
@@ -127,7 +133,7 @@ async function main() {
   const teachers = {};
   for (const t of teacherDefs) {
     const user = await prisma.user.upsert({
-      where: { email: t.email },
+      where: { email_schoolId: { email: t.email, schoolId: school.id } },
       update: {},
       create: {
         firstName: t.first,
@@ -189,7 +195,7 @@ async function main() {
 
   // ---- Student (with a parentPhone set, for testing the parent portal later) ----
   const studentUser = await prisma.user.upsert({
-    where: { email: 'student@demo-school.test' },
+    where: { email_schoolId: { email: 'student@demo-school.test', schoolId: school.id } },
     update: {},
     create: {
       firstName: 'Sarah',
