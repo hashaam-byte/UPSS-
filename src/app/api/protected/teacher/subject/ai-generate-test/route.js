@@ -1,6 +1,7 @@
 // src/app/api/protected/teacher/subject/ai-generate-test/route.js - FIXED
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
 import { getTeacherSubjects, getTeacherClasses, validateTeacherSubjectAccess } from '@/lib/subject-helpers';
 
 // GET - Fetch teacher's subjects and classes

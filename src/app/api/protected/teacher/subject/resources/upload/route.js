@@ -147,6 +147,8 @@ export async function POST(request) {
     const file = formData.get('file');
     const name = formData.get('name');
     const folderId = formData.get('folderId');
+    const targetClass = formData.get('targetClass'); // e.g. "JSS1A" — leave unset to share with the whole school
+    const targetSubject = formData.get('targetSubject'); // optional further scoping
 
     if (!file) {
       return NextResponse.json(
@@ -217,6 +219,9 @@ export async function POST(request) {
         uploadedById: currentUser.id,
         schoolId: user.schoolId,
         folderId: folderId || null,
+        targetClass: targetClass || null,
+        targetSubject: targetSubject || null,
+        accessLevel: targetClass ? 'class' : 'school',
       },
     });
 

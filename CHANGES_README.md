@@ -35,6 +35,7 @@ files with the same path.
 npm install
 npx prisma migrate dev --name add_parent_portal
 npx prisma generate
+node prisma/seed-test-accounts.js   # optional — creates test accounts for every role
 npm run build   # sanity check — should compile clean
 ```
 
@@ -180,11 +181,99 @@ route takes more paperwork than a basic promotional one — get that
 process going with Termii before you need it in production.
 
 
-## 8. Still open (not done in this session)
+## 8. Critical bug found in this update: login page redirect loop
 
-- Storage is still 100% Cloudinary — no Supabase migration has happened.
-- AI test generation and timetable generation routes have not been
-  audited yet.
+`src/app/protected/page.jsx` is your actual login page (role selector +
+school-slug dropdown + credentials form) — an unusual but deliberate
+location. The proxy guards everything under `/protected`, and its
+no-token redirect target was `/protected` itself. Since `/protected` is
+inside the guarded zone, this created an **infinite redirect loop**:
+any unauthenticated visitor hitting any protected route (or the login
+page directly) got bounced in a loop and could never actually reach the
+login form. Fixed in `src/app/proxy.ts` by exempting the exact
+`/protected` path from the auth check — the page already does its own
+client-side "already logged in? redirect away" check, so it's safe to
+let everyone reach it.
+
+Also added a **Parent** card to the role selector (it existed nowhere in
+the UI before — parents had no discoverable path to `/auth/parent`).
+
+## 9. Teacher sub-role routing — verified correct, traced end-to-end
+
+Confirmed the full chain works exactly as intended, no changes needed
+here beyond the redirect-loop fix above:
+- Admin's "create teacher" form writes `teacherProfile.department` as
+  exactly `director` / `coordinator` / `class_teacher` / `subject_teacher`.
+- `school/login` looks up that exact field after authenticating and
+  switches on it to compute `redirectTo`.
+- `proxy.ts`'s permission map allows each sub-role into their specific
+  area.
+- Each dashboard layout re-checks `department` client-side as a second
+  guard.
+
+One thing to check on your end: this only works for teacher accounts
+that actually have `department` set. Any teacher created before this
+dropdown existed, or imported another way, will fall through to the
+generic (but now working) `/protected/teacher` instead of their specific
+dashboard until that field is set.
+
+## 10. Two more real bugs fixed while auditing
+
+- **AI test generation was completely broken** for real usage —
+  `src/app/api/protected/teacher/subject/ai-generate-test/route.js`
+  used `prisma.subject.findUnique(...)` but never imported `prisma`.
+  Threw a 500 every time a teacher selected an actual subject (the
+  normal flow). Fixed.
+- **Resources had a real privacy gap** — the schema had
+  `targetClass`/`targetSubject` columns specifically for scoping a
+  teacher's upload to one class, but neither the upload route nor the
+  student-facing fetch actually used them. Every student in the school
+  could see every resource any teacher uploaded, regardless of class.
+  Fixed both `teacher/subject/resources/upload/route.js` (now accepts
+  and stores `targetClass`/`targetSubject` from the upload form) and
+  `students/resources/route.js` (now filters to the student's own class
+  or untargeted school-wide resources only).
+- Timetable generation: re-verified — I'd initially misread the
+  frontend as calling a dead 11-line stub, but on closer inspection it
+  actually calls the real, complete 376-line implementation. Corrected
+  myself before reporting it. Did fix a real connection-pool bug in that
+  real implementation (its own disconnected `PrismaClient` instead of
+  the shared singleton) and deleted the now-confirmed-unused stub route.
+- Announcements: the `Announcement` database model exists but has **zero
+  API implementation** anywhere — no create route, no student view.
+  Not built in this pass; flagged for later if you want it.
+
+## 11. New seed script for testing
+
+`prisma/seed-test-accounts.js` — separate from your existing
+`prisma/seed.js` (which sets `teacherProfile.department` to subject
+areas like "Mathematics", not the `director`/`coordinator`/
+`class_teacher`/`subject_teacher` values the login system actually
+checks — so it wouldn't exercise role routing correctly). This new
+script creates one account for every role and every teacher
+sub-department specifically so you can log in as each and confirm they
+land on the right dashboard. Safe to re-run (upserts throughout).
+
+Run it after migrating:
+```bash
+npx prisma migrate dev --name add_parent_portal
+node prisma/seed-test-accounts.js
+```
+
+It prints every login identifier at the end. Shared password for every
+seeded account: `Test@1234`. School slug to select on login:
+`demo-school`. Includes a student with `parentPhone` set to
+`+2348012345678`, so once you're ready to test the parent portal you can
+use that exact number at `/auth/parent`.
+
+
+
+## 12. Still open (not done in this session)
+
+- Storage is still 100% Cloudinary — no Supabase migration has happened
+  (and per our discussion, there's no strong reason to — see that
+  conversation for the full reasoning).
+- Announcements feature — schema exists, zero API/UI implementation.
 - No automated tests exist.
 - Payment gateway (Paystack/Flutterwave) still isn't wired up.
 - In-memory rate limiter won't hold up across serverless instances.
@@ -192,4 +281,5 @@ process going with Termii before you need it in production.
   type-checking, which is close but not 100% identical).
 - No SMS provider has real credentials configured yet — sign up with
   Termii and set `TERMII_API_KEY`/`TERMII_SENDER_ID`, or OTPs will only
-  ever log to the console.
+  ever log to the console. No SMTP credentials configured yet either —
+  see the Brevo setup notes from our conversation.

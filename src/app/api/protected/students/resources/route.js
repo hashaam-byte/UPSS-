@@ -10,9 +10,21 @@ export async function GET(request) {
     const folderId = searchParams.get('folderId');
     const type = searchParams.get('type');
 
+    // A student should see: resources with no class targeting (whole-school
+    // shares) OR resources specifically targeted at their own class. Never
+    // resources targeted at a different class.
+    const studentProfile = await prisma.studentProfile.findUnique({
+      where: { userId: user.id },
+      select: { className: true }
+    });
+
     // Build where clause
     const whereClause = {
-      schoolId: user.schoolId
+      schoolId: user.schoolId,
+      OR: [
+        { targetClass: null },
+        ...(studentProfile?.className ? [{ targetClass: studentProfile.className }] : [])
+      ]
     };
 
     if (folderId) {

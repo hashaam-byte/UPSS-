@@ -19,7 +19,8 @@ import {
   X,
   Phone,
   MessageCircle,
-  ExternalLink
+  ExternalLink,
+  Users
 } from 'lucide-react';
 
 // Contact Support Modal Component
@@ -190,6 +191,18 @@ const LoginPage = () => {
       glowColor: 'orange-500',
       emoji: '👑',
       route: '/protected/headadmin'
+    },
+    {
+      id: 'PARENT',
+      title: 'Parent',
+      subtitle: 'View your child\'s progress & manage their account',
+      icon: Users,
+      gradient: 'from-teal-500 to-cyan-600',
+      bgGradient: 'from-teal-50 to-cyan-100',
+      glowColor: 'teal-500',
+      emoji: '👨‍👩‍👧',
+      route: '/auth/parent',
+      external: true // navigates straight to the parent portal instead of showing the form below
     }
   ];
 
@@ -431,7 +444,7 @@ const LoginPage = () => {
                   {roles.map((role) => (
                     <button
                       key={role.id}
-                      onClick={() => setSelectedRole(role.id)}
+                      onClick={() => role.external ? (window.location.href = role.route) : setSelectedRole(role.id)}
                       className={`w-full p-4 rounded-2xl text-left transition-all duration-300 border-2 group ${
                         selectedRole === role.id
                           ? `bg-gradient-to-r ${role.bgGradient} border-${role.glowColor}/50 shadow-lg shadow-${role.glowColor}/25 scale-105`

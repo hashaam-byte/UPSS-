@@ -7,6 +7,16 @@ import jwt from 'jsonwebtoken';
 export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // The login page itself lives at /protected (not a typo — see src/app/protected/page.jsx).
+  // It must NOT be behind this auth guard: redirecting an unauthenticated visitor to
+  // "/protected" while "/protected" is itself inside the guarded zone creates an infinite
+  // redirect loop (no-token -> redirect to /protected -> still no token -> redirect again).
+  // The page already does its own client-side check and self-redirects away if the visitor
+  // turns out to already be logged in, so it's safe to let everyone reach it.
+  if (pathname === '/protected' || pathname === '/protected/') {
+    return NextResponse.next();
+  }
+
   // Protect the entire /protected directory and API routes
   if (pathname.startsWith('/protected') || pathname.startsWith('/api/protected')) {
     try {
