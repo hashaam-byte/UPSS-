@@ -29,10 +29,7 @@ export async function GET(request) {
     const subjects = await prisma.subject.findMany({
       where: {
         schoolId: user.schoolId,
-        isActive: true,
-        classes: {
-          hasSome: assignedClasses
-        }
+        isActive: true
       },
       include: {
         teachers: {
@@ -67,7 +64,7 @@ export async function GET(request) {
       name: subject.name,
       code: subject.code,
       category: subject.category,
-      classes: subject.classes.filter(className => assignedClasses.includes(className)),
+      classes: assignedClasses,
       teachers: subject.teachers.map(teacherSubject => ({
         id: teacherSubject.teacher.user.id,
         name: `${teacherSubject.teacher.user.firstName} ${teacherSubject.teacher.user.lastName}`,

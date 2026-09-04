@@ -299,10 +299,7 @@ async function generateTeacherAllocationReport(schoolId, coordinatorClasses, cla
   const allSubjects = await prisma.subject.findMany({
     where: {
       schoolId,
-      isActive: true,
-      classes: {
-        hasSome: targetClasses
-      }
+      isActive: true
     }
   });
 
@@ -370,7 +367,7 @@ async function generateTeacherAllocationReport(schoolId, coordinatorClasses, cla
         name: subject.name,
         code: subject.code,
         category: subject.category,
-        affectedClasses: subject.classes.filter(cls => targetClasses.includes(cls))
+        affectedClasses: targetClasses
       });
     }
   });

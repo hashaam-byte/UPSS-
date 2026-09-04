@@ -21,11 +21,12 @@ export async function GET(request) {
     }
 
     // Get subjects for student's class
+    const classLevel = studentProfile.className.match(/^(JSS|JS|SS)[1-3]/)?.[0];
     const subjects = await prisma.subject.findMany({
       where: {
         schoolId: user.schoolId,
-        classes: {
-          has: studentProfile.className
+        classLevel: {
+          has: classLevel
         },
         isActive: true
       },

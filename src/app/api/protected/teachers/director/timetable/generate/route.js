@@ -44,10 +44,8 @@ export async function POST(req) {
           schoolId,
           isActive: true,
           OR: [
-            { classes: { has: className } },
-            { classes: { has: classLevel } },
-            { classes: { has: classStage } },
-            { classes: { isEmpty: true } }
+            { classLevel: { has: classLevel } },
+            { classLevel: { isEmpty: true } }
           ]
         },
         include: {

@@ -120,12 +120,8 @@ export async function GET(request) {
       const classStage = getClassStage(classFilter);
       const classLevel = classFilter.substring(0, 3); // JS1, SS2, etc.
       
-      whereClause.classes = {
-        hasSome: [
-          classFilter, // Exact class match
-          classLevel,  // Level match (JS1, SS2)
-          classStage   // Stage match (JS, SS)
-        ].filter(Boolean)
+      whereClause.classLevel = {
+        has: classLevel
       };
     }
 
@@ -172,7 +168,7 @@ export async function GET(request) {
       name: subject.name,
       code: subject.code,
       category: subject.category,
-      classes: subject.classes,
+      classes: subject.classLevel,
       isActive: subject.isActive,
       teachers: subject.teachers.map(ts => ({
         id: ts.teacher.user.id,
@@ -267,7 +263,8 @@ export async function POST(request) {
         name,
         code: code.toUpperCase(),
         category,
-        classes,
+        classLevel: classes,
+        eligibleStreams: [],
         schoolId: user.schoolId,
         isActive: true
       }
@@ -342,7 +339,7 @@ export async function POST(request) {
         name: createdSubject.name,
         code: createdSubject.code,
         category: createdSubject.category,
-        classes: createdSubject.classes,
+        classes: createdSubject.classLevel,
         isActive: createdSubject.isActive,
         teachers: createdSubject.teachers.map(ts => ({
           id: ts.teacher.user.id,
@@ -408,7 +405,7 @@ export async function PUT(request) {
         ...(name && { name }),
         ...(code && { code: code.toUpperCase() }),
         ...(category && { category }),
-        ...(classes && { classes }),
+        ...(classes && { classLevel: classes }),
         ...(typeof isActive === 'boolean' && { isActive })
       }
     });
@@ -439,7 +436,7 @@ export async function PUT(request) {
               data: {
                 teacherId: teacher.teacherProfile.id,
                 subjectId: subjectId,
-                classes: classes || existingSubject.classes
+                classes: classes || existingSubject.classLevel
               }
             })
           );

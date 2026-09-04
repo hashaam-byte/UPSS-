@@ -12,7 +12,9 @@ export async function GET(request) {
       where: {
         schoolId: user.schoolId,
         isActive: true,
-        ...(className && { classes: { has: className } })
+        ...(className && {
+          classLevel: { has: className.match(/^(JSS|JS|SS)[1-3]/)?.[0] || className }
+        })
       }
     });
 

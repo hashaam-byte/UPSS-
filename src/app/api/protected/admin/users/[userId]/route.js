@@ -294,19 +294,20 @@ export async function PUT(request, { params: paramsPromise }) {
                 name: 'Academic Coordination',
                 code: coordCode,
                 category: 'CORE',
-                classes: uniqueClasses,
+                classLevel: uniqueClasses,
+                eligibleStreams: [],
                 schoolId: schoolId,
                 isActive: true
               }
             });
           } else {
             // Update existing subject with merged classes
-            const existingClasses = coordinationSubject.classes || [];
+            const existingClasses = coordinationSubject.classLevel || [];
             const mergedClasses = [...new Set([...existingClasses, ...uniqueClasses])];
             
             await tx.subject.update({
               where: { id: coordinationSubject.id },
-              data: { classes: mergedClasses }
+              data: { classLevel: mergedClasses }
             });
           }
 
@@ -346,19 +347,20 @@ export async function PUT(request, { params: paramsPromise }) {
                 name: `${fullClassName} Class Management`,
                 code: subjectCode,
                 category: 'CORE',
-                classes: [fullClassName],
+                classLevel: [normalizedClass],
+                eligibleStreams: [],
                 schoolId: schoolId,
                 isActive: true
               }
             });
           } else {
             // Update existing subject to include this class if not already included
-            const existingClasses = subject.classes || [];
+            const existingClasses = subject.classLevel || [];
             if (!existingClasses.includes(fullClassName)) {
               subject = await tx.subject.update({
                 where: { id: subject.id },
                 data: { 
-                  classes: [...existingClasses, fullClassName]
+                  classLevel: [...existingClasses, normalizedClass]
                 }
               });
             }

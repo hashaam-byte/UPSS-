@@ -185,10 +185,7 @@ export async function GET(request) {
     const subjects = await prisma.subject.findMany({
       where: {
         schoolId: coordinator.schoolId,
-        isActive: true,
-        classes: {
-          hasSome: coordinatorClasses
-        }
+        isActive: true
       },
       include: {
         teachers: {

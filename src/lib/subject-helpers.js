@@ -97,7 +97,7 @@ export async function getTeacherSubjects(teacherId, schoolId) {
     code: ts.subject.code,
     category: ts.subject.category,
     classes: ts.classes, // Classes this teacher teaches for this subject
-    availableClasses: ts.subject.classes, // All classes the subject is available for
+    availableClasses: ts.subject.classLevel, // Class levels the subject is available for
     isActive: ts.subject.isActive
   }));
 }
