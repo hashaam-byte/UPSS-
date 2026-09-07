@@ -26,11 +26,12 @@ export async function PUT(request) {
     const user = await requireAuth(['ADMIN']);
     const data = await request.json();
 
-    // Update profile fields
+    // Update profile fields — email is intentionally excluded: it's used as
+    // a stable login identifier and platform-side contact, so it's read-only
+    // here even though the request body may include it.
     const updateData = {
       firstName: data.firstName,
       lastName: data.lastName,
-      email: data.email,
       phone: data.phone
     };
 

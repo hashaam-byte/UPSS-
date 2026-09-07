@@ -2,6 +2,7 @@
 import { requireAuth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { getPlatformSettings } from '@/lib/platform-settings';
 
 export async function GET(request) {
   try {
@@ -67,13 +68,16 @@ export async function GET(request) {
       })
     ]);
 
-    // Calculate estimated cost based on pricing model
+    // Calculate estimated cost based on pricing model (headadmin-editable — see /lib/platform-settings)
+    const platformSettings = await getPlatformSettings();
     const totalUsers = studentCount + teacherCount + adminCount;
-    const individualPricePerUser = 250; // ₦250 per user
-    const bulkPricePerUser = 200; // ₦200 per user (bulk discount)
-    
-    // Bulk pricing: flat rate for 600+ users, otherwise per-user
-    const bulkCost = totalUsers > 600 ? 200000 : totalUsers * bulkPricePerUser;
+    const individualPricePerUser = Number(platformSettings.pricing_individual_per_user);
+    const bulkPricePerUser = Number(platformSettings.pricing_bulk_per_user);
+    const bulkThreshold = Number(platformSettings.pricing_bulk_threshold);
+    const bulkFlatCost = Number(platformSettings.pricing_bulk_flat_cost);
+
+    // Bulk pricing: flat rate above the threshold, otherwise per-user
+    const bulkCost = totalUsers > bulkThreshold ? bulkFlatCost : totalUsers * bulkPricePerUser;
     const individualCost = totalUsers * individualPricePerUser;
 
     // Get pending invoices - ONLY for this specific school
@@ -154,7 +158,10 @@ export async function GET(request) {
           description: invoice.description,
           createdAt: invoice.createdAt,
           dueDate: invoice.dueDate
-        }))
+        })),
+
+        // Contact for payment questions/disputes — headadmin-editable, see /protected/headadmin/platform-settings
+        platformContactPhone: platformSettings.platform_contact_phone || null,
       }
     });
 

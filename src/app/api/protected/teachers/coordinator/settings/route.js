@@ -80,14 +80,15 @@ export async function PUT(request) {
     }
 
     if (type === 'profile') {
-      const { firstName, lastName, email, phone, address, dateOfBirth } = data;
+      const { firstName, lastName, phone, address, dateOfBirth } = data;
 
+      // Note: email is intentionally not editable here — it's the login
+      // identifier, kept stable on purpose.
       await prisma.user.update({
         where: { id: user.id },
         data: {
           firstName: firstName || coordinator.firstName,
           lastName: lastName || coordinator.lastName,
-          email: email ? email.toLowerCase() : coordinator.email,
           phone: phone !== undefined ? phone : coordinator.phone,
           address: address !== undefined ? address : coordinator.address,
           dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : coordinator.dateOfBirth

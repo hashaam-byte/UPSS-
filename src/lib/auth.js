@@ -40,7 +40,8 @@ export async function getCurrentUser() {
           role: true,
           isEmailVerified: true,
           isActive: true,
-          schoolId: true
+          schoolId: true,
+          policyAcceptedAt: true
         }
       });
 
@@ -107,6 +108,7 @@ export async function getCurrentUser() {
       coordinatorClass,
       avatar: user.avatar,
       isEmailVerified: user.isEmailVerified,
+      policyAcceptedAt: user.policyAcceptedAt,
       school: user.school, // School object with all details
       profile: user.studentProfile || user.teacherProfile || user.adminProfile
     };

@@ -225,6 +225,11 @@ model School {
   website                  String?   @db.VarChar(255)
   isActive                 Boolean   @default(true) @map("is_active")
 
+  // Branding — lets each school pick their own accent color instead of the
+  // default light/dark theme. Applied via a CSS variable at runtime; see
+  // src/lib/theme.js. Hex color, e.g. "#10b981".
+  themeColor               String?   @db.VarChar(7) @map("theme_color")
+
   // Subscription
   subscriptionPlan         String    @default("trial") @map("subscription_plan")
   subscriptionExpiresAt    DateTime  @default(dbgenerated("(NOW() + INTERVAL '1 year')")) @map("subscription_expires_at") @db.Timestamptz
@@ -237,6 +242,12 @@ model School {
   maxTeachers              Int       @default(100) @map("max_teachers")
   customNextPaymentDays    Int?      @map("custom_next_payment_days")
   recurringPaymentMonths   Int?      @map("recurring_payment_months")
+
+  // Automated payment-deadline warnings (reset to null whenever the
+  // subscription is renewed/extended — see extend-trial and
+  // payment-schedule routes)
+  oneWeekWarningSentAt     DateTime? @map("one_week_warning_sent_at") @db.Timestamptz
+  finalWarningSentAt       DateTime? @map("final_warning_sent_at") @db.Timestamptz
 
   createdBy                String?   @map("created_by") @db.Uuid
   createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz
@@ -263,6 +274,7 @@ model School {
   parentCommunications     ParentCommunication[]
   invoices                 Invoice[]
   payments                 Payment[]
+  studentFees              StudentFee[]
   attendancePatterns       StudentAttendancePattern[]
   performanceMetrics       StudentPerformanceMetrics[]
   studentSubjectSelections StudentSubjectSelection[]
@@ -293,6 +305,10 @@ model User {
   gender                  Gender?
   isActive                Boolean   @default(true) @map("is_active")
   isEmailVerified         Boolean   @default(false) @map("is_email_verified")
+  // Set the first time this account accepts the Privacy Policy, Terms of
+  // Service, and Refund Policy. Currently gated at login for ADMIN accounts
+  // — see /accept-policies and the admin layout.
+  policyAcceptedAt        DateTime? @map("policy_accepted_at") @db.Timestamptz
   emailVerificationToken  String?   @map("email_verification_token") @db.VarChar(255)
   passwordResetToken      String?   @map("password_reset_token") @db.VarChar(255)
   passwordResetExpires    DateTime? @map("password_reset_expires") @db.Timestamptz
@@ -306,6 +322,7 @@ model User {
   studentProfile          StudentProfile?
   parentProfile           ParentProfile?
   parentLinks             ParentStudentLink[] @relation("ParentLinkStudent")
+  studentFees             StudentFee[]        @relation("StudentFees")
   teacherProfile          TeacherProfile?
   adminProfile            AdminProfile?
   sessions                UserSession[]
@@ -1247,6 +1264,62 @@ model Payment {
   processor       User?         @relation("PaymentProcessor", fields: [processedBy], references: [id])
 
   @@map("payments")
+}
+
+enum StudentFeeStatus {
+  pending
+  partial
+  paid
+  overdue
+  waived
+}
+
+// A fee owed by one student's family to the SCHOOL (tuition, bus fee, etc).
+// Distinct from Invoice/Payment above, which is platform billing (U-Plus
+// billing the school) — this is school billing the parent, and is settled
+// by manual bank transfer + admin confirmation for now (no live gateway).
+model StudentFee {
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  schoolId      String            @map("school_id") @db.Uuid
+  studentId     String            @map("student_id") @db.Uuid
+  title         String            @db.VarChar(255) // e.g. "First Term Tuition"
+  description   String?           @db.Text
+  amount        Decimal           @db.Decimal(10, 2)
+  amountPaid    Decimal           @default(0) @map("amount_paid") @db.Decimal(10, 2)
+  termName      String?           @map("term_name") @db.VarChar(50)
+  academicYear  String?           @map("academic_year") @db.VarChar(10)
+  dueDate       DateTime?         @map("due_date") @db.Timestamptz
+  status        StudentFeeStatus  @default(pending)
+  createdBy     String            @map("created_by") @db.Uuid
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz
+
+  school        School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student       User              @relation("StudentFees", fields: [studentId], references: [id], onDelete: Cascade)
+  payments      StudentFeePayment[]
+
+  @@index([schoolId])
+  @@index([studentId])
+  @@index([status])
+  @@map("student_fees")
+}
+
+// One manually-confirmed bank-transfer payment against a StudentFee.
+// A fee can be paid in installments, so this is 1-to-many.
+model StudentFeePayment {
+  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentFeeId   String     @map("student_fee_id") @db.Uuid
+  amount         Decimal    @db.Decimal(10, 2)
+  paymentDate    DateTime   @default(now()) @map("payment_date") @db.Timestamptz
+  method         String     @default("bank_transfer") @db.VarChar(50)
+  reference      String?    @db.VarChar(255) // what the parent quotes, e.g. transfer narration
+  notes          String?    @db.Text
+  confirmedBy    String     @map("confirmed_by") @db.Uuid // admin who manually confirmed it
+  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz
+
+  studentFee     StudentFee @relation(fields: [studentFeeId], references: [id], onDelete: Cascade)
+
+  @@map("student_fee_payments")
 }
 
 // ============================================================================

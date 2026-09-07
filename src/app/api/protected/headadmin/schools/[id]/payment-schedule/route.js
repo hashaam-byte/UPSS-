@@ -98,6 +98,9 @@ export async function PATCH(request, { params: paramsPromise }) {
         ...(months !== null && { recurringPaymentMonths: months }),
         subscriptionExpiresAt: newExpiryDate,
         subscriptionIsActive: true,
+        isActive: true, // Also lift a hard suspension, since the subscription is now current
+        oneWeekWarningSentAt: null, // Reset so the next cycle can warn again
+        finalWarningSentAt: null,
         updatedAt: new Date()
       },
       select: {

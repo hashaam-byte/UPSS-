@@ -9,6 +9,7 @@ import {
   Phone, 
   Globe, 
   MapPin,
+  MessageCircle,
   Calendar,
   DollarSign,
   CheckCircle,
@@ -44,6 +45,7 @@ const SchoolDetailsPage = () => {
   const [users, setUsers] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [stats, setStats] = useState({});
+  const [adminContacts, setAdminContacts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState('');
@@ -71,6 +73,7 @@ const SchoolDetailsPage = () => {
         setUsers(data.users || []);
         setInvoices(data.invoices || []);
         setStats(data.stats || {});
+        setAdminContacts(data.adminContacts || []);
       } else {
         const errorData = await response.json();
         setError(errorData.error || 'Failed to load school details');
@@ -522,6 +525,38 @@ const SchoolDetailsPage = () => {
                   </div>
                 </div>
               </div>
+
+              {/* Admin Contacts */}
+              {adminContacts && adminContacts.length > 0 && (
+                <div className="bg-gradient-to-br from-white/70 to-emerald-50/70 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50 p-6">
+                  <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-3">
+                    <User className="w-6 h-6 text-emerald-600" />
+                    Admin Contacts
+                  </h3>
+                  <div className="space-y-3">
+                    {adminContacts.map((admin) => (
+                      <div key={admin.id} className="flex items-center justify-between gap-3 p-3 bg-gradient-to-r from-gray-50/50 to-emerald-50/50 rounded-xl">
+                        <div>
+                          <p className="text-gray-900 font-semibold">{admin.name}</p>
+                          <p className="text-sm text-gray-600">{admin.email}</p>
+                          {admin.phone && <p className="text-sm text-gray-600">{admin.phone}</p>}
+                        </div>
+                        {admin.phone && (
+                          <a
+                            href={`https://wa.me/${admin.phone.replace(/\D/g, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                            Chat
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Subscription Details */}
               <div className="bg-gradient-to-br from-white/70 to-purple-50/70 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50 p-6">

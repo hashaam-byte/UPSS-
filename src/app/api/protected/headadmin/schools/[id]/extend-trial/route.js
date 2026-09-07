@@ -84,6 +84,9 @@ export async function POST(request, { params: paramsPromise }) {
         data: {
           subscriptionExpiresAt: newExpirationDate,
           subscriptionIsActive: true, // Ensure it's active if extending
+          isActive: true, // Also lift a hard suspension, since the subscription is now current
+          oneWeekWarningSentAt: null, // Reset so the next cycle can warn again
+          finalWarningSentAt: null,
           updatedAt: new Date()
         }
       });

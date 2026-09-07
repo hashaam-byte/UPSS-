@@ -146,6 +146,7 @@ export async function GET() {
         department: user.teacherProfile?.department || null, // Add department info
         avatar: user.avatar,
         isEmailVerified: user.isEmailVerified,
+        policyAcceptedAt: user.policyAcceptedAt,
         // Include profile data based on role
         ...(user.studentProfile && { studentProfile: user.studentProfile }),
         ...(user.teacherProfile && { teacherProfile: user.teacherProfile }),

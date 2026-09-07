@@ -67,7 +67,16 @@ export async function POST(request, { params: paramsPromise }) {
       // Update school status
       const updatedSchool = await tx.school.update({
         where: { id: schoolId },
-        data: { isActive: newStatus }
+        data: {
+          isActive: newStatus,
+          // Manually reactivating clears any stale payment-deadline warnings,
+          // matching what extend-trial/payment-schedule already do on renewal
+          ...(action === 'activate' && {
+            subscriptionIsActive: true,
+            oneWeekWarningSentAt: null,
+            finalWarningSentAt: null,
+          }),
+        }
       });
 
       // If suspending, deactivate all user sessions for this school

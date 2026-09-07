@@ -26,11 +26,21 @@ const UnifiedLandingPage = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrollY, setScrollY] = useState(0);
   const [activeRole, setActiveRole] = useState('STUDENT');
+  const [monthlyPrice, setMonthlyPrice] = useState(300); // fallback shown until the real value loads
 
   useEffect(() => {
     const handleScroll = () => setScrollY(window.scrollY);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/public/pricing')
+      .then(res => res.json())
+      .then(data => {
+        if (data?.data?.landingMonthly) setMonthlyPrice(data.data.landingMonthly);
+      })
+      .catch(() => {}); // keep the fallback price shown above if this fails
   }, []);
 
   const features = [
@@ -427,7 +437,7 @@ const UnifiedLandingPage = () => {
                 <p className="text-gray-400 mb-6">For individual users</p>
                 <div className="text-4xl font-bold mb-2">
                   <span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
-                    ₦300
+                    ₦{monthlyPrice}
                   </span>
                   <span className="text-lg text-gray-400 font-normal">/month</span>
                 </div>

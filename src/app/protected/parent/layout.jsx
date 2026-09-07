@@ -1,10 +1,12 @@
 'use client'
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Loader2, LogOut, Users } from 'lucide-react';
+import { useRouter, usePathname } from 'next/navigation';
+import Link from 'next/link';
+import { Loader2, LogOut, Users, LayoutDashboard, Wallet, Megaphone } from 'lucide-react';
 
 export default function ParentLayout({ children }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
 
@@ -59,10 +61,30 @@ export default function ParentLayout({ children }) {
             Log out
           </button>
         </div>
+        <nav className="max-w-5xl mx-auto px-4 flex gap-1 -mb-px">
+          <NavLink href="/protected/parent/dashboard" pathname={pathname} icon={LayoutDashboard} label="Dashboard" />
+          <NavLink href="/protected/parent/fees" pathname={pathname} icon={Wallet} label="Fees" />
+          <NavLink href="/protected/parent/announcements" pathname={pathname} icon={Megaphone} label="Announcements" />
+        </nav>
       </header>
       <main className="max-w-5xl mx-auto px-4 py-8">
         {children}
       </main>
     </div>
+  );
+}
+
+function NavLink({ href, pathname, icon: Icon, label }) {
+  const isActive = pathname === href;
+  return (
+    <Link
+      href={href}
+      className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+        isActive ? 'border-emerald-500 text-white' : 'border-transparent text-gray-400 hover:text-white'
+      }`}
+    >
+      <Icon className="w-4 h-4" />
+      {label}
+    </Link>
   );
 }

@@ -1,8 +1,10 @@
 'use client'
 import React, { useState, useEffect } from 'react';
-import { User, KeyRound, Loader2, CheckCircle, X, ArrowLeft } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { User, KeyRound, Loader2, CheckCircle, X, ArrowLeft, ChevronRight } from 'lucide-react';
 
 export default function ParentDashboardPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
@@ -67,6 +69,13 @@ export default function ParentDashboardPage() {
                 </p>
               </div>
             </div>
+            <button
+              onClick={() => router.push(`/protected/parent/dashboard/${child.id}`)}
+              className="w-full flex items-center justify-between gap-2 py-2.5 px-4 mb-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-300 text-sm rounded-xl transition-colors"
+            >
+              <span>View grades, attendance & tests</span>
+              <ChevronRight className="w-4 h-4" />
+            </button>
             <button
               onClick={() => setResetModalChild(child)}
               className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-white/10 hover:bg-white/20 border border-white/10 text-white text-sm rounded-xl transition-colors"

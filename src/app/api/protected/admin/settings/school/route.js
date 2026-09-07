@@ -18,7 +18,8 @@ export async function GET() {
         createdAt: true,
         principalName: true,
         vice_principalName: true,
-        establishedYear: true
+        establishedYear: true,
+        themeColor: true
       }
     });
     return NextResponse.json({ settings: school });
@@ -31,6 +32,11 @@ export async function PUT(request) {
   try {
     const user = await requireAuth(['ADMIN']);
     const data = await request.json();
+
+    if (data.themeColor && !/^#[0-9A-Fa-f]{6}$/.test(data.themeColor)) {
+      return NextResponse.json({ error: 'themeColor must be a 6-digit hex color, e.g. #10b981' }, { status: 400 });
+    }
+
     const updated = await prisma.school.update({
       where: { id: user.school.id },
       data: {
@@ -43,7 +49,8 @@ export async function PUT(request) {
         description: data.description,
         establishedYear: data.establishedYear,
         principalName: data.principalName,
-        vice_principalName: data.vice_principalName
+        vice_principalName: data.vice_principalName,
+        themeColor: data.themeColor,
       }
     });
     return NextResponse.json({ success: true, settings: updated });

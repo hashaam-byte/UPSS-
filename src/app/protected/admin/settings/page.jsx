@@ -44,7 +44,8 @@ const AdminSettingsPage = () => {
     description: '',
     establishedYear: '',
     principalName: '',
-    vice_principalName: ''
+    vice_principalName: '',
+    themeColor: '#10b981'
   });
 
   const [userSettings, setUserSettings] = useState({
@@ -262,6 +263,30 @@ const AdminSettingsPage = () => {
           className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
           rows={3}
         />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-300 mb-2">
+          Brand color
+        </label>
+        <p className="text-xs text-gray-500 mb-3">
+          Choose an accent color for your school's portal, instead of the default theme.
+        </p>
+        <div className="flex items-center gap-3">
+          <input
+            type="color"
+            value={schoolSettings.themeColor || '#10b981'}
+            onChange={(e) => setSchoolSettings(prev => ({ ...prev, themeColor: e.target.value }))}
+            className="w-14 h-10 rounded-lg border border-white/20 bg-transparent cursor-pointer"
+          />
+          <input
+            type="text"
+            value={schoolSettings.themeColor || '#10b981'}
+            onChange={(e) => setSchoolSettings(prev => ({ ...prev, themeColor: e.target.value }))}
+            placeholder="#10b981"
+            className="px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all w-32 font-mono text-sm"
+          />
+        </div>
       </div>
 
       <div>

@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { applyBrandColor } from '@/lib/theme';
+import PolicyConsentGate from '@/Components/shared/PolicyConsentGate';
 import { 
   Users, 
   BookOpen, 
@@ -24,7 +26,9 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
-  UserCheck // NEW ICON for teacher assignments
+  UserCheck, // NEW ICON for teacher assignments
+  Wallet,
+  Megaphone,
 } from 'lucide-react';
 
 const AdminLayout = ({ children }) => {
@@ -33,6 +37,7 @@ const AdminLayout = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [user, setUser] = useState(null);
+  const [needsPolicyConsent, setNeedsPolicyConsent] = useState(false);
   const [school, setSchool] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [notifications, setNotifications] = useState([]);
@@ -65,6 +70,16 @@ const AdminLayout = ({ children }) => {
       title: 'Subscription',
       href: '/protected/admin/subscription',
       icon: CreditCard
+    },
+    {
+      title: 'Fees',
+      href: '/protected/admin/fees',
+      icon: Wallet
+    },
+    {
+      title: 'Announcements',
+      href: '/protected/admin/announcements',
+      icon: Megaphone
     },
     {
       title: 'Messages',
@@ -118,6 +133,8 @@ const AdminLayout = ({ children }) => {
 
       setUser(data.user);
       setSchool(data.school);
+      applyBrandColor(data.school?.themeColor);
+      setNeedsPolicyConsent(!data.user.policyAcceptedAt);
     } catch (error) {
       console.error('Auth verification failed:', error);
       setError('Authentication failed');
@@ -233,6 +250,9 @@ const AdminLayout = ({ children }) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {needsPolicyConsent && (
+        <PolicyConsentGate onAccepted={() => setNeedsPolicyConsent(false)} />
+      )}
       {/* Mobile sidebar overlay */}
       {isMobileSidebarOpen && (
         <div 

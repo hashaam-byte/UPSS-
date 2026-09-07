@@ -34,6 +34,7 @@ export async function GET(request, { params: paramsPromise }) {
             firstName: true,
             lastName: true,
             email: true,
+            phone: true,
             role: true,
             isActive: true,
             createdAt: true,
@@ -82,6 +83,16 @@ export async function GET(request, { params: paramsPromise }) {
       teachers: school.users.filter(u => u.role === 'TEACHER').length,
       students: school.users.filter(u => u.role === 'STUDENT').length
     };
+
+    // Admin contacts — for easy direct outreach about payments/support
+    const adminContacts = school.users
+      .filter(u => u.role === 'ADMIN' && u.isActive)
+      .map(a => ({
+        id: a.id,
+        name: `${a.firstName} ${a.lastName}`,
+        email: a.email,
+        phone: a.phone || null,
+      }));
 
     // Calculate billing statistics
     const paidInvoices = school.invoices.filter(inv => inv.status === 'paid');
@@ -132,6 +143,7 @@ export async function GET(request, { params: paramsPromise }) {
         updatedAt: school.updatedAt
       },
       users: school.users,
+      adminContacts,
       invoices: school.invoices,
       stats: {
         users: userStats,

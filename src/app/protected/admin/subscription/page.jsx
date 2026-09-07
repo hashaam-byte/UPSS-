@@ -19,7 +19,9 @@ import {
   Crown,
   Sparkles,
   ArrowUp,
-  Bell
+  Bell,
+  Phone,
+  MessageCircle
 } from 'lucide-react';
 
 const AdminSubscriptionPage = () => {
@@ -348,7 +350,7 @@ const AdminSubscriptionPage = () => {
                   <div className="space-y-4 mb-8">
                     <div className="flex justify-between items-center py-3 border-b border-gray-200/50">
                       <span className="text-gray-600 font-medium">Price per user:</span>
-                      <span className="text-2xl font-black text-gray-900">{formatCurrency(250)}/month</span>
+                      <span className="text-2xl font-black text-gray-900">{formatCurrency(subscription?.pricing?.individual?.pricePerUser || 0)}/month</span>
                     </div>
                     <div className="flex justify-between items-center py-3 border-b border-gray-200/50">
                       <span className="text-gray-600 font-medium">Current users:</span>
@@ -357,7 +359,7 @@ const AdminSubscriptionPage = () => {
                     <div className="flex justify-between items-center py-4 bg-blue-50 rounded-xl px-4 border border-blue-200">
                       <span className="text-gray-800 font-bold">Monthly total:</span>
                       <span className="text-3xl font-black text-blue-600">
-                        {formatCurrency(subscription ? (subscription.currentUsers?.total || 0) * 250 : 0)}
+                        {formatCurrency(subscription?.pricing?.individual?.totalCost || 0)}
                       </span>
                     </div>
                   </div>
@@ -403,8 +405,8 @@ const AdminSubscriptionPage = () => {
                     <div className="flex justify-between items-center py-3 border-b border-gray-200/50">
                       <span className="text-gray-600 font-medium">Price per user:</span>
                       <div className="flex items-center gap-2">
-                        <span className="text-lg text-gray-400 line-through">{formatCurrency(250)}</span>
-                        <span className="text-2xl font-black text-emerald-600">{formatCurrency(200)}/month</span>
+                        <span className="text-lg text-gray-400 line-through">{formatCurrency(subscription?.pricing?.individual?.pricePerUser || 0)}</span>
+                        <span className="text-2xl font-black text-emerald-600">{formatCurrency(subscription?.pricing?.bulk?.pricePerUser || 0)}/month</span>
                       </div>
                     </div>
                     <div className="flex justify-between items-center py-3 border-b border-gray-200/50">
@@ -414,9 +416,7 @@ const AdminSubscriptionPage = () => {
                     <div className="flex justify-between items-center py-4 bg-emerald-50 rounded-xl px-4 border border-emerald-200">
                       <span className="text-gray-800 font-bold">Monthly total:</span>
                       <span className="text-3xl font-black text-emerald-600">
-                        {formatCurrency(subscription ? 
-                          (subscription.currentUsers?.total > 600 ? 200000 : (subscription.currentUsers?.total || 0) * 200) 
-                          : 0)}
+                        {formatCurrency(subscription?.pricing?.bulk?.totalCost || 0)}
                       </span>
                     </div>
                     
@@ -424,7 +424,7 @@ const AdminSubscriptionPage = () => {
                       <div className="flex items-center gap-2">
                         <ArrowUp className="w-5 h-5 text-emerald-600 transform rotate-45" />
                         <span className="font-black text-emerald-700">
-                          Save {formatCurrency(subscription ? (subscription.currentUsers?.total || 0) * 50 : 0)} monthly!
+                          Save {formatCurrency(subscription?.pricing?.bulk?.savings || 0)} monthly!
                         </span>
                       </div>
                     </div>
@@ -499,6 +499,32 @@ const AdminSubscriptionPage = () => {
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Contact Head Admin */}
+        {subscription?.platformContactPhone && (
+          <div className="relative overflow-hidden bg-gradient-to-br from-slate-800/90 to-slate-900/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/10 p-8">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 bg-emerald-500/20 rounded-2xl flex items-center justify-center flex-shrink-0">
+                  <Phone className="w-7 h-7 text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="text-white font-bold text-lg">Questions about your subscription or a payment?</h3>
+                  <p className="text-gray-400 text-sm">Reach the U-Plus team directly — {subscription.platformContactPhone}</p>
+                </div>
+              </div>
+              <a
+                href={`https://wa.me/${subscription.platformContactPhone.replace(/\D/g, '')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-semibold transition-colors whitespace-nowrap"
+              >
+                <MessageCircle className="w-5 h-5" />
+                Chat on WhatsApp
+              </a>
             </div>
           </div>
         )}
