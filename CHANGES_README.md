@@ -161,16 +161,33 @@ admin's) — that's a small remaining step, not a missing feature.
 
 
 
+## 5. This update: nav wiring + theme color everywhere
+
+- Added "Announcements" to the sidebar nav for students
+  (`src/app/protected/students/layout.jsx`) and class teachers
+  (`src/app/protected/teacher/class/layout.jsx`) — the pages existed
+  from the previous update but weren't linked from anywhere.
+- Theme color (the accent color an admin picks on the school settings
+  page) now applies across **every** role's layout, not just admin's:
+  student, parent, and all four teacher sub-roles (class, subject,
+  coordinator, director). Three of these layouts (coordinator, director,
+  parent) were already receiving `school` data from `/api/auth/verify`
+  but never capturing or using it — this was a one-line fix in each once
+  found, not a bigger change.
+- Same honest scope note as before: this applies the color as a CSS
+  variable everywhere now, but still doesn't retheme every existing
+  hardcoded Tailwind gradient across the app — that's still a
+  file-by-file migration for later.
+
 ## 6. Still open
 
-- Nav-link wiring for student/teacher announcement pages into their
-  sidebars (pages work standalone, just not linked yet — see section 5).
-- Theme color only applies in the admin layout — not yet extended to
-  teacher/student/parent layouts.
 - Storage is still 100% Cloudinary (deliberate, per earlier discussion).
 - No automated tests.
 - Payment gateway still isn't wired to a live provider (deliberate —
   manual bank transfer for now, per the age/KYC discussion).
 - A full `tsc --noEmit` pass hasn't been run independently.
+- Retheming existing hardcoded gradients to actually use the new
+  `--brand-primary` CSS variable, beyond the mechanism now being live
+  everywhere.
 - AI test generation, timetable generation, resources scoping — all
   fixed and verified in earlier sessions, unchanged in this update.

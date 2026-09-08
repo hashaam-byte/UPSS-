@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
+import { applyBrandColor } from '@/lib/theme';
 import {
   Home,
   Calendar,
@@ -77,6 +78,7 @@ const CoordinatorLayout = ({ children }) => {
         }
         
         setUser(data.user);
+        applyBrandColor(data.school?.themeColor);
       } else {
         router.push('/protected');
         return;

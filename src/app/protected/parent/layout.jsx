@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Loader2, LogOut, Users, LayoutDashboard, Wallet, Megaphone } from 'lucide-react';
+import { applyBrandColor } from '@/lib/theme';
 
 export default function ParentLayout({ children }) {
   const router = useRouter();
@@ -25,6 +26,7 @@ export default function ParentLayout({ children }) {
       }
 
       setUser(data.user);
+      applyBrandColor(data.school?.themeColor);
     } catch (err) {
       router.push('/auth/parent');
     } finally {

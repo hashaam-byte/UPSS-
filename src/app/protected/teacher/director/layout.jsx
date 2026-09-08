@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { applyBrandColor } from '@/lib/theme';
 import {
   Users, UserCheck, Calendar, FileText, BarChart3, MessageSquare, Settings,
   LogOut, Menu, X, Bell, Search, Crown, BookOpen, ChevronDown, 
@@ -82,6 +83,7 @@ export default function DirectorLayout({ children }) {
       }
 
       setUser(data.user);
+      applyBrandColor(data.school?.themeColor);
     } catch (error) {
       console.error('Auth verification failed:', error);
       router.push('/protected');

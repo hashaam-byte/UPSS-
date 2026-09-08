@@ -1,6 +1,7 @@
 'use client'
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { applyBrandColor } from '@/lib/theme';
 import {
   Home, BookOpen, FileText, CheckSquare, Users, BarChart3, Upload,
   MessageSquare, Settings, LogOut, Menu, X, User, Bell, Calendar,
@@ -61,6 +62,7 @@ const ImprovedSubjectTeacherLayout = ({ children }) => {
 
       setUser(data.user);
       setSchool(data.school);
+      applyBrandColor(data.school?.themeColor);
     } catch (error) {
       console.error('Auth verification failed:', error);
       router.push('/protected');

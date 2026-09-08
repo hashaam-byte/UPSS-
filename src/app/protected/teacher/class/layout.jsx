@@ -1,6 +1,7 @@
 'use client'
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { applyBrandColor } from '@/lib/theme';
 import {
   Home,
   Users,
@@ -21,7 +22,8 @@ import {
   AlertTriangle,
   Info,
   Clock,
-  ExternalLink
+  ExternalLink,
+  Megaphone
 } from 'lucide-react';
 
 const ClassTeacherLayout = ({ children }) => {
@@ -82,6 +84,7 @@ const ClassTeacherLayout = ({ children }) => {
 
       setUser(data.user);
       setSchool(data.school);
+      applyBrandColor(data.school?.themeColor);
       
       // Fetch initial unread count
       fetchUnreadCount();
@@ -253,6 +256,11 @@ const ClassTeacherLayout = ({ children }) => {
       name: 'Messages',
       href: '/protected/teacher/class/messages',
       icon: MessageSquare
+    },
+    {
+      name: 'Announcements',
+      href: '/protected/teacher/class/announcements',
+      icon: Megaphone
     },
     {
       name: 'Calendar',

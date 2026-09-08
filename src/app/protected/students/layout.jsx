@@ -1,6 +1,7 @@
 'use client'
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { applyBrandColor } from '@/lib/theme';
 import {
   Home,
   BookOpen,
@@ -20,7 +21,8 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
-  ChevronDown
+  ChevronDown,
+  Megaphone
 } from 'lucide-react';
 
 const StudentLayout = ({ children }) => {
@@ -84,6 +86,7 @@ const StudentLayout = ({ children }) => {
 
       setUser(data.user);
       setSchool(data.school);
+      applyBrandColor(data.school?.themeColor);
     } catch (error) {
       console.error('Auth verification failed:', error);
       router.push('/protected');
@@ -221,6 +224,11 @@ const StudentLayout = ({ children }) => {
       name: 'Messages',
       href: '/protected/students/messages',
       icon: MessageSquare
+    },
+    {
+      name: 'Announcements',
+      href: '/protected/students/announcements',
+      icon: Megaphone
     },
       
     {
