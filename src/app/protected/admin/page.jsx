@@ -26,7 +26,7 @@ const AdminDashboard = () => {
     totalUsers: 0,
     students: 0,
     teachers: 0,
-    admins: 0,
+    Admins: 0,
     activeUsers: 0,
     subscription: null,
     recentActivity: []
@@ -55,7 +55,7 @@ const AdminDashboard = () => {
         totalUsers: usersData.stats?.total || 0,
         students: usersData.stats?.students || 0,
         teachers: usersData.stats?.teachers || 0,
-        admins: usersData.stats?.admins || 0,
+        Admins: usersData.stats?.Admins || 0,
         activeUsers: usersData.stats?.active || 0,
         subscription: subscriptionData.subscription,
         recentActivity: activityData.activities || []

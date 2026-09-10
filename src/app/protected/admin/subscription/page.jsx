@@ -442,7 +442,7 @@ const AdminSubscriptionPage = () => {
                   </div>
                   
                   <p className="text-sm text-gray-600 mb-6 font-medium">
-                    School admin pays for all users. Save 20% compared to individual billing!
+                    School Admin pays for all users. Save 20% compared to individual billing!
                   </p>
 
                   <button
@@ -543,7 +543,7 @@ const AdminSubscriptionPage = () => {
           <div className="p-8">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[
-                { icon: Users, title: "User Management", description: "Unlimited student, teacher, and admin accounts" },
+                { icon: Users, title: "User Management", description: "Unlimited student, teacher, and Admin accounts" },
                 { icon: Calendar, title: "Smart Scheduling", description: "AI-powered timetable and calendar management" },
                 { icon: TrendingUp, title: "Advanced Analytics", description: "Real-time performance tracking and insights" },
                 { icon: Shield, title: "Enterprise Security", description: "Bank-level security with data encryption" },

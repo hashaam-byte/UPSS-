@@ -249,7 +249,7 @@ const UserEditPage = () => {
       });
 
       if (response.ok) {
-        router.push('/protected/admin/users?deleted=true');
+            router.push('/protected/admin/users?deleted=true');
       } else {
         const errorData = await response.json();
         setError(errorData.error || 'Failed to delete user');
@@ -263,7 +263,7 @@ const UserEditPage = () => {
   };
 
   const getRoleIcon = (role, teacherType) => {
-    if (role === 'ADMIN') return Crown;
+    if (role === 'Admin') return Crown;
     if (role === 'TEACHER') {
       switch (teacherType) {
         case 'coordinator': return BookOpen;
@@ -275,7 +275,7 @@ const UserEditPage = () => {
   };
 
   const getRoleBadgeColor = (role, teacherType) => {
-    if (role === 'ADMIN') return 'from-purple-500 to-pink-500';
+    if (role === 'Admin') return 'from-purple-500 to-pink-500';
     if (role === 'TEACHER') {
       switch (teacherType) {
         case 'coordinator': return 'from-blue-500 to-indigo-500';
@@ -569,7 +569,7 @@ const UserEditPage = () => {
                       >
                         <option value="student">Student</option>
                         <option value="teacher">Teacher</option>
-                        <option value="admin">Admin</option>
+                        <option value="Admin">Admin</option>
                       </select>
                     </div>
 

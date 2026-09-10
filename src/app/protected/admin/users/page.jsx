@@ -13,7 +13,7 @@ import { useRouter } from 'next/navigation';
 const ROLE_CONFIG = {
   STUDENT: { label: 'Student', color: 'bg-sky-100 text-sky-700 ring-sky-200',     dot: 'bg-sky-500'     },
   TEACHER: { label: 'Teacher', color: 'bg-emerald-100 text-emerald-700 ring-emerald-200', dot: 'bg-emerald-500' },
-  ADMIN:   { label: 'Admin',   color: 'bg-violet-100 text-violet-700 ring-violet-200',    dot: 'bg-violet-500'  },
+  Admin:   { label: 'Admin',   color: 'bg-violet-100 text-violet-700 ring-violet-200',    dot: 'bg-violet-500'  },
 };
 
 const TEACHER_TYPE_LABELS = {
@@ -26,7 +26,7 @@ const TEACHER_TYPE_LABELS = {
 const TABS = [
   { id: 'students', label: 'Students', role: 'student', icon: GraduationCap, accent: 'sky'     },
   { id: 'teachers', label: 'Teachers', role: 'teacher', icon: UserCheck,    accent: 'emerald'  },
-  { id: 'admins',   label: 'Admins',   role: 'admin',   icon: Shield,        accent: 'violet'   },
+  { id: 'Admins',   label: 'Admins',   role: 'Admin',   icon: Shield,        accent: 'violet'   },
 ];
 
 const CLASS_LEVELS = ['JSS1', 'JSS2', 'JSS3', 'SS1', 'SS2', 'SS3'];
@@ -63,7 +63,7 @@ function Avatar({ firstName, lastName, role }) {
   const colors = {
     STUDENT: 'from-sky-400 to-blue-500',
     TEACHER: 'from-emerald-400 to-teal-500',
-    ADMIN:   'from-violet-400 to-purple-500',
+    Admin:   'from-violet-400 to-purple-500',
   };
   return (
     <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${colors[role] ?? 'from-gray-300 to-gray-400'} flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm`}>
@@ -347,7 +347,7 @@ export default function AdminUsersPage() {
     const rows = {
       student: 'firstName,lastName,email,username,password,phone,dateOfBirth,gender,className,section,parentName,parentPhone,parentEmail\nJohn,Doe,john@example.com,johndoe,Pass1234,+234801234,2005-01-15,male,SS1,A,Jane Doe,+234808765,jane@example.com',
       teacher: 'firstName,lastName,email,username,password,phone,dateOfBirth,gender,teacherType,coordinatorClasses,classTeacherClass,classTeacherArm\nJane,Smith,jane@example.com,janesmith,Pass1234,+234801234,1985-03-20,female,subject_teacher,,,',
-      admin:   'firstName,lastName,email,username,password,phone,dateOfBirth,gender\nAdmin,User,admin@example.com,adminuser,Pass1234,+234801234,1990-05-10,male'
+      Admin:   'firstName,lastName,email,username,password,phone,dateOfBirth,gender\nAdmin,User,Admin@example.com,Adminuser,Pass1234,+234801234,1990-05-10,male'
     };
     const blob = new Blob([rows[role]], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -608,7 +608,7 @@ export default function AdminUsersPage() {
                   <select value={createForm.role} onChange={e => setCreateForm({ ...EMPTY_FORM, role: e.target.value })} className={selectCls} required>
                     <option value="student">Student</option>
                     <option value="teacher">Teacher</option>
-                    <option value="admin">Admin</option>
+                    <option value="Admin">Admin</option>
                   </select>
                 </Field>
                 {createForm.role === 'teacher' && (

@@ -80,7 +80,7 @@ const AdminSettingsPage = () => {
     weeklyReports: true
   });
 
-  const [adminProfile, setAdminProfile] = useState({
+  const [AdminProfile, setAdminProfile] = useState({
     firstName: '',
     lastName: '',
     email: '',
@@ -704,7 +704,7 @@ const AdminSettingsPage = () => {
           </label>
           <input
             type="text"
-            value={adminProfile.firstName}
+            value={AdminProfile.firstName}
             onChange={(e) => setAdminProfile(prev => ({ ...prev, firstName: e.target.value }))}
             className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
             required
@@ -717,7 +717,7 @@ const AdminSettingsPage = () => {
           </label>
           <input
             type="text"
-            value={adminProfile.lastName}
+            value={AdminProfile.lastName}
             onChange={(e) => setAdminProfile(prev => ({ ...prev, lastName: e.target.value }))}
             className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
             required
@@ -730,7 +730,7 @@ const AdminSettingsPage = () => {
           </label>
           <input
             type="email"
-            value={adminProfile.email}
+            value={AdminProfile.email}
             onChange={(e) => setAdminProfile(prev => ({ ...prev, email: e.target.value }))}
             className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
             required
@@ -743,7 +743,7 @@ const AdminSettingsPage = () => {
           </label>
           <input
             type="tel"
-            value={adminProfile.phone}
+            value={AdminProfile.phone}
             onChange={(e) => setAdminProfile(prev => ({ ...prev, phone: e.target.value }))}
             className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
           />
@@ -770,7 +770,7 @@ const AdminSettingsPage = () => {
               <div className="relative">
                 <input
                   type="password"
-                  value={adminProfile.currentPassword}
+                  value={AdminProfile.currentPassword}
                   onChange={(e) => setAdminProfile(prev => ({ ...prev, currentPassword: e.target.value }))}
                   className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
                   required={showPasswordFields}
@@ -784,7 +784,7 @@ const AdminSettingsPage = () => {
               </label>
               <input
                 type="password"
-                value={adminProfile.newPassword}
+                value={AdminProfile.newPassword}
                 onChange={(e) => setAdminProfile(prev => ({ ...prev, newPassword: e.target.value }))}
                 className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
                 required={showPasswordFields}
@@ -798,7 +798,7 @@ const AdminSettingsPage = () => {
               </label>
               <input
                 type="password"
-                value={adminProfile.confirmPassword}
+                value={AdminProfile.confirmPassword}
                 onChange={(e) => setAdminProfile(prev => ({ ...prev, confirmPassword: e.target.value }))}
                 className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
                 required={showPasswordFields}
@@ -811,13 +811,13 @@ const AdminSettingsPage = () => {
 
       <button
         onClick={() => {
-          if (showPasswordFields && adminProfile.newPassword !== adminProfile.confirmPassword) {
+          if (showPasswordFields && AdminProfile.newPassword !== AdminProfile.confirmPassword) {
             setError('Passwords do not match');
             return;
           }
-          handleSaveSettings('profile', adminProfile);
+          handleSaveSettings('profile', AdminProfile);
         }}
-        disabled={isSaving || (showPasswordFields && !adminProfile.currentPassword)}
+        disabled={isSaving || (showPasswordFields && !AdminProfile.currentPassword)}
         className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 disabled:opacity-50 text-white rounded-lg transition-all"
       >
         {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}

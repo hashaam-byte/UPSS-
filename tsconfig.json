@@ -34,7 +34,6 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     "src/app/protected/admin/page.jsx",
-    "src/app/protected/page.jsx",
     "src/app/protected/headadmin/invoices/create/page.jsx",
     "src/app/protected/teacher/director/timetable/page.jsx",
     "src/app/api/protected/headadmin/messages/conversations/[id]/read/route.ts",

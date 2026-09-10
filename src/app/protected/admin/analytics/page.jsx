@@ -137,7 +137,7 @@ const AdminAnalyticsPage = () => {
     date: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     Students: item.students || 0,
     Teachers: item.teachers || 0,
-    Admins: item.admins || 0,
+    Admins: item.Admins || 0,
     Total: item.total || 0
   }));
 
@@ -509,7 +509,7 @@ const AdminAnalyticsPage = () => {
             Today's Activity
           </h2>
           <Link 
-            href="/protected/admin/activity" 
+            href="/protected/admin/activity"
             className="flex items-center gap-2 px-3 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-sm transition-colors"
           >
             View All Activity

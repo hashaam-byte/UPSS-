@@ -162,9 +162,9 @@ const AdminMessagesPage = () => {
   };
 
   const getUserRole = (user) => {
-    if (user.role === 'ADMIN') {
-      return user.adminProfile?.department 
-        ? `Admin - ${user.adminProfile.department}` 
+    if (user.role === 'Admin') {
+      return user.AdminProfile?.department 
+        ? `Admin - ${user.AdminProfile.department}` 
         : 'Administrator';
     }
     if (user.role === 'TEACHER') {
@@ -184,7 +184,7 @@ const AdminMessagesPage = () => {
 
   const getRoleIcon = (role) => {
     switch(role) {
-      case 'ADMIN':
+      case 'Admin':
         return <Crown className="w-5 h-5" />;
       case 'TEACHER':
         return <UserCog className="w-5 h-5" />;
@@ -197,7 +197,7 @@ const AdminMessagesPage = () => {
 
   const getRoleColor = (role) => {
     switch(role) {
-      case 'ADMIN':
+      case 'Admin':
         return 'from-purple-500 to-indigo-500';
       case 'TEACHER':
         return 'from-blue-500 to-cyan-500';

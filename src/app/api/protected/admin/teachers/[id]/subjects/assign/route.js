@@ -67,7 +67,7 @@ export async function GET(request) {
       },
       include: {
         user: {
-          select: { id: true, email: true, isActive: true },
+          select: { id: true, firstName: true, lastName: true, email: true, isActive: true },
         },
         teacherSubjects: {
           where: { isActive: true },
@@ -87,7 +87,7 @@ export async function GET(request) {
           },
         },
       },
-      orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
+      orderBy: [{ user: { firstName: 'asc' } }, { user: { lastName: 'asc' } }],
     });
 
     // ── SUBJECTS ─────────────────────────────────────────────────────────────
@@ -99,8 +99,8 @@ export async function GET(request) {
           include: {
             teacher: {
               select: {
-                id: true, firstName: true, lastName: true,
-                employeeId: true, teacherRole: true,
+                id: true, employeeId: true, teacherRole: true,
+                user: { select: { firstName: true, lastName: true } },
               },
             },
           },
@@ -123,9 +123,9 @@ export async function GET(request) {
         id: teacher.id,
         userId: teacher.userId,
         employeeId: teacher.employeeId,
-        firstName: teacher.firstName,
-        lastName: teacher.lastName,
-        fullName: `${teacher.firstName} ${teacher.lastName}`,
+        firstName: teacher.user.firstName,
+        lastName: teacher.user.lastName,
+        fullName: `${teacher.user.firstName} ${teacher.user.lastName}`,
         email: teacher.user.email,
         department: teacher.department,
         teacherRole: teacher.teacherRole,
@@ -178,7 +178,7 @@ export async function GET(request) {
         assignedTeachers: subject.teachers.map(t => ({
           teacherSubjectId: t.id,
           teacherId: t.teacher.id,
-          name: `${t.teacher.firstName} ${t.teacher.lastName}`,
+          name: `${t.teacher.user.firstName} ${t.teacher.user.lastName}`,
           employeeId: t.teacher.employeeId,
           teacherRole: t.teacher.teacherRole,
         })),
@@ -302,7 +302,11 @@ export async function POST(request) {
         teacherRole: 'SUBJECT_TEACHER',
         user: { schoolId, isActive: true },
       },
-      select: { id: true, firstName: true, lastName: true, employeeId: true },
+      select: {
+        id: true,
+        employeeId: true,
+        user: { select: { firstName: true, lastName: true } },
+      },
     });
 
     if (!teacher) {
@@ -325,7 +329,7 @@ export async function POST(request) {
       );
     }
 
-    const teacherName = `${teacher.firstName} ${teacher.lastName}`;
+    const teacherName = `${teacher.user.firstName} ${teacher.user.lastName}`;
 
     // ── ASSIGN ────────────────────────────────────────────────────────────────
     if (action === 'assign') {
