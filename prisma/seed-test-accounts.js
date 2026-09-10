@@ -132,6 +132,12 @@ async function main() {
 
   const teachers = {};
   for (const t of teacherDefs) {
+    const teacherRole = t.key === 'director'
+      ? 'DIRECTOR'
+      : t.key === 'coordinator'
+        ? 'COORDINATOR'
+        : 'SUBJECT_TEACHER';
+
     const user = await prisma.user.upsert({
       where: { email_schoolId: { email: t.email, schoolId: school.id } },
       update: {},
@@ -150,10 +156,11 @@ async function main() {
 
     const profile = await prisma.teacherProfile.upsert({
       where: { userId: user.id },
-      update: { department: t.department },
+      update: { department: t.department, teacherRole },
       create: {
         userId: user.id,
         department: t.department,
+        teacherRole,
         experienceYears: 3,
       },
     });
@@ -173,6 +180,20 @@ async function main() {
     update: {},
     create: {
       teacherId: teachers.class_teacher.profile.id,
+      classId: jss1a.id,
+    },
+  });
+
+  await prisma.teacherClassCoordinator.upsert({
+    where: {
+      teacherId_classId: {
+        teacherId: teachers.coordinator.profile.id,
+        classId: jss1a.id,
+      },
+    },
+    update: {},
+    create: {
+      teacherId: teachers.coordinator.profile.id,
       classId: jss1a.id,
     },
   });

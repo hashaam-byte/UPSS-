@@ -28,13 +28,23 @@ export async function GET(request) {
       select: {
         id: true,
         teacherRole: true,
-        schoolId: true,
-        firstName: true,
-        lastName: true,
+        department: true,
+        user: {
+          select: {
+            schoolId: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
       },
     });
 
-    if (!teacherProfile || teacherProfile.teacherRole !== 'COORDINATOR') {
+    const isCoordinator = teacherProfile && (
+      teacherProfile.teacherRole === 'COORDINATOR' ||
+      teacherProfile.department === 'coordinator'
+    );
+
+    if (!isCoordinator) {
       return NextResponse.json(
         { success: false, error: 'Access denied. Coordinator role required.' },
         { status: 403 }
@@ -45,7 +55,6 @@ export async function GET(request) {
     const coordination = await prisma.teacherClassCoordinator.findFirst({
       where: {
         teacherId: teacherProfile.id,
-        isActive: true,
       },
       include: {
         class: {
@@ -121,7 +130,7 @@ export async function GET(request) {
     // Get subjects for this class level
     const classSubjects = await prisma.subject.findMany({
       where: {
-        schoolId: teacherProfile.schoolId,
+        schoolId: teacherProfile.user.schoolId,
         classLevel: {
           has: classInfo.classLevel,
         },
@@ -224,7 +233,7 @@ export async function GET(request) {
       success: true,
       data: {
         coordinator: {
-          name: `${teacherProfile.firstName} ${teacherProfile.lastName}`,
+          name: `${teacherProfile.user.firstName} ${teacherProfile.user.lastName}`,
         },
         class: classInfo,
         stats,
