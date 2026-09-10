@@ -126,7 +126,7 @@ const AdminLayout = ({ children }) => {
 
       const data = await response.json();
       
-      if (data.user.role !== 'Admin') {
+      if (data.user.role !== 'ADMIN') {
         router.push('/auth/unauthorized');
         return;
       }
