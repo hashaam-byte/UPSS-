@@ -21,9 +21,9 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      // Next.js needs inline scripts for hydration data; framer-motion and
-      // Tailwind's runtime don't need 'unsafe-eval' in production builds.
-      "script-src 'self' 'unsafe-inline'",
+      // React's development overlay uses eval() for component stack traces;
+      // production builds must keep eval blocked.
+      `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
       "style-src 'self' 'unsafe-inline' fonts.googleapis.com",
       "font-src 'self' fonts.gstatic.com",
       // Cloudinary for uploaded files/images; data: for inline SVG icons.
