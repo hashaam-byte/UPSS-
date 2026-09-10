@@ -5,9 +5,18 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { issueOtp } from '@/lib/otp';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(request) {
   try {
+    const ip = getClientIp(request);
+    // Beyond issueOtp()'s own per-phone resend cooldown, this stops someone
+    // probing many different phone numbers from one source (enumeration).
+    const ipLimit = await checkRateLimit(`parent-otp-request:ip:${ip}`, 10, 15 * 60);
+    if (!ipLimit.allowed) {
+      return NextResponse.json({ error: 'Too many requests. Please try again in 15 minutes.' }, { status: 429 });
+    }
+
     const body = await request.json();
     const { phone, schoolId: chosenSchoolId } = body;
 

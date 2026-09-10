@@ -23,13 +23,21 @@ import {
   Phone,
   MapPin,
   Calendar,
-  Clock
+  Clock,
+  Wallet,
+  Trash2,
+  ExternalLink
 } from 'lucide-react';
 
 const AdminSettingsPage = () => {
   const [activeTab, setActiveTab] = useState('school');
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [paymentConfig, setPaymentConfig] = useState(null);
+  const [paymentForm, setPaymentForm] = useState({ publicKey: '', secretKey: '' });
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
+  const [paymentSuccess, setPaymentSuccess] = useState('');
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [showPasswordFields, setShowPasswordFields] = useState(false);
@@ -85,6 +93,7 @@ const AdminSettingsPage = () => {
   const tabs = [
     { id: 'school', label: 'School Info', icon: School },
     { id: 'users', label: 'User Management', icon: Users },
+    { id: 'payment', label: 'Payment Gateway', icon: Wallet },
     { id: 'security', label: 'Security', icon: Shield },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'profile', label: 'My Profile', icon: Edit3 }
@@ -92,7 +101,71 @@ const AdminSettingsPage = () => {
 
   useEffect(() => {
     fetchSettings();
+    fetchPaymentConfig();
   }, []);
+
+  const fetchPaymentConfig = async () => {
+    try {
+      const res = await fetch('/api/protected/admin/settings/payment-gateway', { credentials: 'include' });
+      const data = await res.json();
+      if (res.ok) setPaymentConfig(data.data);
+    } catch (err) {
+      console.error('Failed to load payment gateway config:', err);
+    }
+  };
+
+  const handleSavePaymentConfig = async () => {
+    setPaymentError('');
+    setPaymentSuccess('');
+    if (!paymentForm.publicKey) {
+      setPaymentError('Public key is required');
+      return;
+    }
+    setPaymentLoading(true);
+    try {
+      const res = await fetch('/api/protected/admin/settings/payment-gateway', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          provider: 'paystack',
+          publicKey: paymentForm.publicKey,
+          ...(paymentForm.secretKey && { secretKey: paymentForm.secretKey }),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPaymentError(data.error || 'Failed to save');
+        return;
+      }
+      setPaymentSuccess('Payment gateway connected successfully.');
+      setPaymentForm({ publicKey: '', secretKey: '' });
+      fetchPaymentConfig();
+    } catch (err) {
+      setPaymentError('Network error. Please try again.');
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  const handleDisconnectPayment = async () => {
+    if (!confirm('Disconnect your payment gateway? Parents will go back to bank-transfer-only payments.')) return;
+    setPaymentLoading(true);
+    try {
+      const res = await fetch('/api/protected/admin/settings/payment-gateway', {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (res.ok) {
+        setPaymentConfig(null);
+        setPaymentSuccess('Payment gateway disconnected.');
+      }
+    } catch (err) {
+      setPaymentError('Network error. Please try again.');
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
 
   const fetchSettings = async () => {
     try {
@@ -310,6 +383,88 @@ const AdminSettingsPage = () => {
         {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
         Save School Settings
       </button>
+    </div>
+  );
+
+  const renderPaymentSettings = () => (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold text-white mb-1">Payment Gateway</h3>
+        <p className="text-sm text-gray-400">
+          Connect your own Paystack account so parent fee payments go directly to your
+          school's bank account. U-Plus never touches or holds this money.
+        </p>
+      </div>
+
+      {paymentError && (
+        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-300 text-sm">{paymentError}</div>
+      )}
+      {paymentSuccess && (
+        <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-300 text-sm">{paymentSuccess}</div>
+      )}
+
+      {paymentConfig?.hasSecretKey ? (
+        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-5">
+          <div className="flex items-center gap-2 mb-2">
+            <CheckCircle className="w-5 h-5 text-emerald-400" />
+            <p className="text-white font-medium">Paystack connected</p>
+          </div>
+          <p className="text-gray-400 text-sm mb-1">Public key: <span className="font-mono">{paymentConfig.publicKey}</span></p>
+          <p className="text-gray-400 text-sm mb-4">
+            Secret key is saved and encrypted — for security, it can't be viewed again, only replaced below.
+          </p>
+          <button
+            onClick={handleDisconnectPayment}
+            disabled={paymentLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-300 rounded-lg text-sm transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+            Disconnect
+          </button>
+        </div>
+      ) : (
+        <p className="text-gray-400 text-sm">
+          No payment gateway connected yet — parents currently pay by bank transfer only.
+        </p>
+      )}
+
+      <div className="border-t border-white/10 pt-6">
+        <p className="text-sm font-medium text-gray-300 mb-3">
+          {paymentConfig?.hasSecretKey ? 'Update keys' : 'Connect Paystack'}
+        </p>
+        <a
+          href="https://dashboard.paystack.com/#/settings/developer"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-sm text-emerald-400 hover:text-emerald-300 mb-4"
+        >
+          Get your keys from the Paystack dashboard <ExternalLink className="w-3 h-3" />
+        </a>
+        <div className="space-y-3">
+          <input
+            type="text"
+            placeholder="Public key (starts with pk_)"
+            value={paymentForm.publicKey}
+            onChange={(e) => setPaymentForm(prev => ({ ...prev, publicKey: e.target.value }))}
+            className="w-full px-4 py-2.5 bg-white/5 border border-white/20 rounded-lg text-white placeholder-gray-500 text-sm focus:ring-2 focus:ring-emerald-500/50"
+          />
+          <input
+            type="password"
+            placeholder={paymentConfig?.hasSecretKey ? 'Secret key (leave blank to keep current)' : 'Secret key (starts with sk_)'}
+            value={paymentForm.secretKey}
+            onChange={(e) => setPaymentForm(prev => ({ ...prev, secretKey: e.target.value }))}
+            className="w-full px-4 py-2.5 bg-white/5 border border-white/20 rounded-lg text-white placeholder-gray-500 text-sm focus:ring-2 focus:ring-emerald-500/50"
+          />
+        </div>
+        <button
+          onClick={handleSavePaymentConfig}
+          disabled={paymentLoading}
+          className="mt-4 flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 disabled:opacity-50 text-white rounded-lg transition-all"
+        >
+          {paymentLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          Save
+        </button>
+      </div>
     </div>
   );
 
@@ -677,6 +832,8 @@ const AdminSettingsPage = () => {
         return renderSchoolSettings();
       case 'users':
         return renderUserSettings();
+      case 'payment':
+        return renderPaymentSettings();
       case 'security':
         return renderSecuritySettings();
       case 'notifications':

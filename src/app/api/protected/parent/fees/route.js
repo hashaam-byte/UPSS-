@@ -27,6 +27,15 @@ export async function GET(request) {
       }
     });
 
+    // A parent may have children at different schools — check which of
+    // those schools actually have an active payment gateway connected.
+    const schoolIds = [...new Set(fees.map(f => f.schoolId))];
+    const activeConfigs = await prisma.schoolPaymentConfig.findMany({
+      where: { schoolId: { in: schoolIds }, isActive: true },
+      select: { schoolId: true },
+    });
+    const schoolsWithGateway = new Set(activeConfigs.map(c => c.schoolId));
+
     return NextResponse.json({
       success: true,
       data: fees.map(f => ({
@@ -41,6 +50,7 @@ export async function GET(request) {
         term: f.termName,
         academicYear: f.academicYear,
         dueDate: f.dueDate,
+        canPayOnline: schoolsWithGateway.has(f.schoolId),
         payments: f.payments.map(p => ({
           amount: p.amount,
           date: p.paymentDate,

@@ -1,32 +1,54 @@
 'use client'
 import React, { useState, useEffect } from 'react';
-import { 
-  ArrowRight, 
-  Calendar, 
-  FileText, 
-  Users, 
-  Award, 
-  Zap, 
-  ChevronRight, 
-  Menu, 
-  X, 
-  Star,
-  Megaphone,
-  BookOpen,
-  PartyPopper,
-  Download,
-  Globe,
-  Crown,
+import { Manrope, Fraunces } from 'next/font/google';
+import { motion } from 'framer-motion';
+import {
   GraduationCap,
   UserCheck,
-  Shield
+  Shield,
+  Crown,
+  Users,
+  Menu,
+  X,
+  ArrowRight,
+  CalendarCheck,
+  BookOpen,
+  MessageCircle,
 } from 'lucide-react';
 
-const UnifiedLandingPage = () => {
+const manrope = Manrope({ subsets: ['latin'], variable: '--font-manrope', weight: ['400', '500', '600', '700', '800'] });
+const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-fraunces', weight: ['400', '500', '600'], style: ['italic', 'normal'] });
+
+const ROLES = [
+  { id: 'STUDENT', title: 'Students', icon: GraduationCap, desc: 'Timetables, results, and resources in one place' },
+  { id: 'TEACHER', title: 'Teachers', icon: UserCheck, desc: 'Attendance, grading, and assignments, without the paperwork' },
+  { id: 'ADMIN', title: 'School Admins', icon: Shield, desc: 'Run the whole school from a single dashboard' },
+  { id: 'PARENT', title: 'Parents', icon: Users, desc: "See your child's grades, attendance, and fees" },
+  { id: 'HEADADMIN', title: 'Head Admin', icon: Crown, desc: 'Manage every school on the platform' },
+];
+
+const FEATURES = [
+  {
+    title: 'Attendance that takes seconds, not minutes',
+    body: 'A class teacher marks a full register in the time it used to take to find the paper one. Parents see it the same day.',
+    icon: CalendarCheck,
+  },
+  {
+    title: 'Grades your students can actually trust',
+    body: 'Every score, term average, and class position lives in one record — no more results lost between a teacher\'s notebook and the office file.',
+    icon: BookOpen,
+  },
+  {
+    title: 'One conversation, not five apps',
+    body: 'Messages, announcements, and a parent portal that finally answers "how is my child doing at school?" without a phone call.',
+    icon: MessageCircle,
+  },
+];
+
+export default function LandingPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrollY, setScrollY] = useState(0);
-  const [activeRole, setActiveRole] = useState('STUDENT');
-  const [monthlyPrice, setMonthlyPrice] = useState(300); // fallback shown until the real value loads
+  const [monthlyPrice, setMonthlyPrice] = useState(300);
 
   useEffect(() => {
     const handleScroll = () => setScrollY(window.scrollY);
@@ -36,599 +58,273 @@ const UnifiedLandingPage = () => {
 
   useEffect(() => {
     fetch('/api/public/pricing')
-      .then(res => res.json())
-      .then(data => {
+      .then((res) => res.json())
+      .then((data) => {
         if (data?.data?.landingMonthly) setMonthlyPrice(data.data.landingMonthly);
       })
-      .catch(() => {}); // keep the fallback price shown above if this fails
+      .catch(() => {});
   }, []);
 
-  const features = [
-    { icon: Megaphone, title: 'Digital Notice Board', desc: 'Never miss announcements with real-time updates' },
-    { icon: Calendar, title: 'Smart Timetable', desc: 'Manage schedules with live class changes' },
-    { icon: BookOpen, title: 'Assignments & Results', desc: 'Submit, track, and get instant feedback' },
-    { icon: Users, title: 'Guild of Scholars', desc: 'Video calls, debates, and live classes' },
-    { icon: FileText, title: 'Study Resources', desc: 'Notes, eBooks, and past questions' },
-    { icon: PartyPopper, title: 'Events Hub', desc: 'Sports, debates, and school activities' }
-  ];
-
-  const steps = [
-    { number: '01', title: 'Create School', desc: 'Set up your institution in minutes' },
-    { number: '02', title: 'Add Users', desc: 'Invite teachers and students' },
-    { number: '03', title: 'Run & Manage', desc: 'Experience seamless operations' }
-  ];
-
-  const roles = [
-    {
-      id: 'STUDENT',
-      title: 'Students',
-      emoji: '🎓',
-      icon: GraduationCap,
-      desc: 'Access timetables, results, and resources',
-      color: 'from-blue-400 to-blue-500'
-    },
-    {
-      id: 'TEACHER',
-      title: 'Teachers',
-      emoji: '👩‍🏫',
-      icon: UserCheck,
-      desc: 'Upload assignments, grades, and announcements',
-      color: 'from-emerald-400 to-emerald-500'
-    },
-    {
-      id: 'ADMIN',
-      title: 'Admins',
-      emoji: '🏫',
-      icon: Shield,
-      desc: 'Manage dashboards, events, and school data',
-      color: 'from-purple-400 to-purple-500'
-    }
-  ];
-
-  interface Feature {
-    icon: React.ComponentType<{ className?: string }>;
-    title: string;
-    desc: string;
-  }
-
-  interface Step {
-    number: string;
-    title: string;
-    desc: string;
-  }
-
-  interface Role {
-    id: string;
-    title: string;
-    emoji: string;
-    icon: React.ComponentType<{ className?: string }>;
-    desc: string;
-    color: string;
-  }
-
-  const handleRoleLogin = (role: string) => {
-    // Navigate to login with role parameter
-    window.location.href = `/protected?role=${role}`;
+  const goToLogin = (role?: string) => {
+    window.location.href = role ? `/protected?role=${role}` : '/protected';
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-900 to-slate-900 text-white overflow-hidden">
-      {/* Animated background elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-r from-cyan-400/20 to-blue-500/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-gradient-to-r from-purple-400/20 to-pink-500/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-gradient-to-r from-emerald-400/10 to-teal-500/10 rounded-full blur-3xl animate-pulse"></div>
-      </div>
+    <div className={`${manrope.variable} ${fraunces.variable} font-[family-name:var(--font-manrope)] bg-[#F7F4ED] text-[#14181F]`}>
+      {/* ---------- Header ---------- */}
+      <header
+        className={`fixed top-0 w-full z-50 transition-all duration-300 ${
+          scrollY > 40 ? 'bg-[#0B0F17]/90 backdrop-blur-xl' : 'bg-transparent'
+        }`}
+      >
+        <div className="max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
+          <span className="text-white font-bold text-lg tracking-tight">U-Plus</span>
 
-      {/* Header */}
-      <header className={`fixed top-0 w-full z-50 transition-all duration-300 ${scrollY > 50 ? 'bg-slate-950/80 backdrop-blur-xl border-b border-white/10' : ''}`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-r from-emerald-400 to-cyan-400 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/25">
-                <div className="relative font-bold text-white text-xl flex items-center">
-                  U<span className="absolute -right-2.5 -top-1 text-sm">+</span>
-                </div>
-              </div>
-              <span className="text-xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-                U PLUS
-              </span>
-            </div>
-
-            {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center space-x-8">
-              <a href="#features" className="text-gray-300 hover:text-white transition-colors">Features</a>
-              <a href="#roles" className="text-gray-300 hover:text-white transition-colors">Access</a>
-              <a href="#pricing" className="text-gray-300 hover:text-white transition-colors">Pricing</a>
-              <a href="#contact" className="text-gray-300 hover:text-white transition-colors">Contact</a>
-            </nav>
-
-            {/* Desktop Auth Buttons */}
-            <div className="hidden md:flex items-center space-x-4">
-              <button 
-                onClick={() => window.location.href = '/protected'}
-                className="px-4 py-2 text-gray-300 hover:text-white transition-colors"
-              >
-                Login
-              </button>
-              <button 
-                onClick={() => window.location.href = '/protected'}
-                className="px-6 py-2 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 rounded-xl font-medium transition-all duration-200 transform hover:scale-105 shadow-lg shadow-emerald-500/25"
-              >
-                Get Started
-              </button>
-            </div>
-
-            {/* Mobile menu button */}
-            <button 
-              className="md:hidden p-2"
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
+          <nav className="hidden md:flex items-center gap-8">
+            <a href="#features" className="text-white/70 hover:text-white text-sm transition-colors">Features</a>
+            <a href="#roles" className="text-white/70 hover:text-white text-sm transition-colors">Who it's for</a>
+            <a href="#pricing" className="text-white/70 hover:text-white text-sm transition-colors">Pricing</a>
+            <button
+              onClick={() => goToLogin()}
+              className="px-5 py-2 bg-white text-[#0B0F17] rounded-full text-sm font-semibold hover:bg-white/90 transition-colors"
             >
-              {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+              Log in
             </button>
-          </div>
+          </nav>
+
+          <button className="md:hidden text-white" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+            {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
         </div>
 
-        {/* Mobile menu */}
         {isMenuOpen && (
-          <div className="md:hidden absolute top-full left-0 right-0 bg-slate-950/95 backdrop-blur-xl border-b border-white/10">
-            <div className="px-4 py-4 space-y-4">
-              <a href="#features" className="block text-gray-300 hover:text-white transition-colors">Features</a>
-              <a href="#roles" className="block text-gray-300 hover:text-white transition-colors">Access</a>
-              <a href="#pricing" className="block text-gray-300 hover:text-white transition-colors">Pricing</a>
-              <a href="#contact" className="block text-gray-300 hover:text-white transition-colors">Contact</a>
-              <div className="pt-4 border-t border-white/10 space-y-3">
-                <button 
-                  onClick={() => window.location.href = '/protected'}
-                  className="block w-full text-left text-gray-300 hover:text-white transition-colors"
-                >
-                  Login
-                </button>
-                <button 
-                  onClick={() => window.location.href = '/protected'}
-                  className="w-full px-6 py-2 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 rounded-xl font-medium transition-all duration-200 transform hover:scale-105 shadow-lg shadow-emerald-500/25"
-                >
-                  Get Started
-                </button>
-              </div>
-            </div>
+          <div className="md:hidden bg-[#0B0F17] px-6 pb-6 flex flex-col gap-4">
+            <a href="#features" className="text-white/70 text-sm" onClick={() => setIsMenuOpen(false)}>Features</a>
+            <a href="#roles" className="text-white/70 text-sm" onClick={() => setIsMenuOpen(false)}>Who it's for</a>
+            <a href="#pricing" className="text-white/70 text-sm" onClick={() => setIsMenuOpen(false)}>Pricing</a>
+            <button onClick={() => goToLogin()} className="px-5 py-2 bg-white text-[#0B0F17] rounded-full text-sm font-semibold w-fit">
+              Log in
+            </button>
           </div>
         )}
       </header>
 
-      {/* Hero Section */}
-      <section className="relative pt-32 pb-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto text-center">
-          <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 rounded-full border border-emerald-500/30 mb-8 backdrop-blur-sm">
-            <Star className="h-4 w-4 text-emerald-400 mr-2" />
-            <span className="text-emerald-300 text-sm font-medium">Nigeria&apos;s #1 School Management Platform</span>
-          </div>
-          
-          {/* 3D Logo placeholder */}
-          <div className="w-24 h-24 mx-auto mb-8 bg-gradient-to-r from-emerald-400 to-cyan-400 rounded-3xl flex items-center justify-center shadow-2xl shadow-emerald-500/25 transform hover:scale-110 transition-transform duration-300">
-            <div className="relative font-bold text-white text-3xl flex items-center">
-              U<span className="absolute -right-3 -top-1.5 text-lg">+</span>
+      {/* ---------- Hero ---------- */}
+      <section className="relative bg-[#0B0F17] pt-40 pb-28 overflow-hidden">
+        <div className="max-w-6xl mx-auto px-6 grid md:grid-cols-2 gap-16 items-center">
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, ease: 'easeOut' }}
+          >
+            <h1 className="text-white font-bold text-5xl md:text-6xl leading-[1.05] tracking-tight">
+              Every school record,
+              <br />
+              open at once.
+            </h1>
+            <p className="mt-6 text-white/60 text-lg leading-relaxed max-w-md">
+              U-Plus brings attendance, grades, timetables, and parent communication
+              into one place — built for how Nigerian secondary schools actually run.
+            </p>
+            <div className="mt-9 flex flex-wrap gap-4">
+              <button
+                onClick={() => goToLogin()}
+                className="flex items-center gap-2 px-7 py-3.5 bg-[#0E9F6E] hover:bg-[#0c8a5f] text-white rounded-full font-semibold transition-colors"
+              >
+                Get started <ArrowRight className="w-4 h-4" />
+              </button>
+              <a
+                href="#features"
+                className="flex items-center gap-2 px-7 py-3.5 text-white/80 hover:text-white border border-white/15 rounded-full font-semibold transition-colors"
+              >
+                See how it works
+              </a>
             </div>
-          </div>
-          
-          <h1 className="text-5xl md:text-7xl font-bold mb-8 leading-tight">
-            <span className="bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent">
-              U PLUS
-            </span>
-            <br />
-            <span className="bg-gradient-to-r from-emerald-400 via-cyan-400 to-blue-400 bg-clip-text text-transparent">
-              Your School. Connected.
-            </span>
-          </h1>
-          
-          <p className="text-xl text-gray-300 mb-12 max-w-3xl mx-auto leading-relaxed">
-            From timetables to assignments, announcements to live classes — everything your school needs in one powerful platform. 
-            Experience the future of education management.
-          </p>
-          
-          <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
-            <button 
-              onClick={() => window.location.href = '/download'}
-              className="group px-8 py-4 bg-gradient-to-r from-emerald-500 via-cyan-500 to-blue-500 hover:from-emerald-600 hover:via-cyan-600 hover:to-blue-600 rounded-2xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 shadow-2xl shadow-emerald-500/25 hover:shadow-emerald-500/40 flex items-center gap-3"
-            >
-              <Download className="h-5 w-5" />
-              Get the App
-              <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
-            </button>
-            <button 
-              onClick={() => window.location.href = '/protected'}
-              className="group px-8 py-4 bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 rounded-2xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 flex items-center gap-3"
-            >
-              <Globe className="h-5 w-5" />
-              Web Portal
-              <ChevronRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
-            </button>
+          </motion.div>
+
+          {/* 3D opening book — the single orchestrated hero moment */}
+          <div className="flex justify-center">
+            <BookHero />
           </div>
         </div>
       </section>
 
-      {/* Features Grid */}
-      <section id="features" className="py-20 px-4 sm:px-6 lg:px-8 relative">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-6">
-              <span className="bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-                Everything You Need
-              </span>
-            </h2>
-            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-              All school activities, simplified in one comprehensive platform
-            </p>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {features.map((feature, index) => (
-              <div 
-                key={index}
-                className="group p-8 bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-sm rounded-3xl border border-white/10 hover:border-emerald-500/50 transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-emerald-500/10"
-              >
-                <div className="w-16 h-16 bg-gradient-to-r from-emerald-400 to-cyan-400 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform shadow-lg shadow-emerald-500/25">
-                  <feature.icon className="h-8 w-8 text-white" />
-                </div>
-                <h3 className="text-xl font-semibold mb-3 text-white group-hover:text-emerald-300 transition-colors">
-                  {feature.title}
-                </h3>
-                <p className="text-gray-400 leading-relaxed">
-                  {feature.desc}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* ---------- Features ---------- */}
+      <section id="features" className="bg-[#F7F4ED] py-28">
+        <div className="max-w-5xl mx-auto px-6">
+          <h2 className="font-[family-name:var(--font-fraunces)] italic text-3xl md:text-4xl text-[#14181F] max-w-xl mb-20 leading-snug">
+            Built from what a school actually does every day.
+          </h2>
 
-      {/* How it Works */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 relative">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-6">
-              <span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
-                How It Works
-              </span>
-            </h2>
-            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-              Get started in three simple steps
-            </p>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {steps.map((step, index) => (
-              <div key={index} className="text-center group">
-                <div className="relative mb-8">
-                  <div className="w-20 h-20 bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform shadow-2xl shadow-emerald-500/25">
-                    <span className="text-2xl font-bold text-white">{step.number}</span>
+          <div className="space-y-20">
+            {FEATURES.map((feature, i) => {
+              const Icon = feature.icon;
+              const reverse = i % 2 === 1;
+              return (
+                <div key={feature.title} className={`grid md:grid-cols-2 gap-10 items-center ${reverse ? 'md:[direction:rtl]' : ''}`}>
+                  <div className={reverse ? '[direction:ltr]' : ''}>
+                    <div className="w-12 h-12 rounded-2xl bg-[#0E9F6E]/10 flex items-center justify-center mb-6">
+                      <Icon className="w-6 h-6 text-[#0E9F6E]" />
+                    </div>
+                    <h3 className="text-2xl md:text-3xl font-bold tracking-tight mb-4 max-w-sm">{feature.title}</h3>
+                    <p className="text-[#14181F]/60 leading-relaxed max-w-sm">{feature.body}</p>
                   </div>
-                  {index < steps.length - 1 && (
-                    <div className="hidden md:block absolute top-10 left-1/2 w-full h-0.5 bg-gradient-to-r from-emerald-500/50 to-cyan-500/50 transform translate-x-10"></div>
-                  )}
+                  <div className={`bg-[#EAE7DD] rounded-3xl aspect-[4/3] flex items-center justify-center ${reverse ? '[direction:ltr]' : ''}`}>
+                    <Icon className="w-16 h-16 text-[#14181F]/15" />
+                  </div>
                 </div>
-                <h3 className="text-xl font-semibold mb-3 text-white group-hover:text-emerald-300 transition-colors">
-                  {step.title}
-                </h3>
-                <p className="text-gray-400 leading-relaxed">
-                  {step.desc}
-                </p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
 
-      {/* Role-Based Access */}
-      <section id="roles" className="py-20 px-4 sm:px-6 lg:px-8 relative">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-6">
-              <span className="bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-                Made for Everyone
-              </span>
-            </h2>
-            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-              Different roles, tailored experiences
-            </p>
-          </div>
-          
-          {/* Role Cards */}
-          <div className="grid md:grid-cols-3 gap-8 mb-12">
-            {roles.map((role, index) => (
-              <div 
-                key={index}
-                className={`group p-8 bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-sm rounded-3xl border transition-all duration-300 hover:scale-105 hover:shadow-2xl cursor-pointer ${
-                  activeRole === role.id 
-                    ? 'border-emerald-500/80 shadow-lg shadow-emerald-500/25' 
-                    : 'border-white/10 hover:border-emerald-500/50'
-                }`}
-                onClick={() => setActiveRole(role.id)}
-              >
-                <div className={`w-16 h-16 bg-gradient-to-r ${role.color} rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform shadow-lg`}>
-                  <role.icon className="w-8 h-8 text-white" />
-                </div>
-                <h3 className="text-xl font-semibold text-center text-white group-hover:text-emerald-300 transition-colors mb-2">
-                  {role.title} {role.emoji}
-                </h3>
-                <p className="text-gray-400 text-center leading-relaxed">
-                  {role.desc}
-                </p>
-              </div>
-            ))}
-          </div>
-          
-          {/* Role Login CTA */}
-          <div className="text-center">
-            <div className="inline-flex bg-white/10 backdrop-blur-sm rounded-full p-2 shadow-lg mb-6 border border-white/20">
-              {roles.map((role) => (
+      {/* ---------- Roles ---------- */}
+      <section id="roles" className="bg-[#0B0F17] py-28">
+        <div className="max-w-6xl mx-auto px-6">
+          <h2 className="text-white font-bold text-3xl md:text-4xl tracking-tight mb-3">Who logs in, and to what</h2>
+          <p className="text-white/50 mb-14 max-w-md">Every account sees exactly what's relevant to them, nothing more.</p>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            {ROLES.map((role) => {
+              const Icon = role.icon;
+              return (
                 <button
                   key={role.id}
-                  onClick={() => setActiveRole(role.id)}
-                  className={`px-6 py-3 rounded-full font-semibold capitalize transition-all duration-300 ${
-                    activeRole === role.id
-                      ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-lg'
-                      : 'text-gray-300 hover:text-white'
-                  }`}
+                  onClick={() => goToLogin(role.id)}
+                  className="text-left p-6 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] transition-colors group"
                 >
-                  {role.title}
-                </button>
-              ))}
-            </div>
-            <div className="block">
-              <button 
-                onClick={() => handleRoleLogin(activeRole)}
-                className="px-8 py-4 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white rounded-2xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-2xl shadow-emerald-500/25 flex items-center gap-3 mx-auto"
-              >
-                Login as {roles.find(r => r.id === activeRole)?.title}
-                <ArrowRight className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Pricing Section */}
-      <section id="pricing" className="py-20 px-4 sm:px-6 lg:px-8 relative">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-6">
-              <span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
-                Simple Pricing
-              </span>
-            </h2>
-            <p className="text-xl text-gray-400 mb-4">
-              Start with a free trial, then choose what works for your school
-            </p>
-          </div>
-          
-          <div className="grid lg:grid-cols-3 gap-8">
-            {/* Free Trial */}
-            <div className="p-8 bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-sm rounded-3xl border border-white/20 hover:border-yellow-500/50 transition-all duration-300 hover:scale-105">
-              <div className="text-center">
-                <div className="w-16 h-16 bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-yellow-500/25">
-                  <Star className="h-8 w-8 text-white" />
-                </div>
-                <h3 className="text-2xl font-bold mb-4 text-white">Free Trial</h3>
-                <p className="text-gray-400 mb-6">Perfect for getting started</p>
-                <div className="text-4xl font-bold mb-2">
-                  <span className="bg-gradient-to-r from-yellow-400 to-yellow-500 bg-clip-text text-transparent">
-                    3 Months
+                  <Icon className="w-6 h-6 text-[#0E9F6E] mb-5" />
+                  <p className="text-white font-semibold mb-1.5">{role.title}</p>
+                  <p className="text-white/45 text-sm leading-relaxed">{role.desc}</p>
+                  <span className="mt-4 flex items-center gap-1 text-[#0E9F6E] text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                    Log in <ArrowRight className="w-3.5 h-3.5" />
                   </span>
-                  <span className="text-lg text-gray-400 font-normal"> FREE</span>
-                </div>
-                <p className="text-sm text-gray-500 mb-8">All features included, no credit card required</p>
-                <button className="w-full px-8 py-4 bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 rounded-2xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 shadow-2xl shadow-yellow-500/25">
-                  Start Free Trial
                 </button>
-              </div>
-            </div>
-
-            {/* Standard Premium */}
-            <div className="p-8 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm rounded-3xl border-2 border-emerald-500/50 hover:border-emerald-500/80 transition-all duration-300 transform scale-105 shadow-2xl shadow-emerald-500/20">
-              <div className="text-center">
-                <div className="inline-flex items-center px-3 py-1 bg-emerald-500 rounded-full text-xs font-semibold text-white mb-4">
-                  RECOMMENDED
-                </div>
-                <div className="w-16 h-16 bg-gradient-to-r from-emerald-400 to-cyan-400 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-emerald-500/25">
-                  <Award className="h-8 w-8 text-white" />
-                </div>
-                <h3 className="text-2xl font-bold mb-4 text-white">Standard Premium</h3>
-                <p className="text-gray-400 mb-6">For individual users</p>
-                <div className="text-4xl font-bold mb-2">
-                  <span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
-                    ₦{monthlyPrice}
-                  </span>
-                  <span className="text-lg text-gray-400 font-normal">/month</span>
-                </div>
-                <p className="text-sm text-gray-500 mb-8">Very affordable pricing after trial</p>
-                <button className="w-full px-8 py-4 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 rounded-2xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 shadow-2xl shadow-emerald-500/25">
-                  Choose Standard
-                </button>
-              </div>
-            </div>
-
-            {/* School-Wide Premium */}
-            <div className="p-8 bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-sm rounded-3xl border border-white/20 hover:border-purple-500/50 transition-all duration-300 hover:scale-105 relative overflow-hidden">
-              <div className="absolute top-4 right-4">
-                <Crown className="w-8 h-8 text-yellow-400" />
-              </div>
-              <div className="text-center">
-                <div className="w-16 h-16 bg-gradient-to-r from-purple-400 to-yellow-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-purple-500/25">
-                  <Shield className="h-8 w-8 text-white" />
-                </div>
-                <h3 className="text-2xl font-bold mb-4 text-white">School-Wide Premium</h3>
-                <p className="text-gray-400 mb-6">For school management</p>
-                <div className="text-4xl font-bold mb-2">
-                  <span className="bg-gradient-to-r from-purple-400 to-yellow-400 bg-clip-text text-transparent">
-                    Custom
-                  </span>
-                  <span className="text-lg text-gray-400 font-normal"> pricing</span>
-                </div>
-                <p className="text-sm text-gray-500 mb-8">Head admin pays once for entire school</p>
-                <button className="w-full px-8 py-4 bg-gradient-to-r from-purple-500 to-yellow-500 hover:from-purple-600 hover:to-yellow-600 rounded-2xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 shadow-2xl shadow-purple-500/25">
-                  Contact for Pricing 👑
-                </button>
-              </div>
-            </div>
+              );
+            })}
           </div>
         </div>
       </section>
 
-      {/* Quick Access for Different Roles */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8 relative">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              <span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
-                Quick Access
-              </span>
-            </h2>
-            <p className="text-gray-400">
-              Choose your role to get started immediately
-            </p>
-          </div>
-          
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              { role: 'Head Admin', path: '/protected/headadmin', icon: Crown },
-              { role: 'School Admin', path: '/protected/admin', icon: Shield },
-              { role: 'TEACHER', path: '/protected/teacher', icon: UserCheck },
-              { role: 'STUDENT', path: '/protected/students', icon: GraduationCap }
-            ].map((item, index) => (
-              <button
-                key={index}
-                onClick={() => window.location.href = item.path}
-                className="group p-6 bg-white/5 hover:bg-white/10 backdrop-blur-sm border border-white/10 hover:border-emerald-500/50 rounded-2xl font-medium transition-all duration-300 hover:scale-105 text-center"
-              >
-                <item.icon className="h-8 w-8 mx-auto mb-3 text-emerald-400 group-hover:text-emerald-300 transition-colors" />
-                <span className="block text-sm text-gray-300 group-hover:text-white transition-colors">
-                  {item.role}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* ---------- Pricing ---------- */}
+      <section id="pricing" className="bg-[#F7F4ED] py-28">
+        <div className="max-w-3xl mx-auto px-6 text-center">
+          <h2 className="font-bold text-3xl md:text-4xl tracking-tight mb-4">Simple pricing, per school</h2>
+          <p className="text-[#14181F]/55 mb-12 max-w-md mx-auto">
+            One plan for schools getting started, and a custom rate for larger ones.
+          </p>
 
-      {/* Testimonials */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8 relative">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              <span className="bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-                What Users Say
-              </span>
-            </h2>
-          </div>
-          
-          <div className="grid md:grid-cols-2 gap-8">
-            <div className="p-8 bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-sm rounded-3xl border border-white/10 text-center">
-              <div className="flex justify-center mb-4">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="h-5 w-5 text-yellow-400 fill-current" />
-                ))}
-              </div>
-              <p className="text-lg text-gray-300 mb-4 italic">&apos;Now I never miss announcements.&apos;</p>
-              <p className="text-emerald-400 font-semibold">— Student</p>
-            </div>
-            
-            <div className="p-8 bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-sm rounded-3xl border border-white/10 text-center">
-              <div className="flex justify-center mb-4">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="h-5 w-5 text-yellow-400 fill-current" />
-                ))}
-              </div>
-              <p className="text-lg text-gray-300 mb-4 italic">&apos;It is easier to track assignments and results.&apos;</p>
-              <p className="text-cyan-400 font-semibold">— Teacher</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Final CTA Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 relative">
-        <div className="max-w-4xl mx-auto text-center">
-          <div className="p-12 bg-gradient-to-r from-emerald-600/20 to-purple-600/20 backdrop-blur-sm rounded-3xl border border-emerald-500/30">
-            <h2 className="text-4xl md:text-5xl font-bold mb-6">
-              <span className="bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-                Ready to Transform Your School?
-              </span>
-            </h2>
-            <p className="text-xl text-gray-300 mb-10 max-w-2xl mx-auto">
-              Join thousands of schools already using U PLUS to revolutionize their educational experience
-            </p>
-            <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
-              <button 
-                onClick={() => window.location.href = '/download'}
-                className="group px-8 py-4 bg-gradient-to-r from-emerald-500 via-cyan-500 to-blue-500 hover:from-emerald-600 hover:via-cyan-600 hover:to-blue-600 rounded-2xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 shadow-2xl shadow-emerald-500/25 hover:shadow-emerald-500/40 flex items-center gap-3"
-              >
-                <Download className="h-5 w-5" />
-                Download Now
-                <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
-              </button>
-              <button 
-                // onClick={() => window.location.href = '/auth/register'}
-                className="group px-8 py-4 bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 rounded-2xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 flex items-center gap-3"
-              >
-                Start Free Trial
-                <ChevronRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
-              </button>
-            </div>
-            <p className="text-sm text-gray-400 mt-6">
-              3 months free • No credit card required • Full access to all features
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer id="contact" className="py-16 px-4 sm:px-6 lg:px-8 border-t border-white/10">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-            <div className="md:col-span-2">
-              <div className="flex items-center space-x-3 mb-4">
-                <div className="w-10 h-10 bg-gradient-to-r from-emerald-400 to-cyan-400 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/25">
-                  <div className="relative font-bold text-white text-xl flex items-center">
-                    U<span className="absolute -right-2.5 -top-1 text-sm">+</span>
-                  </div>
-                </div>
-                <span className="text-xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-                  U PLUS
-                </span>
-              </div>
-              <p className="text-gray-400 mb-4">
-                Transforming education through innovative technology. 
-                Connect, learn, and grow with Nigeria&apos;s leading school management platform.
+          <div className="grid md:grid-cols-2 gap-6 text-left">
+            <div className="p-8 rounded-3xl bg-white border border-[#14181F]/8">
+              <p className="text-sm font-semibold text-[#0E9F6E] mb-2">Standard</p>
+              <p className="text-5xl font-bold tracking-tight mb-1">
+                ₦{monthlyPrice}
+                <span className="text-lg font-medium text-[#14181F]/40">/month</span>
               </p>
-              <p className="text-emerald-400 font-semibold text-lg">Hard Work Pays</p>
+              <p className="text-[#14181F]/55 text-sm mb-8">Per active user. Cancel anytime.</p>
+              <ul className="space-y-3 text-sm text-[#14181F]/70 mb-8">
+                <li>Attendance, grading, and timetables</li>
+                <li>Parent portal with SMS verification</li>
+                <li>Unlimited messaging and announcements</li>
+              </ul>
+              <button
+                onClick={() => goToLogin('ADMIN')}
+                className="w-full py-3 bg-[#0E9F6E] hover:bg-[#0c8a5f] text-white rounded-full font-semibold transition-colors"
+              >
+                Start your school
+              </button>
             </div>
-            
-            <div>
-              <h3 className="text-white font-semibold mb-4">Contact</h3>
-              <div className="space-y-2 text-gray-400">
-                <p>hashcody63@gmail.com</p>
-                <p>+234 (0) 8077291745</p>
-              </div>
-            </div>
-            
-            <div>
-              <h3 className="text-white font-semibold mb-4">Support</h3>
-              <div className="space-y-2">
-                <a href="#" className="block text-gray-400 hover:text-emerald-400 transition-colors">Privacy Policy</a>
-                <a href="#" className="block text-gray-400 hover:text-emerald-400 transition-colors">Terms of Service</a>
-                <a href="#" className="block text-gray-400 hover:text-emerald-400 transition-colors">Help Center</a>
-              </div>
+
+            <div className="p-8 rounded-3xl bg-[#14181F] text-white">
+              <p className="text-sm font-semibold text-[#C9A24A] mb-2">Custom</p>
+              <p className="text-5xl font-bold tracking-tight mb-1">Let's talk</p>
+              <p className="text-white/50 text-sm mb-8">For schools with 600+ students.</p>
+              <ul className="space-y-3 text-sm text-white/70 mb-8">
+                <li>Everything in Standard</li>
+                <li>Flat monthly rate, not per user</li>
+                <li>Direct line to the U-Plus team</li>
+              </ul>
+              <button
+                onClick={() => goToLogin('ADMIN')}
+                className="w-full py-3 bg-white text-[#14181F] rounded-full font-semibold hover:bg-white/90 transition-colors"
+              >
+                Get in touch
+              </button>
             </div>
           </div>
-          
-          <div className="border-t border-white/10 pt-8 text-center text-gray-400">
-            <p>&copy; 2025 U PLUS. All rights reserved. Version 1.0.0</p>
+        </div>
+      </section>
+
+      {/* ---------- Footer ---------- */}
+      <footer className="bg-[#0B0F17] py-14 border-t border-white/[0.06]">
+        <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
+          <span className="text-white font-bold">U-Plus</span>
+          <div className="flex flex-wrap gap-6 text-white/45 text-sm">
+            <a href="/privacy" className="hover:text-white transition-colors">Privacy</a>
+            <a href="/terms" className="hover:text-white transition-colors">Terms</a>
+            <a href="/refund-policy" className="hover:text-white transition-colors">Refunds</a>
           </div>
+          <span className="text-white/30 text-sm">© {new Date().getFullYear()} U-Plus</span>
         </div>
       </footer>
     </div>
   );
-};
+}
 
-export default UnifiedLandingPage;
+// The single orchestrated hero moment: a book opening in 3D, revealing
+// fragments of the product (attendance, a grade, a message) as its pages.
+function BookHero() {
+  return (
+    <div className="relative" style={{ perspective: '1600px' }}>
+      <div className="relative w-[280px] h-[360px] sm:w-[340px] sm:h-[430px]">
+        {/* Back cover */}
+        <div className="absolute inset-0 rounded-r-xl rounded-l-sm bg-[#0E9F6E] shadow-2xl" />
+
+        {/* Pages, revealed as the cover opens */}
+        {[0, 1, 2].map((i) => (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, x: -6 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.9 + i * 0.15, duration: 0.5 }}
+            className="absolute rounded-r-lg bg-[#FAF8F2] shadow-lg flex items-center justify-center px-6"
+            style={{
+              inset: `${6 + i * 8}px ${-4 - i * 4}px ${6 + i * 8}px ${6 + i * 4}px`,
+              zIndex: 3 - i,
+            }}
+          >
+            {i === 0 && <PageContent icon={CalendarCheck} label="Present" sub="Today, 8:02am" />}
+            {i === 1 && <PageContent icon={BookOpen} label="A — 91%" sub="Mathematics" />}
+            {i === 2 && <PageContent icon={MessageCircle} label="Sent" sub="Term report ready" />}
+          </motion.div>
+        ))}
+
+        {/* Front cover, animates open on load */}
+        <motion.div
+          initial={{ rotateY: 0 }}
+          animate={{ rotateY: -155 }}
+          transition={{ delay: 0.35, duration: 1, ease: [0.22, 1, 0.36, 1] }}
+          className="absolute inset-0 rounded-r-xl rounded-l-sm bg-gradient-to-br from-[#12B37F] to-[#0A7A54] shadow-2xl flex flex-col items-center justify-center gap-3"
+          style={{ transformOrigin: 'left center', transformStyle: 'preserve-3d', backfaceVisibility: 'hidden' }}
+        >
+          <span className="font-[family-name:var(--font-fraunces)] italic text-white text-3xl">U-Plus</span>
+          <span className="text-white/70 text-xs tracking-wide">Your school, connected</span>
+        </motion.div>
+
+        {/* Spine shadow for depth */}
+        <div className="absolute inset-y-0 left-0 w-3 bg-black/20 rounded-l-sm" />
+      </div>
+    </div>
+  );
+}
+
+function PageContent({ icon: Icon, label, sub }: { icon: React.ElementType; label: string; sub: string }) {
+  return (
+    <div className="text-center">
+      <Icon className="w-6 h-6 text-[#0E9F6E] mx-auto mb-2" />
+      <p className="font-[family-name:var(--font-fraunces)] text-lg text-[#14181F]">{label}</p>
+      <p className="text-[#14181F]/45 text-xs mt-0.5">{sub}</p>
+    </div>
+  );
+}

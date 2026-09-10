@@ -275,6 +275,7 @@ model School {
   invoices                 Invoice[]
   payments                 Payment[]
   studentFees              StudentFee[]
+  paymentConfig            SchoolPaymentConfig?
   attendancePatterns       StudentAttendancePattern[]
   performanceMetrics       StudentPerformanceMetrics[]
   studentSubjectSelections StudentSubjectSelection[]
@@ -487,6 +488,20 @@ model OtpVerification {
 
   @@index([phone, purpose])
   @@map("otp_verifications")
+}
+
+// Database-backed rate limiting — works correctly across serverless
+// instances/restarts, unlike an in-memory counter. Rows are short-lived;
+// the daily subscription-check cron also sweeps old ones (see
+// /api/cron/subscription-check). A "key" is scoped per-purpose, e.g.
+// "login:ip:1.2.3.4" or "login:email:x@y.com" — see /lib/rate-limit.js.
+model RateLimitAttempt {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key       String   @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([key, createdAt])
+  @@map("rate_limit_attempts")
 }
 
 model TeacherProfile {
@@ -1297,6 +1312,7 @@ model StudentFee {
   school        School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   student       User              @relation("StudentFees", fields: [studentId], references: [id], onDelete: Cascade)
   payments      StudentFeePayment[]
+  onlinePayments StudentFeeOnlinePayment[]
 
   @@index([schoolId])
   @@index([studentId])
@@ -1320,6 +1336,50 @@ model StudentFeePayment {
   studentFee     StudentFee @relation(fields: [studentFeeId], references: [id], onDelete: Cascade)
 
   @@map("student_fee_payments")
+}
+
+enum PaymentProvider {
+  paystack
+}
+
+// Each school brings its own payment gateway credentials, so parent
+// payments settle directly into the SCHOOL's own account — U-Plus never
+// touches or holds the money. Only the secret key is encrypted (the
+// public key is meant to be exposed client-side by design, same as how
+// Paystack itself treats it). See src/lib/payment-crypto.js.
+model SchoolPaymentConfig {
+  id                  String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  schoolId            String          @unique @map("school_id") @db.Uuid
+  provider            PaymentProvider @default(paystack)
+  publicKey           String          @map("public_key") @db.VarChar(255)
+  secretKeyEncrypted  String          @map("secret_key_encrypted") @db.Text
+  isActive            Boolean         @default(true) @map("is_active")
+  createdAt           DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime        @updatedAt @map("updated_at") @db.Timestamptz
+
+  school              School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@map("school_payment_configs")
+}
+
+// One online payment attempt against a StudentFee via the school's own
+// gateway. Distinct from StudentFeePayment (manual bank-transfer
+// confirmations) — this tracks the transaction lifecycle so a webhook
+// retry or a parent refreshing mid-payment can't double-count.
+model StudentFeeOnlinePayment {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentFeeId   String    @map("student_fee_id") @db.Uuid
+  provider       PaymentProvider @default(paystack)
+  reference      String    @unique @db.VarChar(255)
+  amount         Decimal   @db.Decimal(10, 2)
+  status         String    @default("pending") @db.VarChar(20) // pending | success | failed
+  paidAt         DateTime? @map("paid_at") @db.Timestamptz
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  studentFee     StudentFee @relation(fields: [studentFeeId], references: [id], onDelete: Cascade)
+
+  @@index([reference])
+  @@map("student_fee_online_payments")
 }
 
 // ============================================================================

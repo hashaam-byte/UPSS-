@@ -17,25 +17,38 @@ npm run build
 
 This migration adds: `StudentFee`/`StudentFeePayment` tables, `School.themeColor`,
 two subscription-warning tracking fields on `School`
-(`oneWeekWarningSentAt`/`finalWarningSentAt`), and `User.policyAcceptedAt`.
+(`oneWeekWarningSentAt`/`finalWarningSentAt`), `User.policyAcceptedAt`,
+and `SchoolPaymentConfig`/`StudentFeeOnlinePayment` for the per-school
+payment gateway feature.
 
-## 2. New environment variable
+## 2. New environment variables
 
-Only one is new this round — everything else is unchanged from before
+Two are new this round — everything else is unchanged from before
 (full list is in `.env.example`, included in this zip):
 
 ```
 CRON_SECRET="generate-a-long-random-string-yourself"
+PAYMENT_ENCRYPTION_KEY="generate-a-64-char-hex-string-yourself"
 ```
 
-If deploying on **Vercel**: add this in Project Settings -> Environment
-Variables. Vercel automatically triggers `/api/cron/subscription-check`
-daily (schedule is in `vercel.json`, already set to run once a day) and
-sends this value as the Authorization header — no further setup needed.
+If deploying on **Vercel**: add `CRON_SECRET` in Project Settings ->
+Environment Variables. Vercel automatically triggers
+`/api/cron/subscription-check` daily (schedule is in `vercel.json`,
+already set to run once a day) and sends this value as the Authorization
+header — no further setup needed.
 
 If **not** on Vercel: use any external cron service (e.g. cron-job.org)
 to hit `https://yourdomain.com/api/cron/subscription-check` once a day
 with header `Authorization: Bearer <CRON_SECRET>`.
+
+`PAYMENT_ENCRYPTION_KEY` (see section 6 for the full picture) encrypts
+schools' Paystack secret keys at rest. Generate it with:
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+This is required for the payment gateway feature to work at all — the
+app will throw an error the moment any school tries to save or use a
+payment key without it set.
 
 ## 3. What's in this update
 
@@ -179,15 +192,161 @@ admin's) — that's a small remaining step, not a missing feature.
   hardcoded Tailwind gradient across the app — that's still a
   file-by-file migration for later.
 
-## 6. Still open
+## 6. This update: schools connect their own payment gateway
+
+You can now let each school bring their own Paystack account, so parent
+fee payments settle directly into the school's own bank account — U-Plus
+never touches or holds that money at all. This also resolves the
+age/KYC blocker from our earlier conversation a different way: you're no
+longer the one whose identity needs to satisfy a gateway's KYC — each
+school's own admin does, for their own account.
+
+**Security model** (worth reading before you enable this for real):
+- `PAYMENT_ENCRYPTION_KEY` (new required env var) encrypts every school's
+  Paystack secret key at rest, using AES-256-GCM. This key is NOT a
+  payment credential itself — generate it once, keep it safe, and never
+  reuse it for anything else. If it's ever lost, every school's stored
+  secret key becomes unrecoverable and each admin has to reconnect.
+- The secret key is **never** sent back to the browser once saved, not
+  even to the admin who set it — only "connected: yes/no" and the public
+  key (which is safe to expose, that's how Paystack's model works).
+- The webhook (`/api/webhooks/paystack`) verifies Paystack's signature
+  using the correct **school's own** secret key — since each school has
+  a different key, the webhook first extracts which fee/school a
+  transaction reference belongs to, looks up that school's key, then
+  verifies. A mismatched signature is rejected outright.
+- Beyond signature verification, the webhook independently re-verifies
+  the transaction server-to-server via Paystack's `/transaction/verify`
+  endpoint before crediting anything — the webhook payload's amount
+  field is never trusted on its own.
+- Manual bank-transfer confirmation (built earlier) still works
+  unchanged — online payment is additive, not a replacement. A parent
+  sees a "Pay online" button only if their child's school has actually
+  connected a gateway; otherwise they see the existing bank-transfer
+  flow only.
+
+**New files:**
+- `src/lib/payment-crypto.js` — the AES-256-GCM encrypt/decrypt helpers.
+- `src/app/api/protected/admin/settings/payment-gateway/route.js` —
+  admin connects/updates/disconnects their Paystack keys.
+- `src/app/api/protected/parent/fees/[feeId]/pay/route.js` — starts a
+  Paystack transaction using the school's own key; verifies the fee
+  actually belongs to one of the requesting parent's linked children
+  first.
+- `src/app/api/webhooks/paystack/route.js` — the verification logic
+  above; on confirmed success, updates the fee's balance/status and adds
+  a `StudentFeePayment` record so parents and admins see one consistent
+  payment history regardless of whether a payment was manual or online.
+- New "Payment Gateway" tab on the admin settings page, and a "Pay
+  online" button on the parent fees page (conditionally shown).
+- Schema: `SchoolPaymentConfig`, `StudentFeeOnlinePayment`,
+  `PaymentProvider` enum (Paystack only for now — designed to extend to
+  other providers later without a breaking schema change).
+
+**You still need to do this yourself before it works:**
+1. Set `PAYMENT_ENCRYPTION_KEY` in your environment (see `.env.example`
+   for the generation command).
+2. **Register your Paystack webhook URL** in the Paystack dashboard for
+   each school's account (Settings → API Keys & Webhooks → Webhook URL),
+   pointing to `https://yourdomain.com/api/webhooks/paystack`. This is a
+   per-Paystack-account setting on Paystack's side — U-Plus can't
+   configure it for them automatically.
+3. Each admin who wants online payments enabled needs to actually go to
+   Settings → Payment Gateway and paste in their own Paystack public and
+   secret keys.
+
+## 8. This update: security hardening + landing/login redesign
+
+### Security — five layers added, all real gaps found while reviewing
+
+1. **Rate limiting was completely unused.** A `RateLimiter` class existed
+   in `auth.js`, exported, but wired to zero routes. Built a proper
+   database-backed version (`src/lib/rate-limit.js` — works correctly
+   across serverless instances/restarts, unlike an in-memory counter)
+   and applied it to: school login, headadmin login, parent login,
+   parent OTP request/verify, password reset request, and payment
+   initiation. Each has both IP-based and account-based limits. The
+   daily cron job now also sweeps expired rate-limit rows.
+2. **Security headers were completely empty** — `next.config.ts` had
+   nothing in it. Added CSP, X-Frame-Options, X-Content-Type-Options,
+   HSTS, Referrer-Policy, Permissions-Policy. Verified via `next build`
+   that these don't break anything server-side, but the CSP in
+   particular should be checked against a real browser deployment
+   before assuming it's fully correct — I can't visually test this from
+   this sandbox.
+3. **File uploads checked size in one route, nothing in the other** —
+   neither restricted file *type*. Built `src/lib/upload-validation.js`
+   with a real MIME-type allowlist (deliberately excludes SVG, which can
+   carry embedded scripts) and applied it to both upload routes.
+4. **Paystack webhook IP allowlisting**, as an *optional* extra layer
+   alongside the signature verification that already existed. Made this
+   env-configurable and fail-open (skipped if unset) rather than
+   hardcode Paystack's published IPs, since those can change over time
+   and a stale hardcoded list could start rejecting real payments.
+5. **Audit logging** — the `AuditLog` table existed in your schema but
+   nothing wrote to it. Built `src/lib/audit.js` and wired it into the
+   payment gateway connect/update/disconnect actions first, since
+   that's the highest-value place to have a "who did this and when"
+   trail.
+
+New model: `RateLimitAttempt` (backs #1 above).
+
+**Honest gaps not covered by this pass**: no `npm audit` dependency scan
+run, no automated tests, no formal penetration test. This was a code
+review pass while actively building, not a systematic security audit —
+treat it as a strong baseline, not a clean bill of health.
+
+### Landing page — full redesign
+
+New visual direction: dark hero section with a single orchestrated
+moment — a 3D book opening (built with CSS 3D transforms + framer-motion,
+already an installed-but-unused dependency, so no new packages needed),
+revealing fragments of the product (attendance, a grade, a message) as
+its pages. Below the hero: warm paper-toned sections with asymmetric
+feature blocks (not a generic 3-card grid), a horizontal role-picker
+band, and pricing pulled live from the same headadmin-editable config
+built earlier. New fonts (Manrope + Fraunces) loaded, scoped to just
+this page — deliberately did NOT change the font for the rest of the
+already-built app, to avoid unintended visual regressions across every
+dashboard.
+
+Caught and fixed two real TypeScript errors before they'd have broken
+your build: an implicitly-`any` function parameter, and calling that
+same function with zero arguments where TypeScript required one (fixed
+by making the parameter optional).
+
+### Login page — visual refresh only, zero logic changes
+
+Given this page's form/auth logic is complex and I can't visually test
+a live rewrite from this sandbox, I deliberately did a class-name-only
+visual update rather than a rebuild: swapped the background gradient and
+two off-palette accent blobs (cyan/purple) to match the new night/jade
+palette. Left the five role cards' individual accent colors untouched —
+those exist to visually distinguish the roles from each other, which is
+a different, legitimate purpose from the page's overall theme.
+
+While in this file, confirmed something I'd suspected was a bug in an
+earlier session actually isn't: the page already correctly reads a
+`?role=` URL parameter and preselects that tab — I'd mis-grepped for it
+before. No fix was needed there.
+
+## 9. Still open
 
 - Storage is still 100% Cloudinary (deliberate, per earlier discussion).
-- No automated tests.
-- Payment gateway still isn't wired to a live provider (deliberate —
-  manual bank transfer for now, per the age/KYC discussion).
-- A full `tsc --noEmit` pass hasn't been run independently.
-- Retheming existing hardcoded gradients to actually use the new
-  `--brand-primary` CSS variable, beyond the mechanism now being live
-  everywhere.
+- No automated tests, no `npm audit` scan, no formal penetration test.
+- A full `tsc --noEmit` pass hasn't been run independently (only what
+  `next build` checks).
+- Retheming existing hardcoded gradients (across the rest of the app,
+  outside the landing/login pages) to actually use the `--brand-primary`
+  CSS variable.
+- Only Paystack is supported for online payments — schema is designed
+  to make adding another provider additive, not breaking.
+- Partial-payment amount isn't yet selectable by the parent in the UI
+  (API supports a custom `amount`, button always pays full balance).
+- PWA setup — not started.
+- Full env-var walkthrough for final production readiness — not
+  re-verified this round (mostly covered in earlier messages).
+- Attendy (attendy-edu.vercel.app) integration for attendance — not
+  investigated at all yet.
 - AI test generation, timetable generation, resources scoping — all
   fixed and verified in earlier sessions, unchanged in this update.

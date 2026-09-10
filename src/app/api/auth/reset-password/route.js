@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 // Configure email transporter
 const transporter = nodemailer.createTransport({
@@ -17,6 +18,12 @@ const transporter = nodemailer.createTransport({
 
 export async function POST(request) {
   try {
+    const ip = getClientIp(request);
+    const ipLimit = await checkRateLimit(`reset-password:ip:${ip}`, 8, 15 * 60);
+    if (!ipLimit.allowed) {
+      return NextResponse.json({ error: 'Too many requests. Please try again in 15 minutes.' }, { status: 429 });
+    }
+
     const body = await request.json();
     const { email, type, schoolSlug } = body;
 

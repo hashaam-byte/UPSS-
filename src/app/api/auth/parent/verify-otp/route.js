@@ -6,9 +6,16 @@
 import { NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import { verifyOtp } from '@/lib/otp';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(request) {
   try {
+    const ip = getClientIp(request);
+    const ipLimit = await checkRateLimit(`parent-otp-verify:ip:${ip}`, 20, 15 * 60);
+    if (!ipLimit.allowed) {
+      return NextResponse.json({ error: 'Too many attempts. Please try again in 15 minutes.' }, { status: 429 });
+    }
+
     const body = await request.json();
     const { phone, code, purpose } = body;
 

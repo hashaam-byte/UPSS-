@@ -2,6 +2,7 @@ import { requireAuth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { v2 as cloudinary } from 'cloudinary';
+import { validateUploadedFile } from '@/lib/upload-validation';
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -42,9 +43,16 @@ export async function POST(request) {
     }
 
     const uploadedResources = [];
+    const rejectedFiles = [];
 
     for (const file of files) {
       if (file.size === 0) continue;
+
+      const validation = validateUploadedFile(file);
+      if (!validation.valid) {
+        rejectedFiles.push({ name: file.name, reason: validation.error });
+        continue;
+      }
 
       // Upload file to Cloudinary
       const buffer = Buffer.from(await file.arrayBuffer());
@@ -89,8 +97,9 @@ export async function POST(request) {
 
     return NextResponse.json({
       success: true,
-      message: `${uploadedResources.length} file(s) uploaded successfully`,
-      resources: uploadedResources
+      message: `${uploadedResources.length} file(s) uploaded successfully${rejectedFiles.length ? `, ${rejectedFiles.length} rejected` : ''}`,
+      resources: uploadedResources,
+      rejectedFiles
     });
 
   } catch (error) {

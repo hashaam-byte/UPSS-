@@ -1,6 +1,6 @@
 'use client'
 import React, { useState, useEffect } from 'react';
-import { Wallet, Loader2 } from 'lucide-react';
+import { Wallet, Loader2, CreditCard } from 'lucide-react';
 
 const STATUS_COLORS = {
   pending: 'bg-yellow-500/20 text-yellow-300',
@@ -14,6 +14,7 @@ export default function ParentFeesPage() {
   const [fees, setFees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [payingFeeId, setPayingFeeId] = useState(null);
 
   useEffect(() => {
     fetchFees();
@@ -32,6 +33,28 @@ export default function ParentFeesPage() {
       setError('Network error while loading fees');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePayOnline = async (feeId) => {
+    setPayingFeeId(feeId);
+    try {
+      const res = await fetch(`/api/protected/parent/fees/${feeId}/pay`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Failed to start payment. Please try bank transfer instead.');
+        return;
+      }
+      window.location.href = data.authorizationUrl;
+    } catch (err) {
+      alert('Network error. Please try again.');
+    } finally {
+      setPayingFeeId(null);
     }
   };
 
@@ -94,6 +117,17 @@ export default function ParentFeesPage() {
                 <p className="text-gray-500 text-xs mb-2">
                   Due {new Date(fee.dueDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                 </p>
+              )}
+
+              {fee.status !== 'paid' && fee.canPayOnline && (
+                <button
+                  onClick={() => handlePayOnline(fee.id)}
+                  disabled={payingFeeId === fee.id}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 mb-3 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
+                >
+                  {payingFeeId === fee.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                  Pay ₦{Number(fee.balance).toLocaleString()} online
+                </button>
               )}
 
               {fee.payments.length > 0 && (

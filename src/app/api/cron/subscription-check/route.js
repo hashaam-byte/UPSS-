@@ -18,6 +18,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { sendEmail } from '@/lib/email';
 import { sendSms } from '@/lib/sms';
+import { cleanupOldRateLimitAttempts } from '@/lib/rate-limit';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -64,6 +65,8 @@ export async function GET(request) {
     if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    await cleanupOldRateLimitAttempts().catch((e) => console.error('Rate-limit cleanup failed:', e));
 
     const schools = await prisma.school.findMany({
       where: { isActive: true },

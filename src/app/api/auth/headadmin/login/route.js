@@ -6,11 +6,18 @@ import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(request) {
   try {
     const body = await request.json();
     const { email, password, rememberMe } = body;
+
+    const ip = getClientIp(request);
+    const ipLimit = await checkRateLimit(`headadmin-login:ip:${ip}`, 10, 15 * 60);
+    if (!ipLimit.allowed) {
+      return NextResponse.json({ error: 'Too many login attempts. Please try again in 15 minutes.' }, { status: 429 });
+    }
 
     // Validate required fields
     if (!email || !password) {

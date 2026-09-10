@@ -5,11 +5,27 @@ import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(request) {
   try {
     const body = await request.json();
     const { identifier, password, role, schoolSlug, rememberMe } = body;
+
+    // Rate limit by IP (stops spraying many usernames from one source) AND
+    // by identifier (stops targeting one account from many IPs) — both
+    // limits apply independently.
+    const ip = getClientIp(request);
+    const ipLimit = await checkRateLimit(`login:ip:${ip}`, 20, 15 * 60);
+    if (!ipLimit.allowed) {
+      return NextResponse.json({ error: 'Too many login attempts from this location. Please try again in 15 minutes.' }, { status: 429 });
+    }
+    if (identifier) {
+      const identifierLimit = await checkRateLimit(`login:id:${identifier.toLowerCase()}:${schoolSlug || ''}`, 8, 15 * 60);
+      if (!identifierLimit.allowed) {
+        return NextResponse.json({ error: 'Too many attempts for this account. Please try again in 15 minutes.' }, { status: 429 });
+      }
+    }
 
     // Validate required fields
     if (!identifier || !password || !role || !schoolSlug) {

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { uploadToCloudinary } from '@/lib/cloudinary-config';
 import { prisma } from '@/lib/prisma';
+import { validateUploadedFile } from '@/lib/upload-validation';
 
 // GET endpoint to fetch resources
 export async function GET(request) {
@@ -164,10 +165,11 @@ export async function POST(request) {
       );
     }
 
-    // Check file size (50MB limit)
-    if (file.size > 50 * 1024 * 1024) {
+    // Check file size and type (blocks unrestricted uploads — was size-only before)
+    const validation = validateUploadedFile(file);
+    if (!validation.valid) {
       return NextResponse.json(
-        { success: false, error: 'File size must be less than 50MB' },
+        { success: false, error: validation.error },
         { status: 400 }
       );
     }
