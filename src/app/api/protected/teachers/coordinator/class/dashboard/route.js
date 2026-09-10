@@ -90,6 +90,12 @@ export async function GET(request) {
         isActive: true,
       },
       include: {
+        user: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
         subjectSelection: {
           include: {
             subjects: {
@@ -99,7 +105,6 @@ export async function GET(request) {
                     id: true,
                     name: true,
                     code: true,
-                    subjectType: true,
                   },
                 },
               },
@@ -108,7 +113,9 @@ export async function GET(request) {
         },
       },
       orderBy: {
-        lastName: 'asc',
+        user: {
+          lastName: 'asc',
+        },
       },
     });
 
@@ -145,25 +152,13 @@ export async function GET(request) {
             teacher: {
               select: {
                 id: true,
-                firstName: true,
-                lastName: true,
                 employeeId: true,
-              },
-            },
-          },
-        },
-        classAssignments: {
-          where: {
-            classId: classInfo.id,
-            isActive: true,
-          },
-          include: {
-            teacher: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                employeeId: true,
+                user: {
+                  select: {
+                    firstName: true,
+                    lastName: true,
+                  },
+                },
               },
             },
           },
@@ -181,10 +176,12 @@ export async function GET(request) {
 
     // Format subject assignments
     const subjectAssignments = classSubjects.map(subject => {
-      const classAssignment = subject.classAssignments[0]; // Should only be one per class
+      const classAssignment = subject.teachers.find(teacherSubject =>
+        teacherSubject.classes.includes(classInfo.name)
+      );
       const availableTeachers = subject.teachers.map(ts => ({
         id: ts.teacher.id,
-        name: `${ts.teacher.firstName} ${ts.teacher.lastName}`,
+        name: `${ts.teacher.user.firstName} ${ts.teacher.user.lastName}`,
         employeeId: ts.teacher.employeeId,
       }));
 
@@ -192,12 +189,12 @@ export async function GET(request) {
         subjectId: subject.id,
         subjectName: subject.name,
         subjectCode: subject.code,
-        subjectType: subject.subjectType,
+          subjectType: subject.category,
         enrollmentCount: subject._count.selectedByStudents,
         assignedTeacher: classAssignment
           ? {
               id: classAssignment.teacher.id,
-              name: `${classAssignment.teacher.firstName} ${classAssignment.teacher.lastName}`,
+            name: `${classAssignment.teacher.user.firstName} ${classAssignment.teacher.user.lastName}`,
               employeeId: classAssignment.teacher.employeeId,
             }
           : null,
@@ -223,7 +220,7 @@ export async function GET(request) {
       .filter(s => !s.subjectSelection || !s.subjectSelection.selectionComplete)
       .map(s => ({
         studentId: s.id,
-        studentName: `${s.firstName} ${s.lastName}`,
+        studentName: `${s.user.firstName} ${s.user.lastName}`,
         studentIdNumber: s.studentId,
         hasStarted: !!s.subjectSelection,
         isLocked: s.subjectSelection?.isLocked || false,
@@ -240,8 +237,8 @@ export async function GET(request) {
         streamDistribution: streamStats,
         students: students.map(s => ({
           id: s.id,
-          firstName: s.firstName,
-          lastName: s.lastName,
+          firstName: s.user.firstName,
+          lastName: s.user.lastName,
           studentId: s.studentId,
           stream: s.subjectSelection?.stream || null,
           selectionComplete: s.subjectSelection?.selectionComplete || false,

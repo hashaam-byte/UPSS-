@@ -203,12 +203,15 @@ const CoordinatorTimetable = () => {
   const renderGridView = () => {
     if (!timetableData?.timetable) return null;
 
-    const { periods, daysOfWeek } = timetableData;
+    const periods = timetableData.periods || {};
+    const daysOfWeek = Array.isArray(timetableData.daysOfWeek)
+      ? timetableData.daysOfWeek
+      : [];
     const periodsArray = Object.keys(periods).filter(p => p !== 'BREAK' && p !== 'LUNCH');
 
     return (
       <div className="space-y-6">
-        {timetableData.coordinatorClasses.map(className => (
+        {(timetableData.coordinatorClasses || []).map(className => (
           <div key={className} className="bg-white rounded-xl shadow-sm border overflow-hidden">
             <div className="px-6 py-4 bg-gradient-to-r from-purple-500 to-blue-500 text-white">
               <h3 className="text-lg font-semibold">{className}</h3>
