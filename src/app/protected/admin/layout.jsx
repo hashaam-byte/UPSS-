@@ -241,14 +241,14 @@ const AdminLayout = ({ children }) => {
       )}
 
       {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 bg-white border-r border-gray-200 transition-all duration-300 ${
+      <div className={`fixed inset-y-0 left-0 z-50 bg-white border-r border-gray-200 transition-all duration-300 flex flex-col ${
         isSidebarOpen ? 'w-64' : 'w-20'
       } ${
         isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
       } lg:translate-x-0`}>
         
         {/* Sidebar Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 flex-shrink-0">
           {isSidebarOpen && (
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-[#0E9F6E] rounded-xl flex items-center justify-center">
@@ -275,7 +275,7 @@ const AdminLayout = ({ children }) => {
         </div>
 
         {/* Navigation */}
-        <nav className="p-3 flex-1 overflow-y-auto">
+        <nav className="p-3 flex-1 min-h-0 overflow-y-auto">
           {sidebarGroups.map((group) => {
             const isCollapsed = collapsedGroups[group.group];
             return (
@@ -320,7 +320,7 @@ const AdminLayout = ({ children }) => {
 
         {/* School Info */}
         {isSidebarOpen && (
-          <div className="p-4 border-t border-gray-200">
+          <div className="p-4 border-t border-gray-200 flex-shrink-0">
             <div className="bg-[#0E9F6E]/5 p-4 rounded-xl border border-[#0E9F6E]/15">
               <div className="flex items-center gap-3">
                 <School className="w-8 h-8 text-[#0E9F6E]" />

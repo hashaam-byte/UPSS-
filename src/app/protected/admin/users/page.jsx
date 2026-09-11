@@ -391,7 +391,7 @@ export default function AdminUsersPage() {
             </button>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-semibold hover:bg-gray-700 transition-all shadow-sm"
+              className="flex items-center gap-2 px-4 py-2.5 bg-[#0E9F6E] text-white rounded-xl text-sm font-semibold hover:bg-[#0c8a5f] transition-all shadow-sm"
             >
               <Plus className="w-4 h-4" /> Add User
             </button>
@@ -428,7 +428,7 @@ export default function AdminUsersPage() {
                   key={tab.id}
                   onClick={() => { setActiveTab(tab.id); setCurrentPage(1); }}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                    active ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                    active ? 'bg-[#0E9F6E] text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                   }`}
                 >
                   <Icon className="w-4 h-4" />
@@ -520,15 +520,15 @@ export default function AdminUsersPage() {
             </div>
 
             <div className="p-6 space-y-4">
-              <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
-                <div className="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center shrink-0">
-                  <FileText className="w-4 h-4 text-blue-600" />
+              <div className="flex items-center gap-3 p-4 bg-[#0E9F6E]/5 rounded-xl border border-[#0E9F6E]/15">
+                <div className="w-9 h-9 bg-[#0E9F6E]/10 rounded-lg flex items-center justify-center shrink-0">
+                  <FileText className="w-4 h-4 text-[#0E9F6E]" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-800">Download the template first</p>
                   <p className="text-xs text-gray-500 mt-0.5">Ensure your CSV matches the required format</p>
                 </div>
-                <button onClick={downloadCSVTemplate} className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors">
+                <button onClick={downloadCSVTemplate} className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-[#0E9F6E] hover:bg-[#0c8a5f] text-white text-xs font-semibold rounded-lg transition-colors">
                   <Download className="w-3.5 h-3.5" /> Template
                 </button>
               </div>
@@ -561,7 +561,7 @@ export default function AdminUsersPage() {
                 {importResults ? 'Close' : 'Cancel'}
               </button>
               {!importResults && (
-                <button onClick={handleImportCSV} disabled={!importFile || isLoading} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-900 hover:bg-gray-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-colors">
+                <button onClick={handleImportCSV} disabled={!importFile || isLoading} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-[#0E9F6E] hover:bg-[#0c8a5f] disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-colors">
                   {isLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Importing...</> : <><Upload className="w-4 h-4" /> Import</>}
                 </button>
               )}
@@ -631,7 +631,7 @@ export default function AdminUsersPage() {
                     <div className="grid grid-cols-3 gap-2 mt-1">
                       {CLASS_LEVELS.map(cls => (
                         <label key={cls} className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-all text-sm font-medium ${
-                          createForm.coordinatorClasses.includes(cls) ? 'bg-gray-900 border-gray-900 text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                          createForm.coordinatorClasses.includes(cls) ? 'bg-[#0E9F6E] border-[#0E9F6E] text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
                         }`}>
                           <input type="checkbox" checked={createForm.coordinatorClasses.includes(cls)} onChange={() => toggleCoordinatorClass(cls)} className="sr-only" />
                           {cls}
@@ -681,7 +681,7 @@ export default function AdminUsersPage() {
               <Field label="Password" required>
                 <div className="flex gap-2">
                   <input type="text" value={createForm.password} onChange={e => setCreateForm(p => ({ ...p, password: e.target.value }))} className={`${inputCls} flex-1 font-mono`} required minLength={8} placeholder="Min. 8 characters" />
-                  <button type="button" onClick={generatePassword} className="px-3 py-2.5 bg-gray-900 text-white rounded-xl hover:bg-gray-700 transition-colors" title="Generate">
+                  <button type="button" onClick={generatePassword} className="px-3 py-2.5 bg-[#0E9F6E] text-white rounded-xl hover:bg-[#0c8a5f] transition-colors" title="Generate">
                     <Zap className="w-4 h-4" />
                   </button>
                 </div>
@@ -706,7 +706,7 @@ export default function AdminUsersPage() {
                 <button type="button" onClick={() => setShowCreateModal(false)} className="flex-1 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition-colors">
                   Cancel
                 </button>
-                <button type="submit" disabled={createLoading} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-900 hover:bg-gray-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-colors">
+                <button type="submit" disabled={createLoading} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-[#0E9F6E] hover:bg-[#0c8a5f] disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-colors">
                   {createLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Creating...</> : <><UserPlus className="w-4 h-4" /> Create User</>}
                 </button>
               </div>

@@ -1,60 +1,39 @@
-# U-Plus — Admin dashboard redesign
+# U-Plus — Sidebar scroll fix + Users page
 
-Just 3 files this round — the admin dashboard, sidebar, and one new API
-route. Copy these over the matching paths in your project.
+## Sidebar scroll fix
 
-## What changed
+Found the exact bug: the sidebar's outer container was `fixed inset-y-0`
+(fills the viewport height) but was never `flex flex-col`. Its children
+(header, nav, footer) just stacked in normal block flow — so the nav's
+`overflow-y-auto` had no bounded height to actually scroll within, and
+just grew past the fixed container instead ("stiff", not scrolling).
 
-**New: `src/app/api/protected/admin/stats/overview/route.js`**
-Consolidated dashboard data in one call. Fixes two real bugs found while
-rebuilding this:
-- The old stats endpoint returned `admins` (lowercase) while the
-  dashboard read `.Admins` (capital) — that stat card has always
-  silently shown zero.
-- The dashboard's "estimated billing" number was hardcoded as
-  `totalUsers * 250` — completely disconnected from the actual
-  headadmin-editable pricing built a few sessions ago. Now reads the
-  real `subscription.pricing.individual.totalCost` the backend already
-  computes correctly.
+Fixed properly: outer container is now `flex flex-col`, header and
+footer are `flex-shrink-0` (stay fixed size), and the nav is
+`flex-1 min-h-0 overflow-y-auto` — the `min-h-0` is the actual fix here;
+without it, a flex child won't shrink below its content size no matter
+what overflow value you give it, which is the standard gotcha behind
+this exact symptom.
 
-**`src/app/protected/admin/page.jsx` — full rebuild**
-- Removed fabricated trend badges (`{ positive: true, value: 12 }` —
-  hardcoded numbers with no real data behind them, on every stat card).
-  Replaced with real, honestly-labeled numbers: active users in the
-  last 30 days, a real 7-day new-signups bar chart, a real role
-  composition donut chart — all backed by actual queries, using
-  `recharts`, which was already an installed dependency, unused until
-  now.
-- Removed two hardcoded placeholder tiles ("Messages: 0", "Resources: 0"
-  that never fetched real data) and replaced with an Outstanding Fees
-  card, since that's real, meaningful, and already fully built.
-- Toned down the color treatment — the old version leaned heavily on
-  blue/purple/pink gradients across nearly every element, which is part
-  of what you flagged as unclear. Restyled around the single jade accent
-  color already established on the landing/login pages, with a plain
-  white/gray card system underneath so the accent color actually stands
-  out instead of competing with itself everywhere.
+## Users page — visual refresh (logic untouched)
 
-**`src/app/protected/admin/layout.jsx` — sidebar redesign**
-- Flat 10-item list restructured into four collapsible groups
-  (Overview, People, School, Account) — click a group header to
-  collapse/expand it.
-- Purple/pink header and active-nav-item colors replaced with the jade
-  accent, matching the rest of the redesign.
+Same approach as the login page: 718 lines of working CRUD logic
+(create/edit/delete, CSV import, pagination, filters) that I can't
+visually test live, so this was a class-name-only pass, zero behavior
+changes. Swapped the primary-action color (`bg-gray-900`, used on 6
+buttons/toggles) and the CSV-import info callout (previously blue) to
+the jade accent, so the whole admin experience reads as one consistent
+system alongside the redesigned dashboard and sidebar. Left the
+role-badge colors (student=blue, teacher=emerald, admin=violet) alone —
+those exist specifically to tell roles apart at a glance in a list,
+which is a different, legitimate purpose from the page's primary-action
+color.
 
-## This is step one of the admin section redesign
+## Next
 
-Per what we discussed — building the shell (sidebar) and one flagship
-page (dashboard) first, rather than redesigning all eight admin pages
-blind. Let me know if this direction works before I extend the same
-system to Users, Fees, Announcements, Resources, and the rest.
+Says to move to the next page after this — let me know which one, or
+I'll pick the next highest-traffic one (Fees or Announcements, since
+those already exist and are core to admin workflow) and keep going.
 
-## Still investigating: your "access denied, logs out" bug on the Fees page
-
-Leading theory is still an unapplied database migration — if you
-haven't run `npx prisma migrate dev` since the last zip (the one with
-`StudentFee`, `SchoolPaymentConfig`, `policyAcceptedAt`, etc.), that
-would explain it. If you have run it and this still happens, I need the
-exact status code + response body from the failing request in your
-browser's Network tab to pin it down further — I can't reproduce this
-without that detail.
+Notifications and messaging — noted, will look into these after the
+page-by-page redesign pass, as requested.
