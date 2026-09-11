@@ -45,63 +45,42 @@ const AdminLayout = ({ children }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [error, setError] = useState('');
 
-  const sidebarItems = [
+  const sidebarGroups = [
     {
-      title: 'Dashboard',
-      href: '/protected/admin',
-      icon: Home
+      group: 'Overview',
+      items: [
+        { title: 'Dashboard', href: '/protected/admin', icon: Home },
+        { title: 'Analytics', href: '/protected/admin/analytics', icon: BarChart3 },
+      ],
     },
     {
-      title: 'Users',
-      href: '/protected/admin/users',
-      icon: Users
+      group: 'People',
+      items: [
+        { title: 'Users', href: '/protected/admin/users', icon: Users },
+        { title: 'Teacher Assignments', href: '/protected/admin/teachers/assignments', icon: UserCheck },
+      ],
     },
     {
-      title: 'Teacher Assignments', // NEW MENU ITEM
-      href: '/protected/admin/teachers/assignments',
-      icon: UserCheck
+      group: 'School',
+      items: [
+        { title: 'Fees', href: '/protected/admin/fees', icon: Wallet },
+        { title: 'Announcements', href: '/protected/admin/announcements', icon: Megaphone },
+        { title: 'Messages', href: '/protected/admin/messages', icon: MessageSquare },
+        { title: 'Resources', href: '/protected/admin/resources', icon: Upload },
+      ],
     },
     {
-      title: 'Analytics',
-      href: '/protected/admin/analytics',
-      icon: BarChart3
+      group: 'Account',
+      items: [
+        { title: 'Subscription', href: '/protected/admin/subscription', icon: CreditCard },
+        { title: 'Settings', href: '/protected/admin/settings', icon: Settings },
+        { title: 'Arm', href: '/protected/admin/arm', icon: Shield },
+      ],
     },
-    {
-      title: 'Subscription',
-      href: '/protected/admin/subscription',
-      icon: CreditCard
-    },
-    {
-      title: 'Fees',
-      href: '/protected/admin/fees',
-      icon: Wallet
-    },
-    {
-      title: 'Announcements',
-      href: '/protected/admin/announcements',
-      icon: Megaphone
-    },
-    {
-      title: 'Messages',
-      href: '/protected/admin/messages',
-      icon: MessageSquare
-    },
-    {
-      title: 'Resources',
-      href: '/protected/admin/resources',
-      icon: Upload
-    },
-    {
-      title: 'Settings',
-      href: '/protected/admin/settings',
-      icon: Settings
-    },
-    {
-      title: 'Arm',
-      href: '/protected/admin/arm',
-      icon: Shield
-    }
   ];
+  const sidebarItems = sidebarGroups.flatMap(g => g.items); // kept flat for the page-title lookup below
+  const [collapsedGroups, setCollapsedGroups] = useState({});
+  const toggleGroup = (group) => setCollapsedGroups(prev => ({ ...prev, [group]: !prev[group] }));
 
   useEffect(() => {
     verifyAuth();
@@ -272,7 +251,7 @@ const AdminLayout = ({ children }) => {
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           {isSidebarOpen && (
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl flex items-center justify-center">
+              <div className="w-10 h-10 bg-[#0E9F6E] rounded-xl flex items-center justify-center">
                 <Shield className="w-6 h-6 text-white" />
               </div>
               <div>
@@ -297,25 +276,44 @@ const AdminLayout = ({ children }) => {
 
         {/* Navigation */}
         <nav className="p-3 flex-1 overflow-y-auto">
-          {sidebarItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = isActivePath(item.href);
-            
+          {sidebarGroups.map((group) => {
+            const isCollapsed = collapsedGroups[group.group];
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setIsMobileSidebarOpen(false)}
-                className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all mb-1 ${
-                  isActive
-                    ? 'bg-purple-600 text-white shadow-lg'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-                title={!isSidebarOpen ? item.title : ''}
-              >
-                <Icon className="w-5 h-5 flex-shrink-0" />
-                {isSidebarOpen && <span className="font-medium">{item.title}</span>}
-              </Link>
+              <div key={group.group} className="mb-4">
+                {isSidebarOpen && (
+                  <button
+                    onClick={() => toggleGroup(group.group)}
+                    className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide hover:text-gray-600 transition-colors"
+                  >
+                    {group.group}
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+                  </button>
+                )}
+                {!isCollapsed && (
+                  <div className="mt-1 space-y-1">
+                    {group.items.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = isActivePath(item.href);
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => setIsMobileSidebarOpen(false)}
+                          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
+                            isActive
+                              ? 'bg-[#0E9F6E] text-white shadow-sm'
+                              : 'text-gray-700 hover:bg-gray-100'
+                          }`}
+                          title={!isSidebarOpen ? item.title : ''}
+                        >
+                          <Icon className="w-5 h-5 flex-shrink-0" />
+                          {isSidebarOpen && <span className="font-medium text-sm">{item.title}</span>}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             );
           })}
         </nav>
@@ -323,9 +321,9 @@ const AdminLayout = ({ children }) => {
         {/* School Info */}
         {isSidebarOpen && (
           <div className="p-4 border-t border-gray-200">
-            <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 rounded-xl border border-purple-200">
+            <div className="bg-[#0E9F6E]/5 p-4 rounded-xl border border-[#0E9F6E]/15">
               <div className="flex items-center gap-3">
-                <School className="w-8 h-8 text-purple-600" />
+                <School className="w-8 h-8 text-[#0E9F6E]" />
                 <div>
                   <p className="font-semibold text-gray-900 text-sm">{school?.name}</p>
                   <p className="text-xs text-gray-600">School Network</p>
