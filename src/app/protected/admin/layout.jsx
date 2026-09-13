@@ -492,7 +492,7 @@ const AdminLayout = ({ children }) => {
         <footer className="bg-white border-t border-gray-200 py-4">
           <div className="px-6">
             <div className="flex flex-col lg:flex-row justify-between items-center text-sm text-gray-600">
-              <p>© 2025 School Management System. All rights reserved.</p>
+              <p>© {new Date().getFullYear()} School Management System. All rights reserved.</p>
               <div className="flex items-center gap-4 mt-2 lg:mt-0">
                 <span className="flex items-center gap-2 text-green-600">
                   <div className="w-2 h-2 bg-green-500 rounded-full"></div>

@@ -55,8 +55,11 @@ export async function GET(request) {
       loginRateData,
       studentPerformanceData,
       teacherActivityData,
-      assignmentStats,
-      attendanceStats
+      resourceCount,
+      attendanceStats,
+      dailyActiveUsers,
+      previousPeriodActive,
+      gradingStats,
     ] = await Promise.all([
       // Total users in THIS SCHOOL only
       prisma.user.count({
@@ -144,16 +147,12 @@ export async function GET(request) {
         }
       }),
 
-      // Assignment statistics for THIS SCHOOL only
-      prisma.assignment.aggregate({
+      // Resource uploads for THIS SCHOOL only (was mislabeled — previously counted
+      // Assignment records and called them "resourceUploads")
+      prisma.resource.count({
         where: {
           schoolId: schoolId,
-          createdAt: {
-            gte: startDate
-          }
-        },
-        _count: {
-          id: true
+          createdAt: { gte: startDate }
         }
       }),
 
@@ -168,11 +167,53 @@ export async function GET(request) {
         _count: {
           id: true
         }
+      }),
+
+      // Real daily active users — logged in within the last 24 hours
+      // (previously this was activeUsers * 0.85, a fabricated number)
+      prisma.user.count({
+        where: {
+          schoolId: schoolId,
+          isActive: true,
+          lastLogin: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+        }
+      }),
+
+      // Users active in the PRIOR period of equal length, for a real retention
+      // calculation (previously userRetentionRate was an invented formula)
+      prisma.user.count({
+        where: {
+          schoolId: schoolId,
+          isActive: true,
+          lastLogin: {
+            gte: new Date(startDate.getTime() - (endDate.getTime() - startDate.getTime())),
+            lt: startDate
+          }
+        }
+      }),
+
+      // Real grading timeliness: submissions graded within 7 days of their
+      // due date, vs all graded submissions (previously gradingTimeliness
+      // was a hardcoded 85 with a comment admitting it wasn't real)
+      prisma.assignmentSubmission.findMany({
+        where: {
+          assignment: { schoolId },
+          gradedAt: { not: null, gte: startDate },
+        },
+        select: { gradedAt: true, assignment: { select: { dueDate: true } } },
       })
     ]);
-
-    // Calculate login rate percentage
     const loginRate = totalUsers > 0 ? Math.round((loginRateData / totalUsers) * 100) : 0;
+
+    // Real retention: of the users active in the prior period, what
+    // fraction are still active now? 0 when there's no prior-period data
+    // to compare against, rather than a fabricated placeholder.
+    const userRetentionRate = previousPeriodActive > 0
+      ? Math.round((activeUsers / previousPeriodActive) * 100)
+      : null;
+
+    const gradedOnTime = gradingStats.filter(s => s.assignment?.dueDate && s.gradedAt && (s.gradedAt.getTime() - new Date(s.assignment.dueDate).getTime()) <= 7 * 24 * 60 * 60 * 1000).length;
+    const gradingTimeliness = gradingStats.length > 0 ? Math.round((gradedOnTime / gradingStats.length) * 100) : null;
 
     // Process user growth data (group by day/week based on range)
     const userGrowth = processUserGrowthData(userGrowthData, range);
@@ -182,10 +223,10 @@ export async function GET(request) {
 
     // Performance metrics with real data from THIS SCHOOL only
     const performanceMetrics = {
-      dailyActiveUsers: Math.round(activeUsers * 0.85),
-      averageSessionDuration: 24, // This would need session tracking implementation
-      userRetentionRate: loginRate > 0 ? Math.min(95, loginRate + 10) : 0,
-      
+      dailyActiveUsers,
+      averageSessionDuration: null, // not tracked yet — no session start/end data exists to compute this honestly
+      userRetentionRate,
+
       // Academic performance metrics
       averageGrade: studentPerformanceData._avg.overallGPA 
         ? Math.round(studentPerformanceData._avg.overallGPA * 20) // Convert GPA to percentage
@@ -195,8 +236,8 @@ export async function GET(request) {
       
       // Teacher metrics
       activeTeachers: teacherActivityData,
-      gradingTimeliness: 85, // This would need implementation based on grading patterns
-      resourceUploads: assignmentStats._count.id || 0
+      gradingTimeliness,
+      resourceUploads: resourceCount
     };
 
     return NextResponse.json({

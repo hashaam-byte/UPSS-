@@ -5,6 +5,11 @@
 // page, and the pricing calculation route can never drift out of sync.
 import { prisma } from '@/lib/prisma';
 
+// Platform-wide settings (not tied to any one school) use this fixed
+// sentinel instead of a real school's UUID — see the schema comment on
+// SystemSetting for why (Postgres NULL-uniqueness gotcha).
+export const PLATFORM_SETTINGS_SCHOOL_ID = '00000000-0000-0000-0000-000000000000';
+
 export const PLATFORM_SETTING_DEFAULTS = {
   pricing_landing_monthly: '300',          // ₦/month shown as the headline price on the landing page
   pricing_individual_per_user: '250',      // ₦ per user, standard rate
@@ -26,7 +31,10 @@ const PRICING_KEYS = new Set([
 // key that hasn't been explicitly set yet.
 export async function getPlatformSettings() {
   const rows = await prisma.systemSetting.findMany({
-    where: { key: { in: Object.keys(PLATFORM_SETTING_DEFAULTS) } }
+    where: {
+      key: { in: Object.keys(PLATFORM_SETTING_DEFAULTS) },
+      schoolId: PLATFORM_SETTINGS_SCHOOL_ID,
+    }
   });
   const stored = Object.fromEntries(rows.map(r => [r.key, r.value]));
   return { ...PLATFORM_SETTING_DEFAULTS, ...stored };
@@ -46,10 +54,11 @@ export async function setPlatformSettings(updates, updatedByUserId) {
   const keys = Object.keys(updates).filter(k => k in PLATFORM_SETTING_DEFAULTS);
   await Promise.all(keys.map(key =>
     prisma.systemSetting.upsert({
-      where: { key },
+      where: { key_schoolId: { key, schoolId: PLATFORM_SETTINGS_SCHOOL_ID } },
       update: { value: String(updates[key]), updatedBy: updatedByUserId },
       create: {
         key,
+        schoolId: PLATFORM_SETTINGS_SCHOOL_ID,
         value: String(updates[key]),
         dataType: PRICING_KEYS.has(key) ? 'number' : 'string',
         category: PRICING_KEYS.has(key) ? 'pricing' : 'contact',

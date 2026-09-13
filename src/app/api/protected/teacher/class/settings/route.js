@@ -21,7 +21,8 @@ export async function GET(request) {
       where: {
         category: {
           in: ['class_management', 'grading', 'communication', 'notifications']
-        }
+        },
+        schoolId: user.schoolId,
       }
     });
 

@@ -156,7 +156,7 @@ const HeadAdminLayout = ({ children }) => {
             <div className="px-8">
               <div className="flex flex-col lg:flex-row justify-between items-center text-sm text-gray-600">
                 <div className="flex items-center gap-6 mb-4 lg:mb-0">
-                  <p className="font-medium">&copy; 2025 School Management System. All rights reserved.</p>
+                  <p className="font-medium">&copy; {new Date().getFullYear()} School Management System. All rights reserved.</p>
                   <div className="hidden lg:flex items-center gap-4 text-xs">
                     <span className="px-3 py-1 bg-gradient-to-r from-blue-50 to-purple-50 text-blue-700 rounded-full border border-blue-200/50 font-medium">
                       v1.0.0

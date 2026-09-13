@@ -2,6 +2,7 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
+import { PLATFORM_SETTINGS_SCHOOL_ID } from '@/lib/platform-settings';
 
 export async function GET(request) {
   try {
@@ -13,10 +14,13 @@ export async function GET(request) {
       );
     }
 
-    // Get system settings
+    // Get system settings — scoped to platform-wide rows only, since
+    // admin security/notification settings share some of these same
+    // category strings ('general' etc.) and would otherwise leak in here
     const settings = await prisma.systemSetting.findMany({
       where: {
-        category: { in: ['general', 'pricing', 'system'] }
+        category: { in: ['general', 'pricing', 'system'] },
+        schoolId: PLATFORM_SETTINGS_SCHOOL_ID,
       }
     });
 
@@ -102,13 +106,14 @@ export async function PUT(request) {
     await Promise.all(
       settingsToUpdate.map(setting =>
         prisma.systemSetting.upsert({
-          where: { key: setting.key },
+          where: { key_schoolId: { key: setting.key, schoolId: PLATFORM_SETTINGS_SCHOOL_ID } },
           update: {
             value: setting.value,
             updatedBy: user.id
           },
           create: {
             key: setting.key,
+            schoolId: PLATFORM_SETTINGS_SCHOOL_ID,
             value: setting.value,
             dataType: setting.dataType,
             category: setting.category,

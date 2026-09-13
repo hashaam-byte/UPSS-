@@ -2,6 +2,7 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
+import { PLATFORM_SETTINGS_SCHOOL_ID } from '@/lib/platform-settings';
 
 export async function PUT(request) {
   try {
@@ -26,13 +27,14 @@ export async function PUT(request) {
     await Promise.all(
       settingsToUpdate.map(setting =>
         prisma.systemSetting.upsert({
-          where: { key: setting.key },
+          where: { key_schoolId: { key: setting.key, schoolId: PLATFORM_SETTINGS_SCHOOL_ID } },
           update: {
             value: setting.value,
             updatedBy: user.id
           },
           create: {
             key: setting.key,
+            schoolId: PLATFORM_SETTINGS_SCHOOL_ID,
             value: setting.value,
             dataType: setting.dataType,
             category: setting.category,

@@ -12,9 +12,9 @@ const keys = [
 
 export async function GET() {
   try {
-    await requireAuth(['ADMIN']);
+    const user = await requireAuth(['ADMIN']);
     const settings = await prisma.systemSetting.findMany({
-      where: { key: { in: keys } }
+      where: { key: { in: keys }, schoolId: user.schoolId }
     });
     const result = {
       passwordMinLength: Number(settings.find(s => s.key === 'passwordMinLength')?.value ?? 8),
@@ -35,9 +35,9 @@ export async function PUT(request) {
     const data = await request.json();
     await Promise.all(keys.map(key =>
       prisma.systemSetting.upsert({
-        where: { key },
+        where: { key_schoolId: { key, schoolId: user.schoolId } },
         update: { value: String(data[key]) },
-        create: { key, value: String(data[key]), updatedBy: user.id }
+        create: { key, schoolId: user.schoolId, value: String(data[key]), category: 'security', updatedBy: user.id }
       })
     ));
     return NextResponse.json({ success: true });

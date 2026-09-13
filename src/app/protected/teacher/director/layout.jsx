@@ -444,7 +444,7 @@ export default function DirectorLayout({ children }) {
           <div className="px-8">
             <div className="flex flex-col lg:flex-row justify-between items-center text-sm text-gray-400">
               <div className="flex items-center gap-6 mb-4 lg:mb-0">
-                <p className="font-medium">&copy; 2025 U PLUS. All rights reserved.</p>
+                <p className="font-medium">&copy; {new Date().getFullYear()} U PLUS. All rights reserved.</p>
               </div>
               <div className="flex items-center gap-6">
                 <span className="flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-300 rounded-full border border-green-500/30">

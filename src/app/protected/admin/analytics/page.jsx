@@ -421,19 +421,19 @@ const AdminAnalyticsPage = () => {
               <div className="flex justify-between items-center">
                 <span className="text-gray-800">Daily active users:</span>
                 <span className="text-black font-medium">
-                  {analytics.performanceMetrics.dailyActiveUsers || 5}
+                  {analytics.performanceMetrics.dailyActiveUsers ?? 0}
                 </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-800">Session duration:</span>
-                <span className="text-black font-medium">
-                  {analytics.performanceMetrics.averageSessionDuration || 24} min
+                <span className="text-gray-400 text-sm italic">
+                  Not tracked yet
                 </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-800">Return rate:</span>
                 <span className="text-black font-medium">
-                  {analytics.performanceMetrics.userRetentionRate || 95.0}%
+                  {analytics.performanceMetrics.userRetentionRate !== null ? `${analytics.performanceMetrics.userRetentionRate}%` : 'Not enough data yet'}
                 </span>
               </div>
             </div>
@@ -451,19 +451,19 @@ const AdminAnalyticsPage = () => {
               <div className="flex justify-between items-center">
                 <span className="text-gray-800">Average grade:</span>
                 <span className="text-black font-medium">
-                  {analytics.performanceMetrics.averageGrade || 0}%
+                  {analytics.performanceMetrics.averageGrade ?? 0}%
                 </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-800">Assignment completion:</span>
                 <span className="text-black font-medium">
-                  {analytics.performanceMetrics.assignmentCompletionRate || 0.0}%
+                  {analytics.performanceMetrics.assignmentCompletionRate ?? 0}%
                 </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-800">Attendance rate:</span>
                 <span className="text-black font-medium">
-                  {analytics.performanceMetrics.attendanceRate || 0.0}%
+                  {analytics.performanceMetrics.attendanceRate ?? 0}%
                 </span>
               </div>
             </div>
@@ -481,19 +481,19 @@ const AdminAnalyticsPage = () => {
               <div className="flex justify-between items-center">
                 <span className="text-gray-800">Active teachers:</span>
                 <span className="text-black font-medium">
-                  {analytics.performanceMetrics.activeTeachers || 4}
+                  {analytics.performanceMetrics.activeTeachers ?? 0}
                 </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-800">Grading timeliness:</span>
                 <span className="text-black font-medium">
-                  {analytics.performanceMetrics.gradingTimeliness || 85.0}%
+                  {analytics.performanceMetrics.gradingTimeliness !== null ? `${analytics.performanceMetrics.gradingTimeliness}%` : 'No graded work yet'}
                 </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-800">Resource uploads:</span>
                 <span className="text-black font-medium">
-                  {analytics.performanceMetrics.resourceUploads || 0}
+                  {analytics.performanceMetrics.resourceUploads ?? 0}
                 </span>
               </div>
             </div>

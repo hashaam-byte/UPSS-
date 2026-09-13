@@ -1527,7 +1527,13 @@ model AuditLog {
 
 model SystemSetting {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  key         String   @unique @db.VarChar(100)
+  // Scopes a setting to one school. Platform-wide settings (used by
+  // headadmin — pricing, contact phone) use the fixed sentinel value
+  // below rather than NULL, since Postgres treats multiple NULLs as
+  // distinct under a unique constraint, which would silently defeat the
+  // uniqueness guarantee for platform-wide keys.
+  schoolId    String   @default("00000000-0000-0000-0000-000000000000") @map("school_id") @db.Uuid
+  key         String   @db.VarChar(100)
   value       String
   dataType    String   @default("string") @map("data_type") @db.VarChar(20)
   category    String   @default("general") @db.VarChar(50)
@@ -1536,6 +1542,7 @@ model SystemSetting {
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
+  @@unique([key, schoolId])
   @@index([category])
   @@map("system_settings")
 }
