@@ -726,15 +726,18 @@ const AdminSettingsPage = () => {
 
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-2">
-            Email Address *
+            Email Address
           </label>
           <input
             type="email"
             value={AdminProfile.email}
-            onChange={(e) => setAdminProfile(prev => ({ ...prev, email: e.target.value }))}
-            className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
-            required
+            disabled
+            readOnly
+            className="w-full px-3 py-2 bg-white/[0.02] border border-white/10 rounded-lg text-gray-400 cursor-not-allowed"
           />
+          <p className="text-xs text-gray-500 mt-1.5">
+            Your email is used to log in and can't be changed here. Contact your platform admin if you need it updated.
+          </p>
         </div>
 
         <div>

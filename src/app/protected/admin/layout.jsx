@@ -138,7 +138,7 @@ const AdminLayout = ({ children }) => {
   const handleNotificationClick = async (notification) => {
     try {
       // Mark as read
-      await fetch(`/api/protected/admin/notifications/${notification.id}/read`, {
+      await fetch(`/api/protected/admin/notifications/${notification.id}`, {
         method: 'PATCH'
       });
       

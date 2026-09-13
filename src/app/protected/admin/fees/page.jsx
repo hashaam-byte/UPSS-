@@ -49,7 +49,7 @@ export default function AdminFeesPage() {
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-medium transition-colors"
+          className="flex items-center gap-2 px-4 py-2.5 bg-[#0E9F6E] hover:bg-[#0c8a5f] text-white rounded-xl font-medium transition-colors"
         >
           <Plus className="w-4 h-4" />
           New Fee
@@ -62,7 +62,7 @@ export default function AdminFeesPage() {
             key={s}
             onClick={() => setStatusFilter(s)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium capitalize transition-colors ${
-              statusFilter === s ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              statusFilter === s ? 'bg-[#0E9F6E] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
             {s || 'All'}
@@ -258,7 +258,7 @@ function CreateFeeModal({ onClose, onCreated }) {
         <button
           onClick={handleSubmit}
           disabled={loading}
-          className="w-full mt-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
+          className="w-full mt-5 py-3 bg-[#0E9F6E] hover:bg-[#0c8a5f] text-white rounded-xl font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Create fee'}
         </button>
@@ -328,7 +328,7 @@ function ConfirmPaymentModal({ fee, onClose, onConfirmed }) {
         <button
           onClick={handleSubmit}
           disabled={loading}
-          className="w-full mt-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
+          className="w-full mt-5 py-3 bg-[#0E9F6E] hover:bg-[#0c8a5f] text-white rounded-xl font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (<><CheckCircle className="w-5 h-5" /> Confirm payment</>)}
         </button>

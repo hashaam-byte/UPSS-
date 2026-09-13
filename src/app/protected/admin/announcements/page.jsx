@@ -43,7 +43,7 @@ export default function AdminAnnouncementsPage() {
         </div>
         <button
           onClick={() => setShowComposer(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-medium transition-colors"
+          className="flex items-center gap-2 px-4 py-2.5 bg-[#0E9F6E] hover:bg-[#0c8a5f] text-white rounded-xl font-medium transition-colors"
         >
           <Plus className="w-4 h-4" />
           New Announcement
@@ -168,7 +168,7 @@ function ComposerModal({ onClose, onCreated }) {
                   key={opt.value}
                   onClick={() => toggleAudience(opt.value)}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    targetAudience.includes(opt.value) ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    targetAudience.includes(opt.value) ? 'bg-[#0E9F6E] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                 >
                   {opt.label}
@@ -192,7 +192,7 @@ function ComposerModal({ onClose, onCreated }) {
         <button
           onClick={handleSubmit}
           disabled={loading}
-          className="w-full mt-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
+          className="w-full mt-5 py-3 bg-[#0E9F6E] hover:bg-[#0c8a5f] text-white rounded-xl font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Post announcement'}
         </button>
